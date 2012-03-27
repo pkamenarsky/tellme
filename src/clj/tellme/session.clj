@@ -4,16 +4,18 @@
 
 ; Session ------------------------------------------------------------------
 
+(def sid-batch 10)
 (def sessions (ref {:count 0
                     :sids #{}}))
 
 (defn get-sid []
   (dosync
     (if (zero? (count (:sids @sessions)))
+
       ; generate more sids
       (let [c (:count @sessions)]
-        (alter sessions assoc :sids (set (range (inc c) (+ 10 c)))) 
-        (alter sessions update-in [:count] (partial + 10))
+        (alter sessions assoc :sids (set (range (inc c) (+ sid-batch c)))) 
+        (alter sessions update-in [:count] (partial + sid-batch))
         
         ; return first new sid
         c) 
