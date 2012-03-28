@@ -6,9 +6,6 @@
 
 ; Protocol -----------------------------------------------------------------
 ;;
-;; In oder to prevent accidental or malicious identitiy spoofing both
-;; clients need to send both their sid and the other clients's sid.
-;;
 ;; Server    -    Client
 ;;
 ;; Handshake ----------------------------------
@@ -134,6 +131,15 @@
     ; immediately send uuid to client
     (lamina/enqueue channel (str {:uuid uuid}))
 
+    ; when client closes connection
+    ;   * remove session
+    ;   * return sid to sid pool
+    ;   * TODO: if :state :active, send :close to other client & remove
+    ;     other session
+    (lamina/on-closed channel (fn []
+                                (swap! sessions dissoc uuid)
+                                (swap! sid-pool update-in [:sids] conj sid)))
+
     {:status 200
      :headers {"content-type" "text/plain"
                "transfer-encoding" "chunked"}
@@ -144,7 +150,7 @@
 (defn channel [request]
   {:status 200
    :headers {"content-type" "text/plain"}
-   :body (str :ok)})
+   :body (str (http/request-params request))})
 
 ; Routing ------------------------------------------------------------------
 
@@ -152,6 +158,6 @@
   (http/wrap-ring-handler
     (moustache/app
       [""] {:get "Hello."}
-      ["channel"] {:get "Channel."}
+      ["channel"] {:get channel}
       ["backchannel"] {:get backchannel})))
 
