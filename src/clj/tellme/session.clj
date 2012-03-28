@@ -139,6 +139,13 @@
                "transfer-encoding" "chunked"}
      :body channel}))
 
+; Channel ------------------------------------------------------------------
+
+(defn channel [request]
+  {:status 200
+   :headers {"content-type" "text/plain"}
+   :body (str :ok)})
+
 ; Routing ------------------------------------------------------------------
 
 (def handler
