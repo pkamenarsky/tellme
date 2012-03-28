@@ -2,6 +2,40 @@
   (:require [lamina.core :as lamina])
   (:gen-class))
 
+; Protocol -----------------------------------------------------------------
+;;
+;; In oder to prevent accidental or malicious identitiy spoofing both
+;; clients need to send both their sid and the other clients's sid.
+;;
+;; Server    -    Client
+;;
+;; Handshake --------------------------------
+;;
+;;        |<----| initial req       ; client1
+;; sid    |---->|                   ; client1
+;;        |<----| initial req       ; client2
+;; osid   |---->|                   ; client2
+;;
+;;        |<----| sid + osid        ; client1
+;;        |<----| osid + sid        ; client2
+;; 
+;; --- client1 / client2 now associated
+;;
+;; Messaging --------------------------------
+;;
+;;        |<----| sid + osid + msg  ; client1
+;; msg    |---->|                   ; client2
+;;
+;;        |<----| osid + sid + msg  ; client2
+;; msg    |---->|                   ; client1
+;;
+;; ...
+;;
+;;        |<----| close connection  ; client1/2
+;; close  |---->|                   ; client2/1
+;; 
+;; ------------------------------------------
+
 ; Session ------------------------------------------------------------------
 
 (def sid-batch 10)
