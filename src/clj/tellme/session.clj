@@ -154,9 +154,11 @@
 
 ; Channel ------------------------------------------------------------------
 
-(defn channel-dispatch [rchannel cmd]
-  (println cmd)
-  (lamina/enqueue-and-close rchannel (str {:ack :ok})))
+(def commands {:ident (fn [msg] (println "ident") "bala")})
+
+(defn channel-dispatch [rchannel message]
+  (let [command (get commands (:command message) (fn [_] {:error "Invalid command."}))]
+    (lamina/enqueue-and-close rchannel (str (command message)))))
 
 (defn channel [request]
   (let [params (utils/query-params request)
