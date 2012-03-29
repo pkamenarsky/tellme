@@ -1,6 +1,7 @@
 (ns tellme.session
   (:require [lamina.core :as lamina]
             [aleph.http :as http]
+            [aleph.http.utils :as utils]
             [net.cgrand.moustache :as moustache])
   (:gen-class))
 
@@ -87,6 +88,12 @@
         (first sids)
         (recur)))))
 
+(def uuid (atom 0))
+
+(defn get-uuid []
+  ;(.toString (java.util.UUID/randomUUID))
+  (str (swap! uuid inc)))
+
 (defn stream-numbers [ch]
   (future
     (lamina/on-closed ch #(println "Closed :(((")) 
@@ -118,7 +125,7 @@
 (defn backchannel [request]
   (let [sid (get-sid)
         channel (lamina/channel)
-        uuid (.toString (java.util.UUID/randomUUID))]
+        uuid (get-uuid)]
 
     ; we're using an atom here so we don't stress out the STM when
     ; there are many sessions (we'll only need to modify the atom
@@ -147,10 +154,23 @@
 
 ; Channel ------------------------------------------------------------------
 
+(defn channel-dispatch [rchannel cmd]
+  (println cmd)
+  (lamina/enqueue-and-close rchannel (str {:ack :ok})))
+
 (defn channel [request]
-  {:status 200
-   :headers {"content-type" "text/plain"}
-   :body (str (http/request-params request))})
+  (let [params (utils/query-params request)
+        command (:command params)
+        rchannel (lamina/channel)]
+
+    (try
+      (channel-dispatch rchannel (read-string (.readLine (:body request)))) 
+      (catch java.lang.Exception e
+        (lamina/enqueue-and-close rchannel (str {:error (.getMessage e)})))) 
+
+    {:status 200
+     :headers {"content-type" "text/plain"}
+     :body rchannel}))
 
 ; Routing ------------------------------------------------------------------
 
@@ -158,6 +178,6 @@
   (http/wrap-ring-handler
     (moustache/app
       [""] {:get "Hello."}
-      ["channel"] {:get channel}
+      ["channel"] {:post channel}
       ["backchannel"] {:get backchannel})))
 
