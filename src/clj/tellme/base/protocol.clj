@@ -28,45 +28,56 @@
   "name :: keyword
   condition :: sm -> boolean
   in :: sm -> newsm
-  in* :: () -> nil (for side effects)
+  in* :: sm -> nil (for side effects)
   out :: sm -> newsm
-  out* :: () -> nil (for side effects)"
+  out* :: sm -> nil (for side effects)"
   [name {:keys [condition in out] :as state}]
   (merge state {:name name}))
 
 (defn defsm [data & states]
   {:data data
+   :error {}
    :state nil
-   :states (zipmap (map :name states) states)})
+   :states (reduce (fn [a [name state]]
+                     (assoc a name (defstate name state)))
+                   {}
+                   (partition 2 states))})
 
-(defn goto [{:keys [data state states] :as sm} statename]
-  (let [{:keys [condition in in*] :as newstate} (states statename)
+(defn goto [{:keys [data state states] :as sm} to]
+  (let [tostate (states to)
+        {:keys [condition in in*] :as newstate} (or tostate (states :error)) 
         out (:out state)
         out* (:out* state)
-        outsm (if out (out sm) sm)]        ; better way?
+        outsm (if out (out sm) sm)
+        ssm (if tostate outsm (assoc outsm :error {:reason "Invalid state"
+                                                   :origin (:name state)}))]        ; better way?
 
-    (if (or (not condition) (condition outsm)) 
-      (do
-        (when out* (out*))
-        (when in* (in*))
-        (merge (if in (in outsm) outsm) {:state newstate})) 
-      sm)))
+      (if (and newstate (or (not condition) (condition outsm))) 
+        (do
+          (when out* (out* sm))
+          (when in* (in* ssm))
+          (merge (if in (in ssm) ssm) {:state newstate})) 
+        sm)))
 
-(defn data [sm]
-  (:data sm))
+(def data :data)
+(def state :state)
+(def error :error)
+(def error-reason (comp :reason :error))
+(def error-origin (comp :origin :error))
 
-(defn with-data [sm data]
-  (assoc sm :data data))
+(defmacro deftrans
+  "Facilitates definitions of state transformation functions, i.e.
+  :in and :out.
+  (deftrans :data [d] ...) expands to
+  (fn [sm] (assoc sm :data ((fn [d] ...) (:data sm))))"
+  [k & body]
+  `(fn [sm#] (assoc sm# ~k ((fn ~@body) (~k sm#)))))
 
-(defn update-data [sm f & args]
-  (apply update-in sm [:data] f args))
-
-(defn update-in-data [sm ks f & args]
-  (apply update-in sm (cons :data ks) f))
-
-(defn assoc-data [sm k v]
-  (assoc-in sm [:data k] v))
-
-(defn assoc-in-data [sm ks v]
-  (assoc-in sm (cons :data ks) v))
+(defmacro defcond
+  "Facilitates definitions of state conditional functions, i.e.
+  :condition.
+  (defcond :data [d] ...) expands to
+  (fn [sm] ((fn [d] ...) (:data sm)))"
+  [k & body]
+  `(fn [sm#] ((fn ~@body) (~k sm#))))
 

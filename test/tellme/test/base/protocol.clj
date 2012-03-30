@@ -8,22 +8,30 @@
   (let [s (atom 0)
         sm (defsm
              nil
-             (defstate :nop {})
-             (defstate :start {:in (fn [sm] (with-data sm 666))
-                               :out (fn [sm] (update-data sm dec))}) 
+             :nop {}
+             :start {:in (deftrans :data [_] 666)
+                     :out (deftrans :data [d] (dec d))} 
 
-             (defstate :inc {:condition (fn [sm] (= (data sm) 665))
-                             :in (fn [sm] (update-data sm inc))})
+             :inc {:condition (defcond :data [d] (= d 665))
+                   :in (deftrans :data [d] (inc d))}
 
-             (defstate :ainc {:in (fn [sm] (update-data sm inc))
-                              :in* #(swap! s inc)})
+             :ainc {:in (deftrans :data [d] (inc d))
+                    :in* (fn [sm] (swap! s inc))}
 
-             (defstate :never {:condition (fn [_] false)
-                               :in (fn [sm] (with-data sm -1))}))]
+             :never {:condition (fn [_] false)
+                     :in (deftrans :data [_] -1)}
+             
+             :error {:in* #(println (error-reason %))
+                     :in (fn [sm] (goto sm (error-origin sm)))})]
 
     (let [newsm (-> sm
                   (goto :start)
                   (goto :never))] 
+      (is (= (:data newsm) 666)))
+
+    (let [newsm (-> sm
+                  (goto :start)
+                  (goto :nosuchstate))] 
       (is (= (:data newsm) 666)))
 
     (let [newsm (-> sm
