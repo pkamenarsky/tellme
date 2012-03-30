@@ -1,46 +1,46 @@
 (ns tellme.test.base.protocol
-  (:require [tellme.base.protocol :as prot])
-  (:use [clojure.test]))
+  (:use clojure.test
+        tellme.base.protocol))
 
 ; FSM tests ----------------------------------------------------------------
 
 (deftest test-fsm
   (let [s (atom 0)
-        sm (prot/defsm
+        sm (defsm
              nil
-             (prot/defstate :nop {})
-             (prot/defstate :start {:in (fn [_] 666)
-                                    :out (fn [s] (dec s))}) 
+             (defstate :nop {})
+             (defstate :start {:in (fn [sm] (with-data sm 666))
+                               :out (fn [sm] (update-data sm dec))}) 
 
-             (prot/defstate :inc {:condition (fn [s] (= s 665))
-                                  :in (fn [s] (inc s))})
+             (defstate :inc {:condition (fn [sm] (= (data sm) 665))
+                             :in (fn [sm] (update-data sm inc))})
 
-             (prot/defstate :ainc {:in (fn [s] (inc s))
-                                   :in* #(swap! s inc)})
+             (defstate :ainc {:in (fn [sm] (update-data sm inc))
+                              :in* #(swap! s inc)})
 
-             (prot/defstate :never {:condition (fn [_] false)
-                                    :in (fn [_] -1)}))]
+             (defstate :never {:condition (fn [_] false)
+                               :in (fn [sm] (with-data sm -1))}))]
 
     (let [newsm (-> sm
-                  (prot/goto :start)
-                  (prot/goto :never))] 
+                  (goto :start)
+                  (goto :never))] 
       (is (= (:data newsm) 666)))
 
     (let [newsm (-> sm
-                  (prot/goto :start)
-                  (prot/goto :nop))] 
+                  (goto :start)
+                  (goto :nop))] 
       (is (= (:data newsm) 665)))
 
     (let [newsm (-> sm
-                  (prot/goto :start)
-                  (prot/goto :inc))] 
+                  (goto :start)
+                  (goto :inc))] 
       (is (= (:data newsm) 666)))
 
     (let [newsm (-> sm
-                  (prot/goto :start)
-                  (prot/goto :ainc)
-                  (prot/goto :ainc)
-                  (prot/goto :ainc))] 
+                  (goto :start)
+                  (goto :ainc)
+                  (goto :ainc)
+                  (goto :ainc))] 
       (is (= (:data newsm) 668))
       (is (= @s 3)))))
 

@@ -1,7 +1,7 @@
 (ns tellme.base.protocol)
 
-(def *to-str* pr-str)
-(def *from-str* pr-str)
+(def ^:dynamic *to-str* pr-str)
+(def ^:dynamic *from-str* pr-str)
 
 (defn with-ok [obj]
   (*to-str* (merge obj {:ack :ok})))
@@ -9,7 +9,7 @@
 (defn with-error [reason]
   (*to-str* ({:ack :error :reason (str reason)})))
 
-(defn parse-msg
+(defn parse
   ([msg ferr]
   (try
     (*from-str* msg)
@@ -19,14 +19,17 @@
         nil))))
   ([msg] (parse-msg msg nil)))
 
+(defn command [msg]
+  (:command msg))
+
 ; FSM ----------------------------------------------------------------------
 
 (defn defstate
   "name :: keyword
-  condition :: data -> boolean
-  in :: data -> newdata
+  condition :: sm -> boolean
+  in :: sm -> newsm
   in* :: () -> nil (for side effects)
-  out :: data -> newdata
+  out :: sm -> newsm
   out* :: () -> nil (for side effects)"
   [name {:keys [condition in out] :as state}]
   (merge state {:name name}))
@@ -40,18 +43,26 @@
   (let [{:keys [condition in in*] :as newstate} (states statename)
         out (:out state)
         out* (:out* state)
-        outdata (if out (out data) data)]        ; better way?
+        outsm (if out (out sm) sm)]        ; better way?
 
-    (if (or (not condition) (condition outdata)) 
+    (if (or (not condition) (condition outsm)) 
       (do
         (when out* (out*))
         (when in* (in*))
-        (merge sm {:data (if in (in outdata) outdata)
-                   :state newstate})) 
+        (merge (if in (in outsm) outsm) {:state newstate})) 
       sm)))
 
 (defn data [sm]
   (:data sm))
+
+(defn with-data [sm data]
+  (assoc sm :data data))
+
+(defn update-data [sm f & args]
+  (apply update-in sm [:data] f args))
+
+(defn update-in-data [sm ks f & args]
+  (apply update-in sm (cons :data ks) f))
 
 (defn assoc-data [sm k v]
   (assoc-in sm [:data k] v))
