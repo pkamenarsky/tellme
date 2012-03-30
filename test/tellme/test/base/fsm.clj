@@ -1,8 +1,7 @@
-(ns tellme.test.base.protocol
+(ns tellme.test.base.fsm
   (:use clojure.test
-        tellme.base.protocol))
+        tellme.base.fsm))
 
-; FSM tests ----------------------------------------------------------------
 
 (deftest test-fsm
   (let [s (atom 0)
