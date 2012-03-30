@@ -24,8 +24,10 @@
 (defn defstate
   "name :: keyword
   condition :: data -> boolean
-  in :: data -> newdata (+side effects)
-  out :: data -> newdata (+side effects)"
+  in :: data -> newdata
+  in* :: () -> nil (for side effects)
+  out :: data -> newdata
+  out* :: () -> nil (for side effects)"
   [name {:keys [condition in out] :as state}]
   (merge state {:name name}))
 
@@ -35,13 +37,17 @@
    :states (zipmap (map :name states) states)})
 
 (defn goto [{:keys [data state states] :as sm} statename]
-  (let [{:keys [condition in] :as newstate} (states statename)
+  (let [{:keys [condition in in*] :as newstate} (states statename)
         out (:out state)
+        out* (:out* state)
         outdata (if out (out data) data)]        ; better way?
-    (if (and (not= state newstate)
-             (or (not condition) (condition outdata))) 
-      (merge sm {:data (if in (in outdata) outdata)
-                 :state newstate})
+
+    (if (or (not condition) (condition outdata)) 
+      (do
+        (when out* (out*))
+        (when in* (in*))
+        (merge sm {:data (if in (in outdata) outdata)
+                   :state newstate})) 
       sm)))
 
 (defn data [sm]
