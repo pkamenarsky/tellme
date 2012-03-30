@@ -136,7 +136,8 @@
                                       :state :handshake}))
 
     ; immediately send uuid to client
-    (lamina/enqueue channel (str {:uuid uuid}))
+    (lamina/enqueue channel (str {:uuid uuid
+                                  :sid sid}))
 
     ; when client closes connection
     ;   * remove session
@@ -145,7 +146,8 @@
     ;     other session
     (lamina/on-closed channel (fn []
                                 (swap! sessions dissoc uuid)
-                                (swap! sid-pool update-in [:sids] conj sid)))
+                                (swap! sid-pool update-in [:sids] conj sid)
+                                (println "sid after: " (:sids @sid-pool))))
 
     {:status 200
      :headers {"content-type" "text/plain"
