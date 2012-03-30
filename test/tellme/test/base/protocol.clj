@@ -27,28 +27,30 @@
     (let [newsm (-> sm
                   (goto :start)
                   (goto :never))] 
-      (is (= (:data newsm) 666)))
+      (is (= (data newsm) 666)))
 
     (let [newsm (-> sm
                   (goto :start)
                   (goto :nosuchstate))] 
-      (is (= (:data newsm) 666)))
+      (is (= (data newsm) 666))
+      (is (= (error-reason newsm) "Invalid state"))
+      (is (= (error-origin newsm) :start)))
 
     (let [newsm (-> sm
                   (goto :start)
                   (goto :nop))] 
-      (is (= (:data newsm) 665)))
+      (is (= (data newsm) 665)))
 
     (let [newsm (-> sm
                   (goto :start)
                   (goto :inc))] 
-      (is (= (:data newsm) 666)))
+      (is (= (data newsm) 666)))
 
     (let [newsm (-> sm
                   (goto :start)
                   (goto :ainc)
                   (goto :ainc)
                   (goto :ainc))] 
-      (is (= (:data newsm) 668))
+      (is (= (data newsm) 668))
       (is (= @s 3)))))
 
