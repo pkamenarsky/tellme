@@ -123,21 +123,45 @@
 
 (def sessions (atom {}))
 
+(defn prgoto [pt state]
+  (swap! pt goto state))
+
 ; protocol state machine
 (def protocol
   (defsm
     ; data :: {:channel :uuid :sid :osid}
     nil
     
-    ; on start, immediately send uuid to client and goto :pre-ident
-    :start {:in* (fn [sm] 
-                   (let [data (data sm)]
-                     (lamina/enqueue (:channel data) (str {:uuid (:uuid data)
-                                                           :sid (:sid data)}))))
-            ;:in (fn [sm] (goto sm :pre-ident))
-            }
+    ; on start, immediately send uuid to client
+    :start {:in* (fn [{{:keys [uuid sid channel]} :data}] 
+                   (lamina/enqueue channel (str {:uuid uuid
+                                                 :sid sid})))}
 
-    :pre-ident {}
+    :dispatch {:in (fn [{{:keys [{cuuid :uuid action :action} uuid] :as cmd} :data
+                         :as sm}]
+                     (if (= uuid cuuid) 
+                       (goto sm action)
+                       sm))}
+
+    :ident {:in (fn [{{:keys [command osid sid]} :data :as sm}]
+                  (let [opt (@sessions osid)
+                        newsm (assoc-in sm [:data :osid] osid)]
+                    
+                    (if (= sid (:osid @opt))
+                      (do
+                        (prgoto opt :identified)
+                        (goto sm :identified)) 
+                      sm)))}
+
+    :identified {:in (deftrans :data [d] {assoc d :opt (@sessions (:osid d))})}
+
+
+    :message {:in* (fn [sm]
+                     (let [command (:command (data sm))
+                           osid (:osid (data sm))]
+                       
+                       (if osid
+                         (lamina/enqueue (@sessions osid)))))}
 
     ; * remove session
     ; * return sid to sid pool
@@ -149,9 +173,6 @@
                    (swap! sessions dissoc sid)
                    (swap! sid-pool update-in [:sids] conj sid)))} 
          ))
-
-(defn prgoto [pt state]
-  (swap! pt goto state))
 
 (defn backchannel [request]
   (let [sid (get-sid)
@@ -175,19 +196,18 @@
 
 ; Channel ------------------------------------------------------------------
 
-(def commands {:ident (fn [msg] (println "ident") "bala")})
-
-(defn channel-dispatch [rchannel message]
-  (let [command (get commands (:command message) (fn [_] {:error "Invalid command."}))]
-    (lamina/enqueue-and-close rchannel (str (command message)))))
-
 (defn channel [request]
-  (let [params (utils/query-params request)
-        command (:command params)
-        rchannel (lamina/channel)]
-
+  (let [rchannel (lamina/channel)]
     (try
-      (channel-dispatch rchannel (read-string (.readLine (:body request)))) 
+      (let [command (read-string (.readLine (:body request)))
+            sid (:sid command)
+            pt (@sessions sid)]
+
+        (when pt
+          (swap! pt #(goto (assoc-in % [:data :command] command) :dispatch)))
+
+        (lamina/enqueue-and-close rchannel (str {:ack :ok}))) 
+
       (catch java.lang.Exception e
         (lamina/enqueue-and-close rchannel (str {:error (.getMessage e)})))) 
 
