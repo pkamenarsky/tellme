@@ -1,4 +1,5 @@
 (ns tellme.session
+  (:use tellme.base.fsm)
   (:require [lamina.core :as lamina]
             [aleph.http :as http]
             [aleph.http.utils :as utils]
@@ -122,32 +123,50 @@
 
 (def sessions (atom {}))
 
+; protocol state machine
+(def protocol
+  (defsm
+    ; data :: {:channel :uuid :sid :osid}
+    nil
+    
+    ; on start, immediately send uuid to client and goto :pre-ident
+    :start {:in* (fn [sm] 
+                   (let [data (data sm)]
+                     (lamina/enqueue (:channel data) (str {:uuid (:uuid data)
+                                                           :sid (:sid data)}))))
+            ;:in (fn [sm] (goto sm :pre-ident))
+            }
+
+    :pre-ident {}
+
+    ; * remove session
+    ; * return sid to sid pool
+    ; * TODO: if :state :active, send :close to other client & remove
+    ;   other session
+    :end {:in* (fn [sm]
+                 (let [sid (:sid (data sm))
+                       uuid (:uuid (data sm))]
+                   (swap! sessions dissoc sid)
+                   (swap! sid-pool update-in [:sids] conj sid)))} 
+         ))
+
+(defn prgoto [pt state]
+  (swap! pt goto state))
+
 (defn backchannel [request]
   (let [sid (get-sid)
         channel (lamina/channel)
-        uuid (get-uuid)]
+        pt (atom (with-data protocol
+                            {:channel channel
+                             :uuid (get-uuid)
+                             :sid sid
+                             :osid nil}))]
 
-    ; we're using an atom here so we don't stress out the STM when
-    ; there are many sessions (we'll only need to modify the atom
-    ; instead of the whole sessions map)
-    (swap! sessions assoc uuid (atom {:channel channel
-                                      :sid sid
-                                      :osid nil
-                                      :state :handshake}))
-
-    ; immediately send uuid to client
-    (lamina/enqueue channel (str {:uuid uuid
-                                  :sid sid}))
-
-    ; when client closes connection
-    ;   * remove session
-    ;   * return sid to sid pool
-    ;   * TODO: if :state :active, send :close to other client & remove
-    ;     other session
-    (lamina/on-closed channel (fn []
-                                (swap! sessions dissoc uuid)
-                                (swap! sid-pool update-in [:sids] conj sid)
-                                (println "sid after: " (:sids @sid-pool))))
+    (swap! sessions assoc sid pt)
+    
+    ; start protocol fsm
+    (prgoto pt :start)
+    (lamina/on-closed channel (fn [] (prgoto pt :end)))
 
     {:status 200
      :headers {"content-type" "text/plain"

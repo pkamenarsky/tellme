@@ -43,6 +43,9 @@
 (def error-reason (comp :reason :error))
 (def error-origin (comp :origin :error))
 
+(defn with-data [sm data]
+  (assoc sm :data data))
+
 (defmacro deftrans
   "Facilitates definitions of state transformation functions, i.e.
   :in and :out.
