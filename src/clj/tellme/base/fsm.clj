@@ -85,7 +85,8 @@
                     `(cond ~@condspec
                            :else (let [~(:arg espec) ~data
                                        ~(:mspec espec) ~message] ~@(:body espec)))
-                    `(cond ~@condspec)))))})))
+                    `(cond ~@condspec
+                           :else (throw (Exception. (str "No message spec for " ~message))))))))})))
 
 (defn fsm
   "data :: object
