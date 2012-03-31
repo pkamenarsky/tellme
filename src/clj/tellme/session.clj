@@ -149,19 +149,18 @@
                     
                     (if (= sid (:osid @opt))
                       (do
-                        (prgoto opt :identified)
-                        (goto sm :identified)) 
+                        (prgoto opt :establish)
+                        (goto sm :establish)) 
                       sm)))}
 
-    :identified {:in (deftrans :data [d] {assoc d :opt (@sessions (:osid d))})}
+    :establish {:in (deftrans :data [d] {assoc d :opt (@sessions (:osid d))})
+                :in* (fn [{{channel :channel} :data}]
+                       (lamina/enqueue channel (str {:command :established})))}
 
-
-    :message {:in* (fn [sm]
-                     (let [command (:command (data sm))
-                           osid (:osid (data sm))]
-                       
-                       (if osid
-                         (lamina/enqueue (@sessions osid)))))}
+    :message {:in* (fn [{{opt :opt {message :message} :command} :data}]
+                       (if opt
+                         (lamina/enqueue (:channel (@opt :data)) (str {:command :message
+                                                                       :message message}))))}
 
     ; * remove session
     ; * return sid to sid pool
