@@ -30,6 +30,29 @@
   ([:out data] (println 6))
   ([[a b c] data] (println a b c)))
 
+(defn next-state [newstate newdata]
+  {::stateresult true
+   :transition true
+   :newstate newstate
+   :newdata newdata})
+
+(defn ignore-msg []
+  {::stateresult true
+   :transition false})
+
+(defn send-message [{:keys [state] :as sm} message]
+  ((:f state) sm message))
+
+(defn stateresult [sm {:keys [transition newstate newdata] :as res}]
+  (if (::stateresult res)
+    (if transition
+      (-> sm
+        (assoc :state (newstate (:states sm)))
+        (assoc :data newdata))
+      sm) 
+    ; if this is not a stateresult, throw exception
+    (throw (Exception. "No state result returned"))))
+
 (defmacro defstate
   "name :: keyword
   messagespecs :: [msg1 (sm -> sm) msg2 (sm -> sm)]"
@@ -50,20 +73,26 @@
       (throw (Exception. "Only a single non-keyword message spec allowed")))
 
     (let [espec (first nonkeyspecs)]
-      `(fn [sm# ~message] (let [~data (:data sm#)]
-                            (cond ~@condspec
-                                  :else (let [~(:arg espec) ~data
-                                              ~(:mspec espec) ~message] ~@(:body espec)))))) 
-    
-    ))
+      `{:name ~name
+        :f (fn [sm# ~message]
+             (stateresult sm#
+               (let [~data (:data sm#)]
+                 ~(if espec
+                    `(cond ~@condspec
+                           :else (let [~(:arg espec) ~data
+                                       ~(:mspec espec) ~message] ~@(:body espec)))
+                    `(cond ~@condspec)))))})))
 
 (defn defsm
   "data :: object
   states [:name (defstate ...) :name 2 (defstate ...)]"
   [data states]
   {:data data
-   :state nil
+   :state (first state)
    :states (zipmap (map :name states) states)})
+
+(defn with-data [sm data]
+  (assoc sm :data data))
 
 (defn goto [{:keys [state states] :as sm} to]
   (let [tostate (states to)
@@ -76,24 +105,4 @@
       (if (and newstate (or (not condition) (condition outsm))) 
         (merge (if in (in ssm) ssm) {:state newstate}) 
         sm)))
-
-(def data :data)
-(def state :state)
-(def error :error)
-(def error-reason (comp :reason :error))
-(def error-origin (comp :origin :error))
-
-(defn with-data [sm data]
-  (assoc sm :data data))
-
-(defn next-state [newstate newdata]
-  {:transition true
-   :newstate newstate
-   :newdata newdata})
-
-(defn ignore-msg []
-  {:transition false})
-
-(defn send-message [{:keys [state] :as sm} message]
-  ((:in state) (assoc sm :message message)))
 
