@@ -1,30 +1,69 @@
 (ns tellme.base.fsm)
 
-; Purely functional FSM ----------------------------------------------------
+; FSM ----------------------------------------------------------------------
 
-(defn defstate
+(comment
+  (defsm
+    ([:start :in data]
+     (println data)
+     (next-state :ident))
+
+    ; adds :error to every state
+    ([_ :error data]
+     (next-state :ident data))
+
+    ([_ :error data control]
+     ((:next-state control) :ident data))
+
+    ; gets called everytime a message is sent to :start
+    ([:start _ data])
+
+    ; there can be a random amount of symbol or :match matches,
+    ; but only one concrete form
+    ; NOTE: :match unsupported for now
+    ([:start [:match {:command ident}] data])))
+
+; --------------------------------------------------------------------------
+
+(comment defstate :bla
+  ([:in data] (println 5))
+  ([:out data] (println 6))
+  ([[a b c] data] (println a b c)))
+
+(defmacro defstate
   "name :: keyword
-  condition :: sm -> boolean
-  in :: sm -> newsm
-  out :: sm -> newsm"
-  [name {:keys [condition in out] :as state}]
-  (merge state {:name name}))
+  messagespecs :: [msg1 (sm -> sm) msg2 (sm -> sm)]"
+  [name & mspecs]
+  (let [pspecs (map (fn [[[mspec arg] & body]] {:mspec mspec
+                                                :arg arg
+                                                :body body}) mspecs)
+        keyspecs (filter (comp keyword? :mspec) pspecs)
+        nonkeyspecs (filter (comp not keyword? :mspec) pspecs)
 
-(defn defsm [data & states]
+        message (gensym)
+        data (gensym)
+        
+        condspec (mapcat (fn [{:keys [mspec arg body]}]
+                           `((= ~mspec ~message) (let [~arg ~data] ~@body))) keyspecs)]
+
+    (when (> (count nonkeyspecs) 1)
+      (throw (Exception. "Only a single non-keyword message spec allowed")))
+
+    (let [espec (first nonkeyspecs)]
+      `(fn [sm# ~message] (let [~data (:data sm#)]
+                            (cond ~@condspec
+                                  :else (let [~(:arg espec) ~data
+                                              ~(:mspec espec) ~message] ~@(:body espec)))))) 
+    
+    ))
+
+(defn defsm
+  "data :: object
+  states [:name (defstate ...) :name 2 (defstate ...)]"
+  [data states]
   {:data data
-   :error {}
    :state nil
-   :states (reduce (fn [a [name state]]
-                     (assoc a name (defstate name state)))
-                   {}
-                   (partition 2 states))})
-
-(defn defsm2 [data defstate & states]
-  {:data data
-   :error {}
-   :state defstate
-   ; FIXME: better way?
-   :states (zipmap (map :name (conj states defstate)) (conj states defstate))})
+   :states (zipmap (map :name states) states)})
 
 (defn goto [{:keys [state states] :as sm} to]
   (let [tostate (states to)
@@ -47,38 +86,6 @@
 (defn with-data [sm data]
   (assoc sm :data data))
 
-(defmacro deftrans
-  "Facilitates definitions of state transformation functions, i.e.
-  :in and :out.
-  (deftrans :data [d] ...) expands to
-  (fn [sm] (assoc sm :data ((fn [d] ...) (:data sm))))"
-  [k & body]
-  `(fn [sm#] (assoc sm# ~k ((fn ~@body) (~k sm#)))))
-
-(defmacro defcond
-  "Facilitates definitions of state conditional functions, i.e.
-  :condition.
-  (defcond :data [d] ...) expands to
-  (fn [sm] ((fn [d] ...) (:data sm)))"
-  [k & body]
-  `(fn [sm#] ((fn ~@body) (~k sm#))))
-
-; Event FSM ----------------------------------------------------------------
-
-(defmacro defstateev [[name message data] & body]
-  `{:name ~name
-    :in (fn [sm#]
-          (let [{:keys [~'transition ~'newstate ~'newdata]} 
-                (let [~data (:data sm#)
-                      ~message (:message sm#)]
-                  ~@body)] 
-
-            (if ~'transition
-              (-> sm#
-                (assoc :state ((:states sm#) ~'newstate))
-                (assoc :data ~'newdata))
-              sm#)))})
-
 (defn next-state [newstate newdata]
   {:transition true
    :newstate newstate
@@ -89,21 +96,4 @@
 
 (defn send-message [{:keys [state] :as sm} message]
   ((:in state) (assoc sm :message message)))
-
-(comment
-  (defsm
-    ([:start :in data]
-     (println data)
-     (next-state :ident))
-
-    ; adds :error to every state
-    ([_ :error data])
-
-    ; gets called everytime a message is sent to :start
-    ([:start _ data])
-
-    ; there can be a random amount of symbol or :match matches,
-    ; but only one concrete form
-    ; NOTE: :match unsupported for now
-    ([:start [:match {:command ident}] data])))
 
