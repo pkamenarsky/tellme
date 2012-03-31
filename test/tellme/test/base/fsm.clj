@@ -4,19 +4,18 @@
 
 
 (deftest test-events
-  (let [sm (defsm2
+  (let [sm (defsm
              666
-             (defstate :start
-                       ([:print _]
-                        (println "asdasdasd")
-                        (ignore-msg))
-                       ([:ident data]
-                        (next-state :ident (inc data))))
 
-             (defstate :ident
-                       ([_ data]
-                        (println data)
-                        (next-state :start (inc data)))))]
+             ([:start :print _]
+              (println "asdasdasd")
+              (ignore-msg))
+             ([:start :ident data]
+              (next-state :ident (inc data)))
+
+             ([:ident _ data]
+              (println data)
+              (next-state :start (inc data))))]
 
     (let [newsm (-> sm
                   (send-message :print)

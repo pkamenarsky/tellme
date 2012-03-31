@@ -1,6 +1,6 @@
 (ns tellme.base.fsm)
 
-; FSM ----------------------------------------------------------------------
+; Purely functional FSM ----------------------------------------------------
 
 (comment
   (defsm
@@ -54,8 +54,12 @@
     (throw (Exception. "No state result returned"))))
 
 (defmacro defstate
-  "name :: keyword
-  messagespecs :: [msg1 (sm -> sm) msg2 (sm -> sm)]"
+  ":: name -> messagespec1 -> messagespecs2 ... -> state
+  name :: keyword
+  messagespec :: ([message data] body)
+  message :: keyword | form
+  
+  Note: only one non-keyword message form allowed."
   [name & mspecs]
   (let [pspecs (map (fn [[[mspec arg] & body]] {:mspec mspec
                                                 :arg arg
@@ -83,16 +87,40 @@
                                        ~(:mspec espec) ~message] ~@(:body espec)))
                     `(cond ~@condspec)))))})))
 
-(defn defsm
+(defn fsm
   "data :: object
-  states [:name (defstate ...) :name 2 (defstate ...)]"
-  [data states]
+  states (defstate ...) (defstate ...)"
+  [data & states]
   {:data data
-   :state (first state)
+   :state (first states)
    :states (zipmap (map :name states) states)})
+
+(defmacro defsm
+  ":: data -> statespec1 -> statespec2 -> ... -> sm
+  data :: object
+  statespec :: ([state message data] body)
+  state :: keyword
+  message :: keyword | form
+
+  Note: only one non-keyword message form allowed."
+  [data & statespecs]
+  (let [sspecs (map (fn [[[state mspec arg] & body]] {:state state
+                                                      :mspec mspec
+                                                      :arg arg
+                                                      :body body}) statespecs)
+        states (group-by :state sspecs)]
+
+    `(fsm ~data
+          ~@(map (fn [[sname mspecs]]
+                   `(defstate ~sname
+                              ~@(map (fn [{:keys [mspec arg body]}] 
+                                       `([~mspec ~arg] ~@body)) mspecs))) states))))
 
 (defn with-data [sm data]
   (assoc sm :data data))
+
+(defn with-state [sm state]
+  (assoc-in sm [:states (:name state)] state))
 
 (defn goto [{:keys [state states] :as sm} to]
   (let [tostate (states to)
