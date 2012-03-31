@@ -3,6 +3,7 @@
             :plugins [[lein-cljsbuild "0.1.2"] 
                       [org.clojars.ibdknox/lein-nailgun "1.1.1"]]
             :dependencies [[aleph "0.2.1-alpha1"]
+                           [org.clojure/core.match "0.2.0-alpha9"]
                            [net.cgrand/moustache "1.1.0"]
                            [org.clojure/clojure "1.3.0"]
                            [org.clojure/tools.trace "0.7.1"]

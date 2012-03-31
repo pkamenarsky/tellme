@@ -6,9 +6,7 @@
   "name :: keyword
   condition :: sm -> boolean
   in :: sm -> newsm
-  in* :: sm -> nil (for side effects)
-  out :: sm -> newsm
-  out* :: sm -> nil (for side effects)"
+  out :: sm -> newsm"
   [name {:keys [condition in out] :as state}]
   (merge state {:name name}))
 
@@ -21,20 +19,23 @@
                    {}
                    (partition 2 states))})
 
-(defn goto [{:keys [data state states] :as sm} to]
+(defn defsm2 [data defstate & states]
+  {:data data
+   :error {}
+   :state defstate
+   ; FIXME: better way?
+   :states (zipmap (map :name (conj states defstate)) (conj states defstate))})
+
+(defn goto [{:keys [state states] :as sm} to]
   (let [tostate (states to)
-        {:keys [condition in in*] :as newstate} (or tostate (states :error)) 
+        {:keys [condition in] :as newstate} (or tostate (states :error)) 
         out (:out state)
-        out* (:out* state)
         outsm (if out (out sm) sm)
         ssm (if tostate outsm (assoc outsm :error {:reason "Invalid state"
-                                                   :origin (:name state)}))]        ; better way?
+                                                   :origin (:name state)}))]
 
       (if (and newstate (or (not condition) (condition outsm))) 
-        (do
-          (when out* (out* sm))
-          (when in* (in* ssm))
-          (merge (if in (in ssm) ssm) {:state newstate})) 
+        (merge (if in (in ssm) ssm) {:state newstate}) 
         sm)))
 
 (def data :data)
@@ -61,4 +62,48 @@
   (fn [sm] ((fn [d] ...) (:data sm)))"
   [k & body]
   `(fn [sm#] ((fn ~@body) (~k sm#))))
+
+; Event FSM ----------------------------------------------------------------
+
+(defmacro defstateev [[name message data] & body]
+  `{:name ~name
+    :in (fn [sm#]
+          (let [{:keys [~'transition ~'newstate ~'newdata]} 
+                (let [~data (:data sm#)
+                      ~message (:message sm#)]
+                  ~@body)] 
+
+            (if ~'transition
+              (-> sm#
+                (assoc :state ((:states sm#) ~'newstate))
+                (assoc :data ~'newdata))
+              sm#)))})
+
+(defn next-state [newstate newdata]
+  {:transition true
+   :newstate newstate
+   :newdata newdata})
+
+(defn ignore-msg []
+  {:transition false})
+
+(defn send-message [{:keys [state] :as sm} message]
+  ((:in state) (assoc sm :message message)))
+
+(comment
+  (defsm
+    ([:start :in data]
+     (println data)
+     (next-state :ident))
+
+    ; adds :error to every state
+    ([_ :error data])
+
+    ; gets called everytime a message is sent to :start
+    ([:start _ data])
+
+    ; there can be a random amount of symbol or :match matches,
+    ; but only one concrete form
+    ; NOTE: :match unsupported for now
+    ([:start [:match {:command ident}] data])))
 
