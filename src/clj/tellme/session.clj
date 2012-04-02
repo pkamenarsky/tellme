@@ -144,7 +144,6 @@
      (next-state :dispatch))
     
     ([:end :in {:keys [sid uuid opt channel] :as olddata}]
-     (println "END" sid)
      (swap! sessions dissoc sid)
      (swap! sid-pool update-in [:sids] conj sid)
 
@@ -155,7 +154,6 @@
      (when opt
        ; remove reference to ourselves first
        (swap! opt assoc :data (dissoc (data @opt) :opt))
-       (println "opt" )
        (prgoto opt :end))
      (next-state :end (dissoc olddata :opt)))))
 
@@ -172,9 +170,7 @@
     
     ; start protocol fsm
     (prgoto pt :start)
-    (lamina/on-closed channel #(do
-                                 (println "closed")
-                                 (prgoto pt :end)))
+    (lamina/on-closed channel #(prgoto pt :end))
 
     {:status 200
      :headers {"content-type" "text/plain"
@@ -192,7 +188,6 @@
 
         (if (and pt (= (:uuid (data @pt)) uuid))
           (do
-            (println "msg: " line)
             (swap! pt send-message command)
             (lamina/enqueue-and-close rchannel (str {:ack :ok})))
           (lamina/enqueue-and-close rchannel (str {:ack :error :reason :session})))) 
