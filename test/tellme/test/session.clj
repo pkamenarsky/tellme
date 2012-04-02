@@ -26,11 +26,25 @@
 
 (defn hget
   "Returns a channel containing the response."
-  [addr]
+  ([addr] 
   (:body
     (http/sync-http-request
       {:method :get
-       :url (str "http://localhost:8082/" addr)})))
+       :url (str "http://localhost:8082/" addr)}))) 
+  ([addr body] 
+   (:body
+     (http/http-request
+       {:method :get
+        :url (str "http://localhost:8082/" addr)
+        :body body}))))
+
+(defn hget-string
+  "Just reads a line from addr and closes the channel."
+  [addr body]
+  (let [ch (hget addr body)
+        ack (read-string (first (lamina/lazy-channel-seq (c2s ch))))]
+    (lamina/close ch)
+    ack))
 
 (deftest test-sids
   (let [ch (hget "backchannel")
@@ -47,4 +61,16 @@
       (is (not= (:uuid ack) (:uuid ack2)) "Differing uuids on subsequent requests.")
       (is (= (:sid ack) (:sid ack2)) "Matching sids after closing first backchannel.")
       (lamina/close ch2))))
+
+(deftest test-session
+  (let [ch (hget "backchannel")
+        sidack (read-string (first (lamina/lazy-channel-seq (c2s ch))))
+        
+        ack1 (hget-string "channel" (str {:command :nop
+                                          :uuid (:uuid sidack)
+                                          :sid (:sid sidack)}))]
+
+    (is (= ack1 {:ack :ok}))
+
+    (lamina/close ch)))
 

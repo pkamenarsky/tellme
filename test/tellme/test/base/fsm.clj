@@ -14,6 +14,19 @@
 
              ([:ident _ data]
               (next-state :start (inc data))))
+
+        errsm (defsm
+                nil
+
+                ([:start :message _]
+                 (ignore-msg))
+
+                ([:error :in d]
+                 (next-state :error 1000)) 
+                ([:error msg d]
+                 (is (= (:last-state msg) :start))
+                 (is (= (:message msg) :nosuchmessage))
+                 (next-state :error (inc d))))
         
         netsm (defsm
                 nil
@@ -25,6 +38,16 @@
                 
                 ([:nop :in _]
                  (ignore-msg)))]
+
+    (is (thrown? Exception
+                 (let [newsm (-> sm
+                               (goto :nosuchstate))]))) 
+
+    (let [newsm (-> errsm
+                  (goto :start)
+                  (send-message :nosuchmessage))]
+      (is (= (state newsm) :error))
+      (is (= (data newsm) 1001)))
 
     (let [newsm (-> sm
                   (goto :start)

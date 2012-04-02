@@ -42,21 +42,10 @@
 
 ; Utils --------------------------------------------------------------------
 
-(defn wrap-with-try [h]
-  (fn [response request]
-    (try
-      (h response request)
-
-      (catch java.lang.Exception e
-        (lamina/enqueue response
-                        {:status 200
-                         :headers {"content-type" "text/html"}
-                         :body (str "<h1 style='font-family: Helvetica; font-size: 48pt; font-weight: bold; color: #333333'>Error.</h1>")})
-
-        (let [sw (java.io.StringWriter.)]
-          (.printStackTrace e (java.io.PrintWriter. sw)) 
-          (println (.toString sw)))))))
-
+(defn pexception [e]
+  (let [sw (java.io.StringWriter.)]
+    (.printStackTrace e (java.io.PrintWriter. sw)) 
+    (println (.toString sw))))
 
 ; Session ------------------------------------------------------------------
 
@@ -95,30 +84,6 @@
   ;(.toString (java.util.UUID/randomUUID))
   (str (swap! uuid inc)))
 
-(defn stream-numbers [ch]
-  (future
-    (lamina/on-closed ch #(println "Closed :(((")) 
-    (loop [i 1]
-      (when (not (lamina/closed? ch))
-        (lamina/enqueue ch (str i "\n"))
-        (println i)
-        (Thread/sleep 500)
-        (when (< i 50)
-          (recur (inc i))))) 
-    (lamina/close ch)))
-
-(defn chnl [response request]
-  (let [sid (get-sid)
-        ch (lamina/channel)]
-    (lamina/enqueue response
-                    {:status 200
-                     :headers {"content-type" "text/plain"
-                               "transfer-encoding" "chunked"}
-                     ;:body (str "<h1 style='font-family: Helvetica; font-size: 48pt; font-weight: bold; color: #333333'>Welcome. Welcome to City " (get-sid) ".</h1>")
-                     :body ch
-                     })
-    (println (stream-numbers ch))))
-
 ; Backchannel --------------------------------------------------------------
 
 (def sessions (atom {}))
@@ -126,26 +91,12 @@
 (defn prgoto [pt state]
   (swap! pt goto state))
 
-; protocol state machine
-(def protocol
-  (defsm
-    ; data :: {:channel :uuid :sid :osid}
-    nil
-
-    (comment [:start :in {:keys [uuid sid channel]}]
-             (lamina/enqueue channel (str {:uuid uuid :sid sid}))
-             (ignore-msg))
-    
-    ; on start, immediately send uuid to client
-    :start {:in* (fn [{{:keys [uuid sid channel]} :data}] 
-                   (lamina/enqueue channel (str {:uuid uuid
-                                                 :sid sid})))}
-
+(comment
     :dispatch {:in (fn [{{:keys [{cuuid :uuid action :action} uuid] :as cmd} :data
                          :as sm}]
                      (if (= uuid cuuid) 
                        (goto sm action)
-                       sm))}
+                       sm))} 
 
     :ident {:in (fn [{{:keys [command osid sid]} :data :as sm}]
                   (let [opt (@sessions osid)
@@ -155,27 +106,36 @@
                       (do
                         (prgoto opt :establish)
                         (goto sm :establish)) 
-                      sm)))}
+                      sm)))} 
 
     :establish {:in (deftrans :data [d] {assoc d :opt (@sessions (:osid d))})
                 :in* (fn [{{channel :channel} :data}]
-                       (lamina/enqueue channel (str {:command :established})))}
+                       (lamina/enqueue channel (str {:command :established})))} 
 
     :message {:in* (fn [{{opt :opt {message :message} :command} :data}]
                        (if opt
                          (lamina/enqueue (:channel (@opt :data)) (str {:command :message
-                                                                       :message message}))))}
+                                                                       :message message}))))})
 
+; protocol state machine
+(def protocol
+  (defsm
+    ; data :: {:channel :uuid :sid :osid}
+    nil
+
+    ; on start, immediately send uuid to client
+    ([:start :in {:keys [uuid sid channel]}]
+     (lamina/enqueue channel (str {:uuid uuid :sid sid}))
+     (ignore-msg))
+    
     ; * remove session
     ; * return sid to sid pool
     ; * TODO: if :state :active, send :close to other client & remove
     ;   other session
-    :end {:in* (fn [sm]
-                 (let [sid (:sid (data sm))
-                       uuid (:uuid (data sm))]
-                   (swap! sessions dissoc sid)
-                   (swap! sid-pool update-in [:sids] conj sid)))} 
-         ))
+    ([:end :in {:keys [sid uuid]}]
+     (swap! sessions dissoc sid)
+     (swap! sid-pool update-in [:sids] conj sid)
+     (ignore-msg))))
 
 (defn backchannel [request]
   (let [sid (get-sid)
@@ -202,16 +162,18 @@
 (defn channel [request]
   (let [rchannel (lamina/channel)]
     (try
-      (let [command (read-string (.readLine (:body request)))
-            sid (:sid command)
+      (let [line (read-string (.readLine (:body request)))
+            {:keys [uuid sid] :as command} line
             pt (@sessions sid)]
 
-        (when pt
-          (swap! pt #(goto (assoc-in % [:data :command] command) :dispatch)))
-
-        (lamina/enqueue-and-close rchannel (str {:ack :ok}))) 
+        (if (and pt (= (:uuid (data @pt)) uuid))
+          (do
+            (swap! pt send-message command) 
+            (lamina/enqueue-and-close rchannel (str {:ack :ok})))
+          (lamina/enqueue-and-close rchannel (str {:error :session})))) 
 
       (catch java.lang.Exception e
+        (pexception e)
         (lamina/enqueue-and-close rchannel (str {:error (.getMessage e)})))) 
 
     {:status 200
@@ -224,6 +186,11 @@
   (http/wrap-ring-handler
     (moustache/app
       [""] {:get "Hello."}
-      ["channel"] {:post channel}
+      ["channel"] {:get channel}
       ["backchannel"] {:get backchannel})))
+
+(comment defn request-handler [ch request]
+         (condp = (:uri request)
+           "/proxy" (twitter-proxy-handler ch request)
+           "/broadcast" (twitter-broadcast-handler ch request)))
 

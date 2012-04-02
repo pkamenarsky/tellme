@@ -28,11 +28,15 @@
   ([:out data] (println "out" data))
   ([[a b c] data] (println a b c)))
 
-(defn next-state [newstate newdata]
+(defn next-state
+  ([newstate newdata message]
   {::stateresult true
    :transition true
    :newstate newstate
-   :newdata newdata})
+   :newdata newdata
+   :message message})
+  ([newstate newdata]
+   (next-state newstate newdata nil)))
 
 (defn ignore-msg []
   {::stateresult true
@@ -43,12 +47,14 @@
     (throw (Exception. "Trying to send message to nil state"))
     ((:f state) sm message)))
 
-(defn stateresult [sm {:keys [transition newstate newdata] :as res}]
+(defn stateresult [sm {:keys [transition newstate newdata message] :as res}]
   (if (::stateresult res)
     (if transition
-      (-> sm
-        (assoc :state (newstate (:states sm)))
-        (assoc :data newdata))
+      (let [newsm (assoc sm :data newdata)
+            newsm2 (if (not= (:name (:state sm)) newstate)
+                     (goto newsm newstate)
+                     newsm)]
+        (if message (send-message newsm2 message) newsm2)) 
       sm) 
     ; if this is not a stateresult, throw exception
     (throw (Exception. "No state result returned"))))
@@ -83,13 +89,17 @@
                (let [~data (:data sm#)]
                  ~(if espec
                     `(cond ~@condspec
-                           :else (let [~(:arg espec) ~data
-                                       ~(:mspec espec) ~message] ~@(:body espec)))
+                           ; don't send :in or :out messages to "catch all" clauses
+                           :else (if (or (= ~message :in) (= ~message :out)) 
+                                   (ignore-msg) 
+                                   (let [~(:arg espec) ~data
+                                         ~(:mspec espec) ~message] ~@(:body espec))))
                     `(cond ~@condspec
                            ; don't throw exception if :in or :out not present
                            :else (if (or (= ~message :in) (= ~message :out))
                                    (ignore-msg)
-                                   (throw (Exception. (str "No message spec for " ~message)))))))))})))
+                                   (next-state :error ~data {:last-state ~name
+                                                             :message ~message})))))))})))
 
 (defn fsm
   "data :: object
@@ -114,6 +124,11 @@
                                                       :body body}) statespecs)
         states (group-by :state sspecs)]
 
+    ; ensure :error state always has a catch-all form
+    ; (or risk stack overflows if careless)
+    (if (and (:error states) (every? (comp keyword? :mspec) (:error states)))
+      (throw (Exception. ":error state must always have a catch-all form")))
+
     `(fsm ~data
           ~@(map (fn [[sname mspecs]]
                    `(defstate ~sname
@@ -121,7 +136,7 @@
                                        `([~mspec ~arg] ~@body)) mspecs))) states))))
 
 (def data :data)
-(def state (comp :name state))
+(def state (comp :name :state))
 
 (defn with-data [sm data]
   (assoc sm :data data))
@@ -134,7 +149,10 @@
   current state and an :in message to the new one. Current
   state can be nil."
   [{:keys [state states] :as sm} to]
-  (-> (if state (send-message sm :out) sm)
-    (assoc :state (states to))
-    (send-message :in)))
+  (let [newstate (states to)]
+    (when (nil? newstate)
+      (throw (Exception. (str "Trying to switch to undefined state " to))))
+    (-> (if state (send-message sm :out) sm)
+      (assoc :state newstate)
+      (send-message :in))))
 
