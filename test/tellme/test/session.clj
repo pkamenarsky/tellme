@@ -33,7 +33,7 @@
        :url (str "http://localhost:8082/" addr)}))) 
   ([addr body] 
    (:body
-     (http/http-request
+     (http/sync-http-request
        {:method :get
         :url (str "http://localhost:8082/" addr)
         :body body}))))
@@ -62,15 +62,70 @@
       (is (= (:sid ack) (:sid ack2)) "Matching sids after closing first backchannel.")
       (lamina/close ch2))))
 
-(deftest test-session
-  (let [ch (hget "backchannel")
-        sidack (read-string (first (lamina/lazy-channel-seq (c2s ch))))
-        
-        ack1 (hget-string "channel" (str {:command :nop
-                                          :uuid (:uuid sidack)
-                                          :sid (:sid sidack)}))]
+(defn get-next [ch]
+  (read-string (lamina/wait-for-message ch)))
 
-    (is (= ack1 {:ack :ok}))
+(deftest test-session
+  (let [ch (c2s (hget "backchannel"))
+        ch2 (c2s (hget "backchannel"))
+        sidack (get-next ch)
+        sidack2 (get-next ch2)]
+
+    ; check input and session validation
+    (comment
+    (is (= (hget-string "channel" "")
+           {:ack :error :reason :invalid})) 
+
+    (is (= (hget-string "channel" "{:uuid ")
+           {:ack :error :reason :invalid}))) 
+
+    (is (= (hget-string "channel" (str {:command :nop
+                                         :uuid (:uuid sidack)
+                                         :sid nil}))
+           {:ack :error :reason :session}))
+
+    (is (= (hget-string "channel" (str {:command :nop
+                                         :uuid nil
+                                         :sid (:sid sidack)}))
+           {:ack :error :reason :session}))
+
+    (is (= (hget-string "channel" (str {:command :nop
+                                         :uuid (:uuid sidack)
+                                         :sid (:sid sidack)}))
+           {:ack :ok}))
+
+    (is (= (get-next ch) {:ack :error :reason :noauth}))
+
+    ; auth
+    (hget-string "channel" (str {:command :nop
+                                 :uuid (:uuid sidack)
+                                 :sid (:sid sidack)}))
+    (is (= (get-next ch) {:ack :error :reason :noauth}))
+
+    ; fail auth
+    (hget-string "channel" (str {:command :auth
+                                 :uuid (:uuid sidack)
+                                 :sid (:sid sidack)
+                                 :osid nil}))
+
+    (hget-string "channel" (str {:command :auth
+                                 :uuid (:uuid sidack)
+                                 :sid (:sid sidack)
+                                 :osid -1}))
+
+    ; now auth for real
+    (hget-string "channel" (str {:command :auth
+                                 :uuid (:uuid sidack)
+                                 :sid (:sid sidack)
+                                 :osid (:sid sidack2)}))
+
+    (hget-string "channel" (str {:command :auth
+                                 :uuid (:uuid sidack2)
+                                 :sid (:sid sidack2)
+                                 :osid (:sid sidack)}))
+
+    (is (= (get-next ch) {:ack :ok :message :begin}))
+    (is (= (get-next ch2) {:ack :ok :message :begin}))
 
     (lamina/close ch)))
 

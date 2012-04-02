@@ -36,7 +36,9 @@
    :newdata newdata
    :message message})
   ([newstate newdata]
-   (next-state newstate newdata nil)))
+   (next-state newstate newdata nil))
+ ([newstate]
+   (assoc (next-state newstate nil nil) :nodata true)))
 
 (defn ignore-msg []
   {::stateresult true
@@ -47,10 +49,22 @@
     (throw (Exception. "Trying to send message to nil state"))
     ((:f state) sm message)))
 
-(defn stateresult [sm {:keys [transition newstate newdata message] :as res}]
+(defn goto
+  "Goes to a new state, sending an :out message to the
+  current state and an :in message to the new one. Current
+  state can be nil."
+  [{:keys [state states] :as sm} to]
+  (let [newstate (states to)]
+    (when (nil? newstate)
+      (throw (Exception. (str "Trying to switch to undefined state " to))))
+    (-> (if state (send-message sm :out) sm)
+      (assoc :state newstate)
+      (send-message :in))))
+
+(defn stateresult [sm {:keys [nodata transition newstate newdata message] :as res}]
   (if (::stateresult res)
     (if transition
-      (let [newsm (assoc sm :data newdata)
+      (let [newsm (if nodata sm (assoc sm :data newdata)) 
             newsm2 (if (not= (:name (:state sm)) newstate)
                      (goto newsm newstate)
                      newsm)]
@@ -143,16 +157,4 @@
 
 (defn with-state [sm state]
   (assoc-in sm [:states (:name state)] state))
-
-(defn goto
-  "Goes to a new state, sending an :out message to the
-  current state and an :in message to the new one. Current
-  state can be nil."
-  [{:keys [state states] :as sm} to]
-  (let [newstate (states to)]
-    (when (nil? newstate)
-      (throw (Exception. (str "Trying to switch to undefined state " to))))
-    (-> (if state (send-message sm :out) sm)
-      (assoc :state newstate)
-      (send-message :in))))
 

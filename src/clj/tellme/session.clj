@@ -126,6 +126,27 @@
     ; on start, immediately send uuid to client
     ([:start :in {:keys [uuid sid channel]}]
      (lamina/enqueue channel (str {:uuid uuid :sid sid}))
+     (next-state :auth))
+
+    ([:auth {:keys [command osid]} {:keys [uuid sid channel] :as olddata}]
+     (if (= command :auth)
+       (let [opt (@sessions osid)]
+         ; we allow sid == osid here just for forever alone
+         (if (= sid (:osid (data @opt)))
+           (do
+             (prgoto opt :auth-ok)
+             (next-state :auth-ok (assoc olddata :opt opt)))
+           (next-state :auth (assoc olddata :osid osid))))
+       (do
+         (lamina/enqueue channel (str {:ack :error :reason :noauth}))
+         (ignore-msg))))
+
+    ([:auth-ok :in {channel :channel}]
+     (lamina/enqueue channel (str {:ack :ok :message :begin}))
+     (next-state :dispatch))
+
+    ([:dispatch msg {:keys [uuid sid channel]}]
+     (println msg)
      (ignore-msg))
     
     ; * remove session
@@ -150,7 +171,7 @@
     
     ; start protocol fsm
     (prgoto pt :start)
-    (lamina/on-closed channel (fn [] (prgoto pt :end)))
+    (lamina/on-closed channel #(prgoto pt :end))
 
     {:status 200
      :headers {"content-type" "text/plain"
@@ -168,13 +189,13 @@
 
         (if (and pt (= (:uuid (data @pt)) uuid))
           (do
-            (swap! pt send-message command) 
+            (swap! pt send-message command)
             (lamina/enqueue-and-close rchannel (str {:ack :ok})))
-          (lamina/enqueue-and-close rchannel (str {:error :session})))) 
+          (lamina/enqueue-and-close rchannel (str {:ack :error :reason :session})))) 
 
       (catch java.lang.Exception e
         (pexception e)
-        (lamina/enqueue-and-close rchannel (str {:error (.getMessage e)})))) 
+        (lamina/enqueue-and-close rchannel (str {:ack :error :reason :invalid})))) 
 
     {:status 200
      :headers {"content-type" "text/plain"}
