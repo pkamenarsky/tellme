@@ -139,17 +139,25 @@
 
     ([:message {message :message} {:keys [channel opt]}]
      (lamina/enqueue (:channel (data @opt)) (str {:command :message
-                                           :message message}))
-     (lamina/enqueue channel (str {:ack :ok})))
+                                                  :message message}))
+     (lamina/enqueue channel (str {:ack :ok}))
+     (next-state :dispatch))
     
-    ; * remove session
-    ; * return sid to sid pool
-    ; * TODO: if :state :active, send :close to other client & remove
-    ;   other session
-    ([:end :in {:keys [sid uuid]}]
+    ([:end :in {:keys [sid uuid opt channel] :as olddata}]
+     (println "END" sid)
      (swap! sessions dissoc sid)
      (swap! sid-pool update-in [:sids] conj sid)
-     (ignore-msg))))
+
+     ; if backchannel is already closed this is a no op
+     (lamina/enqueue-and-close channel (str {:command :end}))
+
+     ; if connected to other client, disconnect him too
+     (when opt
+       ; remove reference to ourselves first
+       (swap! opt assoc :data (dissoc (data @opt) :opt))
+       (println "opt" )
+       (prgoto opt :end))
+     (next-state :end (dissoc olddata :opt)))))
 
 (defn backchannel [request]
   (let [sid (get-sid)
@@ -164,7 +172,9 @@
     
     ; start protocol fsm
     (prgoto pt :start)
-    (lamina/on-closed channel #(prgoto pt :end))
+    (lamina/on-closed channel #(do
+                                 (println "closed")
+                                 (prgoto pt :end)))
 
     {:status 200
      :headers {"content-type" "text/plain"

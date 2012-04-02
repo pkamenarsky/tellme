@@ -66,8 +66,10 @@
   (read-string (lamina/wait-for-message ch 200)))
 
 (deftest test-session
-  (let [ch (c2s (hget "backchannel"))
-        ch2 (c2s (hget "backchannel"))
+  (let [och (hget "backchannel")
+        och2 (hget "backchannel")
+        ch (c2s och)
+        ch2 (c2s och2)
         sidack (get-next ch)
         sidack2 (get-next ch2)]
 
@@ -159,5 +161,15 @@
                           :message "Hi back!"}))
     (is (= (get-next ch2) {:ack :ok}))
 
-    (lamina/close ch)))
+    ; close connection
+    (lamina/close och)
+    (is (= (get-next ch2) {:command :end}))
+
+    ; send message to closed connection
+    (hget-string "channel" (str {:command :message
+                                 :message "Hi back!"
+                                 :uuid (:uuid sidack2)
+                                 :sid (:sid sidack2)}))
+
+    (is (lamina/closed? ch2))))
 
