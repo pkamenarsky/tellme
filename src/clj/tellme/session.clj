@@ -106,7 +106,7 @@
      (if (= command :auth)
        (let [opt (@sessions osid)]
          ; we allow sid == osid here just for forever alone
-         (if (= sid (:osid (data @opt)))
+         (if (and opt (= sid (:osid (data @opt)))) 
            (do
              (prgoto opt :auth-ok)
              (next-state :auth-ok (assoc olddata :opt opt)))
@@ -119,8 +119,10 @@
      (lamina/enqueue channel (str {:ack :ok :message :begin}))
      (next-state :dispatch))
 
-    ([:dispatch {command :command :as msg} {:keys [uuid sid channel]}]
-     (next-state command))
+    ([:dispatch {command :command :as msg} data]
+     (cond
+       (= command :message) (next-state :message data msg)
+       :else (next-state :error data {:message msg})))
 
     ([:error msg {:keys [channel]}]
      (lamina/enqueue channel (str {:ack :error
@@ -170,7 +172,7 @@
 
         (if (and pt (= (:uuid (data @pt)) uuid))
           (do
-            (println "before")
+            (println "before: " line ", state: " (state @pt))
             (swap! pt send-message command)
             (println "after")
             (lamina/enqueue-and-close rchannel (str {:ack :ok})))
