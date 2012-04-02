@@ -12,6 +12,11 @@
              ([:start :ident data]
               (next-state :ident (inc data)))
 
+             ([:loop :in data]
+              (next-state :loop (inc data)))
+             ([:loop :loop _]
+              (next-state :loop))
+
              ([:ident _ data]
               (next-state :start (inc data))))
 
@@ -21,11 +26,12 @@
                 ([:start :message _]
                  (ignore-msg))
 
+                ([:gotoerror :in _]
+                 (next-state :nosuchstate)) 
+
                 ([:error :in d]
                  (next-state :error 1000)) 
                 ([:error msg d]
-                 (is (= (:last-state msg) :start))
-                 (is (= (:message msg) :nosuchmessage))
                  (next-state :error (inc d))))
         
         netsm (defsm
@@ -44,10 +50,22 @@
                                (goto :nosuchstate))]))) 
 
     (let [newsm (-> errsm
+                  (goto :gotoerror))]
+      (is (= (state newsm) :error))
+      (is (= (data newsm) 1001)))
+
+    (let [newsm (-> errsm
                   (goto :start)
                   (send-message :nosuchmessage))]
       (is (= (state newsm) :error))
       (is (= (data newsm) 1001)))
+
+    (let [newsm (-> sm
+                  (goto :loop)
+                  (send-message :loop)
+                  (send-message :loop))]
+      (is (= (data newsm) 667) "Verifying that :in / :out are not called when
+                               recurring to the same state"))
 
     (let [newsm (-> sm
                   (goto :start)

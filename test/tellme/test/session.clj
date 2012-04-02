@@ -63,7 +63,7 @@
       (lamina/close ch2))))
 
 (defn get-next [ch]
-  (read-string (lamina/wait-for-message ch)))
+  (read-string (lamina/wait-for-message ch 200)))
 
 (deftest test-session
   (let [ch (c2s (hget "backchannel"))
@@ -126,6 +126,19 @@
 
     (is (= (get-next ch) {:ack :ok :message :begin}))
     (is (= (get-next ch2) {:ack :ok :message :begin}))
+
+    ; issue an invalid command
+    (hget-string "channel" (str {:command :auth
+                                 :uuid (:uuid sidack)
+                                 :sid (:sid sidack)
+                                 :osid (:sid sidack2)}))
+
+    (is (= (get-next ch) {:ack :error
+                          :reason :invalid
+                          :message {:command :auth
+                                    :uuid (:uuid sidack)
+                                    :sid (:sid sidack)
+                                    :osid (:sid sidack2)}}))
 
     (lamina/close ch)))
 

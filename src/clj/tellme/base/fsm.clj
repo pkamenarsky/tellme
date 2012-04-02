@@ -55,20 +55,24 @@
   state can be nil."
   [{:keys [state states] :as sm} to]
   (let [newstate (states to)]
-    (when (nil? newstate)
-      (throw (Exception. (str "Trying to switch to undefined state " to))))
-    (-> (if state (send-message sm :out) sm)
-      (assoc :state newstate)
-      (send-message :in))))
+    (if (nil? newstate)
+      (if (:error states)
+        (send-message (goto sm :error) {:last-state (:name state)
+                                        :reason :invalid-state})
+        (throw (Exception. (str "Trying to switch to undefined state " to))))
+
+      ; if we're going to the same state don't send :out / :in messages
+      (if (= to (:name state))
+        sm
+        (-> (if state (send-message sm :out) sm)
+          (assoc :state newstate)
+          (send-message :in))))))
 
 (defn stateresult [sm {:keys [nodata transition newstate newdata message] :as res}]
   (if (::stateresult res)
     (if transition
-      (let [newsm (if nodata sm (assoc sm :data newdata)) 
-            newsm2 (if (not= (:name (:state sm)) newstate)
-                     (goto newsm newstate)
-                     newsm)]
-        (if message (send-message newsm2 message) newsm2)) 
+      (let [newsm (goto (if nodata sm (assoc sm :data newdata)) newstate)]
+        (if message (send-message newsm message) newsm)) 
       sm) 
     ; if this is not a stateresult, throw exception
     (throw (Exception. "No state result returned"))))

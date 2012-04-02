@@ -91,32 +91,6 @@
 (defn prgoto [pt state]
   (swap! pt goto state))
 
-(comment
-    :dispatch {:in (fn [{{:keys [{cuuid :uuid action :action} uuid] :as cmd} :data
-                         :as sm}]
-                     (if (= uuid cuuid) 
-                       (goto sm action)
-                       sm))} 
-
-    :ident {:in (fn [{{:keys [command osid sid]} :data :as sm}]
-                  (let [opt (@sessions osid)
-                        newsm (assoc-in sm [:data :osid] osid)]
-                    
-                    (if (= sid (:osid @opt))
-                      (do
-                        (prgoto opt :establish)
-                        (goto sm :establish)) 
-                      sm)))} 
-
-    :establish {:in (deftrans :data [d] {assoc d :opt (@sessions (:osid d))})
-                :in* (fn [{{channel :channel} :data}]
-                       (lamina/enqueue channel (str {:command :established})))} 
-
-    :message {:in* (fn [{{opt :opt {message :message} :command} :data}]
-                       (if opt
-                         (lamina/enqueue (:channel (@opt :data)) (str {:command :message
-                                                                       :message message}))))})
-
 ; protocol state machine
 (def protocol
   (defsm
@@ -145,9 +119,16 @@
      (lamina/enqueue channel (str {:ack :ok :message :begin}))
      (next-state :dispatch))
 
-    ([:dispatch msg {:keys [uuid sid channel]}]
-     (println msg)
-     (ignore-msg))
+    ([:dispatch {command :command :as msg} {:keys [uuid sid channel]}]
+     (next-state command))
+
+    ([:error msg {:keys [channel]}]
+     (lamina/enqueue channel (str {:ack :error
+                                   :reason :invalid
+                                   :message (:message msg)}))
+     (if (= (:last-state msg) :dispatch)
+       (next-state :dispatch)
+       (next-state :end)))
     
     ; * remove session
     ; * return sid to sid pool
@@ -189,7 +170,9 @@
 
         (if (and pt (= (:uuid (data @pt)) uuid))
           (do
+            (println "before")
             (swap! pt send-message command)
+            (println "after")
             (lamina/enqueue-and-close rchannel (str {:ack :ok})))
           (lamina/enqueue-and-close rchannel (str {:ack :error :reason :session})))) 
 
