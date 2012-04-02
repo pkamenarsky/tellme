@@ -15,9 +15,30 @@
 
              ([:ident _ data]
               (println data)
-              (next-state :start (inc data))))]
+              (next-state :start (inc data))))
+        
+        netsm (defsm
+                nil
+                
+                ([:start :in d]
+                 (next-state :start 666))
+                ([:start :out d]
+                 (next-state :start 667))
+                
+                ([:nop :in _]
+                 (ignore-msg)))]
 
     (let [newsm (-> sm
+                  (goto :start)
                   (send-message :print)
                   (send-message :ident)
-                  (send-message :whatever))])))
+                  (send-message :whatever))])
+    
+    (let [newsm (-> netsm
+                  (goto :start))]
+      (is (data newsm) 666))
+
+    (let [newsm (-> netsm
+                  (goto :start)
+                  (goto :nop))]
+      (is (= (data newsm) 667) "Testing :out message"))))

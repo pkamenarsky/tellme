@@ -131,6 +131,10 @@
   (defsm
     ; data :: {:channel :uuid :sid :osid}
     nil
+
+    (comment [:start :in {:keys [uuid sid channel]}]
+             (lamina/enqueue channel (str {:uuid uuid :sid sid}))
+             (ignore-msg))
     
     ; on start, immediately send uuid to client
     :start {:in* (fn [{{:keys [uuid sid channel]} :data}] 

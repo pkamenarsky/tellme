@@ -9,11 +9,9 @@
      (next-state :ident))
 
     ; adds :error to every state
+    ; NOTE: unsupported for noew
     ([_ :error data]
      (next-state :ident data))
-
-    ([_ :error data control]
-     ((:next-state control) :ident data))
 
     ; gets called everytime a message is sent to :start
     ([:start _ data])
@@ -25,9 +23,9 @@
 
 ; --------------------------------------------------------------------------
 
-(comment defstate :bla
-  ([:in data] (println 5))
-  ([:out data] (println 6))
+(comment defstate :somestate
+  ([:in data] (println "in" data))
+  ([:out data] (println "out" data))
   ([[a b c] data] (println a b c)))
 
 (defn next-state [newstate newdata]
@@ -41,7 +39,9 @@
    :transition false})
 
 (defn send-message [{:keys [state] :as sm} message]
-  ((:f state) sm message))
+  (if (nil? state)
+    (throw (Exception. "Trying to send message to nil state"))
+    ((:f state) sm message)))
 
 (defn stateresult [sm {:keys [transition newstate newdata] :as res}]
   (if (::stateresult res)
@@ -86,14 +86,17 @@
                            :else (let [~(:arg espec) ~data
                                        ~(:mspec espec) ~message] ~@(:body espec)))
                     `(cond ~@condspec
-                           :else (throw (Exception. (str "No message spec for " ~message))))))))})))
+                           ; don't throw exception if :in or :out not present
+                           :else (if (or (= ~message :in) (= ~message :out))
+                                   (ignore-msg)
+                                   (throw (Exception. (str "No message spec for " ~message)))))))))})))
 
 (defn fsm
   "data :: object
   states (defstate ...) (defstate ...)"
   [data & states]
   {:data data
-   :state (first states)
+   :state nil
    :states (zipmap (map :name states) states)})
 
 (defmacro defsm
@@ -123,15 +126,12 @@
 (defn with-state [sm state]
   (assoc-in sm [:states (:name state)] state))
 
-(defn goto [{:keys [state states] :as sm} to]
-  (let [tostate (states to)
-        {:keys [condition in] :as newstate} (or tostate (states :error)) 
-        out (:out state)
-        outsm (if out (out sm) sm)
-        ssm (if tostate outsm (assoc outsm :error {:reason "Invalid state"
-                                                   :origin (:name state)}))]
-
-      (if (and newstate (or (not condition) (condition outsm))) 
-        (merge (if in (in ssm) ssm) {:state newstate}) 
-        sm)))
+(defn goto
+  "Goes to a new state, sending an :out message to the
+  current state and an :in message to the new one. Current
+  state can be nil."
+  [{:keys [state states] :as sm} to]
+  (-> (if state (send-message sm :out) sm)
+    (assoc :state (states to))
+    (send-message :in)))
 
