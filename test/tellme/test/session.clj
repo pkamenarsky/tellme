@@ -140,5 +140,24 @@
                                     :sid (:sid sidack)
                                     :osid (:sid sidack2)}}))
 
+    ; message
+    (hget-string "channel" (str {:command :message
+                                 :message "Hiii."
+                                 :uuid (:uuid sidack)
+                                 :sid (:sid sidack)}))
+
+    (is (= (get-next ch2) {:command :message
+                           :message "Hiii."}))
+    (is (= (get-next ch) {:ack :ok}))
+
+    (hget-string "channel" (str {:command :message
+                                 :message "Hi back!"
+                                 :uuid (:uuid sidack2)
+                                 :sid (:sid sidack2)}))
+
+    (is (= (get-next ch) {:command :message
+                          :message "Hi back!"}))
+    (is (= (get-next ch2) {:ack :ok}))
+
     (lamina/close ch)))
 

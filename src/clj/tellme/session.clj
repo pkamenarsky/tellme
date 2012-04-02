@@ -105,32 +105,42 @@
     ([:auth {:keys [command osid]} {:keys [uuid sid channel] :as olddata}]
      (if (= command :auth)
        (let [opt (@sessions osid)]
-         ; we allow sid == osid here just for forever alone
+
+         ; we allow sid == osid here just for forever alone guys
          (if (and opt (= sid (:osid (data @opt)))) 
            (do
              (prgoto opt :auth-ok)
-             (next-state :auth-ok (assoc olddata :opt opt)))
+             (next-state :auth-ok (assoc olddata :osid osid)))
            (next-state :auth (assoc olddata :osid osid))))
        (do
          (lamina/enqueue channel (str {:ack :error :reason :noauth}))
          (ignore-msg))))
 
-    ([:auth-ok :in {channel :channel}]
+    ([:auth-ok :in {:keys [channel osid] :as data}]
      (lamina/enqueue channel (str {:ack :ok :message :begin}))
-     (next-state :dispatch))
+     ; cache fsm of other client for convenience
+     (next-state :dispatch (assoc data :opt (@sessions osid))))
 
     ([:dispatch {command :command :as msg} data]
-     (cond
-       (= command :message) (next-state :message data msg)
-       :else (next-state :error data {:message msg})))
+     ; filter out allowed commands, else goto :error
+     (if (some (partial = command) [:message :end]) 
+       (next-state command data msg) 
+       (next-state :error data {:message msg
+                                :last-state :dispatch})))
 
     ([:error msg {:keys [channel]}]
      (lamina/enqueue channel (str {:ack :error
                                    :reason :invalid
                                    :message (:message msg)}))
+     ; if this didn't come frome dispatch, goto :end
      (if (= (:last-state msg) :dispatch)
        (next-state :dispatch)
        (next-state :end)))
+
+    ([:message {message :message} {:keys [channel opt]}]
+     (lamina/enqueue (:channel (data @opt)) (str {:command :message
+                                           :message message}))
+     (lamina/enqueue channel (str {:ack :ok})))
     
     ; * remove session
     ; * return sid to sid pool
@@ -172,9 +182,8 @@
 
         (if (and pt (= (:uuid (data @pt)) uuid))
           (do
-            (println "before: " line ", state: " (state @pt))
+            (println "msg: " line)
             (swap! pt send-message command)
-            (println "after")
             (lamina/enqueue-and-close rchannel (str {:ack :ok})))
           (lamina/enqueue-and-close rchannel (str {:ack :error :reason :session})))) 
 
