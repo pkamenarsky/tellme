@@ -8,13 +8,11 @@
              666
 
              ([:start :print _]
-              (println "asdasdasd")
               (ignore-msg))
              ([:start :ident data]
               (next-state :ident (inc data)))
 
              ([:ident _ data]
-              (println data)
               (next-state :start (inc data))))
         
         netsm (defsm
@@ -30,13 +28,20 @@
 
     (let [newsm (-> sm
                   (goto :start)
+                  (send-message :ident))]
+      (is (= (data newsm) 667) "Testing message action")
+      (is (= (state newsm) :ident) "Testing message action"))
+
+    (let [newsm (-> sm
+                  (goto :start)
                   (send-message :print)
                   (send-message :ident)
-                  (send-message :whatever))])
+                  (send-message :whatever))]
+      (is (= (data newsm) 668) "Testing that every message sent increases data"))
     
     (let [newsm (-> netsm
                   (goto :start))]
-      (is (data newsm) 666))
+      (is (data newsm) 666) "Testing :in message")
 
     (let [newsm (-> netsm
                   (goto :start)

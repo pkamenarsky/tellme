@@ -9,7 +9,7 @@
      (next-state :ident))
 
     ; adds :error to every state
-    ; NOTE: unsupported for noew
+    ; NOTE: unsupported for now
     ([_ :error data]
      (next-state :ident data))
 
@@ -74,7 +74,7 @@
                            `((= ~mspec ~message) (let [~arg ~data] ~@body))) keyspecs)]
 
     (when (> (count nonkeyspecs) 1)
-      (throw (Exception. "Only a single non-keyword message spec allowed")))
+      (throw (Exception. "Only one non-keyword message spec allowed")))
 
     (let [espec (first nonkeyspecs)]
       `{:name ~name
@@ -119,6 +119,9 @@
                    `(defstate ~sname
                               ~@(map (fn [{:keys [mspec arg body]}] 
                                        `([~mspec ~arg] ~@body)) mspecs))) states))))
+
+(def data :data)
+(def state (comp :name state))
 
 (defn with-data [sm data]
   (assoc sm :data data))
