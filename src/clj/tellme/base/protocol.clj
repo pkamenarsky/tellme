@@ -1,7 +1,7 @@
 (ns tellme.base.protocol)
 
 (def ^:dynamic *to-str* pr-str)
-(def ^:dynamic *from-str* pr-str)
+(def ^:dynamic *from-str* read-string)
 
 (defn with-ok [obj]
   (*to-str* (merge obj {:ack :ok})))
