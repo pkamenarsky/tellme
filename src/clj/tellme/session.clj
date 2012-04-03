@@ -1,5 +1,6 @@
 (ns tellme.session
-  (:use tellme.base.fsm)
+  (:use tellme.base.fsm
+        tellme.base.fsm-macros)
   (:require [lamina.core :as lamina]
             [aleph.http :as http]
             [aleph.http.utils :as utils]

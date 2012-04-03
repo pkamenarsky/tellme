@@ -23,5 +23,5 @@
                                              :output-to "resources/public/cljs/bootstrap.js"
                                              :optimizations :simple
                                              :pretty-print true}}]}
-            :main hs.backend.views.view)
+            :main tellme.core)
 

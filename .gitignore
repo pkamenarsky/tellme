@@ -1,8 +1,12 @@
+.DS_Store
+.lein*
 /pom.xml
 *jar
 /lib
 /classes
 /native
+/build
+/resources/public
 /.lein-failures
 /.lein-plugins
 /checkouts

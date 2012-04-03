@@ -1,6 +1,7 @@
 (ns tellme.test.base.fsm
   (:use clojure.test
-        tellme.base.fsm))
+        tellme.base.fsm
+        tellme.base.fsm-macros))
 
 
 (deftest test-events
