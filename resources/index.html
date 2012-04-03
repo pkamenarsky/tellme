@@ -19,6 +19,16 @@
 
 		body {
 			background-color: #eeeeee;
+			width: 100%;
+			height: 100%;
+			margin: 0px;
+			overflow: hidden;
+		}
+
+		.container {
+			position: absolute;
+			width: 100%;
+			height: 100%;
 		}
 
 		.sid {
@@ -57,8 +67,14 @@
 		
 	</style>
 
-	<h1 class="sid">4278</h1>
-	<h2 class="siddesc">give this number to your partner</h2>
-	<input type="text" id="osid" class="osid" maxlength="4" autofocus></input>
-	<h2 class="osiddesc">enter your partner's number here</h2>
+	<div class="container" id="auth" style="top: 0%">
+		<h1 class="sid">4278</h1>
+		<h2 class="siddesc">give this number to your partner</h2>
+		<input type="text" id="osid" class="osid" maxlength="4" autofocus></input>
+		<h2 class="osiddesc">enter your partner's number here</h2>
+	</div>
+
+	<div class="container" id="comm" style="top: 100%">
+		<h1 class="sid">Hello.</h1>
+	</div>
 </html>
