@@ -72,18 +72,43 @@
         shadowbox (dom/createElement "div")
         comm (dom/getElement "comm")
         resizehandler (fn [event]
-                        (let [value (if (> (.-length (.-value inputbox)) 0) (.-value inputbox) ".")]
-                                           (dom/setTextContent shadowbox value) 
-                          (.preventDefault event)
+                        (let [caret (.-selectionStart inputbox)
+                              value (if (> (.-length (.-value inputbox)) 0) (.-value inputbox) ".")
+                              fcaret (if (or
+                                           (>= caret (.-length value))
+                                           (>= (.-length value) (.-oldTextLength inputbox))) 
+                                       (inc caret)
+                                       (dec caret))]
+                          (dom/setTextContent shadowbox value) 
+
+                          (set! (.-oldTextLength inputbox) (.-length value))
+
                           (set! (.-height (.-style inputcontainer)) (str (.-offsetHeight shadowbox) "px"))
-                          ;(set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))
+                          (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))
+                          
+                          ; UNGODLY HACK BEWARE BEWARE BEWARE
+                          ;(dom/removeNode inputbox)
+                          ;(dom/appendChild inputcontainer inputbox)
+
+                          (set! (.-visibility (.-style inputbox)) "hidden")
+                          (set! (.-display (.-style inputbox)) "hidden")
+                          (set! (.-iii inputbox) (.-offsetHeight inputbox))
+                          (set! (.-display (.-style inputbox)) "block")
+                          (set! (.-visibility (.-style inputbox)) "visible")
+
+                          (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))
+                          ;(.setSelectionRange inputbox fcaret fcaret)
+
                           (js/setTimeout (fn []
-                          (set! (.-scrollHeight inputbox) (.-offsetHeight inputbox))
-                          (set! (.-scrollTop inputbox) 0)
+                          (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))
+                                           ; UNGODLY HACK BEWARE BEWARE BEWARE
+                                           ;(.setSelectionRange inputbox fcaret fcaret)
+
+                                           ;(set! (.-scrollHeight inputbox) (.-offsetHeight shadowbox))
+                                           ;(set! (.-scrollTop inputbox) 0)
                                            (comment when (not= (.-offsetHeight inputcontainer) (inc (.-offsetHeight shadowbox)))
-                                             (ajs inputcontainer "height" (.-offsetHeight inputcontainer) (.-offsetHeight shadowbox) "px"))
-                                           ) 0) 
-                          ))
+                                                    (ajs inputcontainer "height" (.-offsetHeight inputcontainer) (.-offsetHeight shadowbox) "px"))
+                                           ) 0)))
         keyhandler (fn [event]
                      (let [kcode (.-keyCode event)
                            ccode (.-charCode event)]
@@ -97,6 +122,7 @@
 
     ;(set! (.-MozBoxSizing (.-style inputbox)) "border-box")
 
+    (set! (.-oldTextLength inputbox) 0)
     (set! (.-className shadowbox) "inputbox")
     (set! (.-bottom (.-style shadowbox)) "1000%")
     (when (.-GECKO goog.userAgent)
@@ -108,7 +134,7 @@
     ;(set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))
 
     (set! (.-MozTransition (.-style inputcontainer)) "all 400ms ease-in-out")
-    (set! (.-webkitTransition (.-style inputcontainer)) "all 400ms ease-in-out")
+    ;(set! (.-webkitTransition (.-style inputcontainer)) "all 400ms ease-in-out")
     (set! (.-msTransition (.-style inputcontainer)) "all 400ms ease-in-out")
 
     (comment js/setTimeout (fn []
