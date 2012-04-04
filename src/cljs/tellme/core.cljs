@@ -70,7 +70,7 @@
                         (console/log (.-value osidbox)))]
 
     (set! (.-className shadowbox) "inputbox")
-    (set! (.-bottom (.-style shadowbox)) "100px")
+    (set! (.-bottom (.-style shadowbox)) "-1000%")
     ; ff = 2px, webkit = ?
     (set! (.-width (.-style shadowbox)) (str (- (.-offsetWidth inputbox) 2) "px"))
     (dom/appendChild comm shadowbox)
