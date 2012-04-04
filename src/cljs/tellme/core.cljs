@@ -1,5 +1,6 @@
 (ns tellme.core
   (:require [goog.dom :as dom]
+            [goog.userAgent :as useragent]
             [goog.events.KeyHandler :as keyhandler]
             [goog.events.KeyCodes :as keycodes]
             [goog.events :as events])
@@ -49,15 +50,40 @@
     (animate auth "-100%" #(dom/removeNode auth))
     (animate comm "0%" nil)))
 
+(defn ajs [element property start end unit]
+  (let [frame (atom 0)
+        delta (- end start)]
+    ;(console/log (str "s: " start ", e: " end))
+    (set! (.-jsAnimation element)
+          (js/setInterval
+            (fn []
+              ;(console/log (str (+ start (* delta (/ @frame 50))) unit))
+              (aset (.-style element) property (str (+ start (* delta (/ frame 50))) unit))
+              (when (> (swap! frame inc) 50)
+                (aset (.-style element) property (str end unit))
+                (js/clearInterval (.-jsAnimation element))))
+            10))))
+
+
 (defn main []
   (let [osidbox (dom/getElement "osidbox")
         inputbox (dom/getElement "inputbox")
+        inputcontainer (dom/getElement "inputcontainer")
         shadowbox (dom/createElement "div")
         comm (dom/getElement "comm")
         resizehandler (fn [event]
                         (let [value (if (> (.-length (.-value inputbox)) 0) (.-value inputbox) ".")]
-                          (set! (.-innerHTML shadowbox) value) 
-                          (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))))
+                                           (dom/setTextContent shadowbox value) 
+                          (.preventDefault event)
+                          (set! (.-height (.-style inputcontainer)) (str (.-offsetHeight shadowbox) "px"))
+                          ;(set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))
+                          (js/setTimeout (fn []
+                          (set! (.-scrollHeight inputbox) (.-offsetHeight inputbox))
+                          (set! (.-scrollTop inputbox) 0)
+                                           (comment when (not= (.-offsetHeight inputcontainer) (inc (.-offsetHeight shadowbox)))
+                                             (ajs inputcontainer "height" (.-offsetHeight inputcontainer) (.-offsetHeight shadowbox) "px"))
+                                           ) 0) 
+                          ))
         keyhandler (fn [event]
                      (let [kcode (.-keyCode event)
                            ccode (.-charCode event)]
@@ -69,14 +95,25 @@
         changehandler (fn [event]
                         (console/log (.-value osidbox)))]
 
+    ;(set! (.-MozBoxSizing (.-style inputbox)) "border-box")
+
     (set! (.-className shadowbox) "inputbox")
-    (set! (.-bottom (.-style shadowbox)) "-1000%")
-    ; ff = 2px, webkit = ?
-    (set! (.-width (.-style shadowbox)) (str (- (.-offsetWidth inputbox) 2) "px"))
+    (set! (.-bottom (.-style shadowbox)) "1000%")
+    (when (.-GECKO goog.userAgent)
+      (set! (.-width (.-style shadowbox)) (str (- (.-offsetWidth inputbox) 2) "px"))) 
     (dom/appendChild comm shadowbox)
-    (set! (.-MozTransition (.-style inputbox)) "all 400ms ease-in-out")
-    (set! (.-webkitTransition (.-style inputbox)) "all 400ms ease-in-out")
-    (set! (.-msTransition (.-style inputbox)) "all 400ms ease-in-out")
+
+    (dom/setTextContent shadowbox ".")
+    (set! (.-height (.-style inputcontainer)) (str (.-offsetHeight shadowbox) "px"))
+    ;(set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))
+
+    (set! (.-MozTransition (.-style inputcontainer)) "all 400ms ease-in-out")
+    (set! (.-webkitTransition (.-style inputcontainer)) "all 400ms ease-in-out")
+    (set! (.-msTransition (.-style inputcontainer)) "all 400ms ease-in-out")
+
+    (comment js/setTimeout (fn []
+                     (set! (.-height (.-style inputcontainer)) "100px")
+                     (set! (.-height (.-style inputcontainer)) "100px")) 5000)
 
     (.focus osidbox)
     (events/listen (events/KeyHandler. osidbox) "key" keyhandler)

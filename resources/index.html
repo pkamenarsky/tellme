@@ -65,28 +65,37 @@
 			margin-left: -260px;
 		}
 
-		.inputbox {
+		.inputcontainer, .inputbox {
 			position: absolute;
+			margin: 0px;
+			border: 0px;
+			background-color: transparent;
+			outline: none;
+			padding: 0px;
+			display: block;
+			overflow: hidden;
+		}
+
+		.inputcontainer {
+			border-top: 1px solid #dddddd;
 			bottom: 0px;
 			left: 50%;
 			right: 0px;
 			width: 300px;
-			margin: 0px;
 			margin-left: -150px;
-			border: 0px;
-			background-color: transparent;
-			outline: none;
+		}
+
+		.inputbox {
+			width: 300px;
 			font-size: 16px;
 			font-weight: normal;
-			padding: 0px;
 			padding-top: 5px;
 			padding-bottom: 5px;
 			line-height: 21px;
-			border-top: 1px solid #dddddd;
-			display: block;
-			overflow: hidden;
 			resize: none;
 			word-wrap: break-word;
+			white-space: pre-wrap;
+			vertical-align: top;
 		}
 		
 	</style>
@@ -94,12 +103,14 @@
 	<div class="container" id="auth" style="top: 0%">
 		<h1 class="sid">4278</h1>
 		<h2 class="siddesc">give this number to your partner</h2>
-		<input type="text" id="osidbox" class="osid" maxlength="4" autofocus></input>
+		<input type="text" id="osidbox" class="osid" maxlength="4" autofocus>
 		<h2 class="osiddesc">enter your partner's number here</h2>
 	</div>
 
 	<div class="container" id="comm" style="top: 100%">
 		<h1 class="sid">Hello.</h1>
-		<textarea id="inputbox" class="inputbox" cols="20" rows="1"></textarea>
+		<div id="inputcontainer" class="inputcontainer">
+			<textarea id="inputbox" class="inputbox" style="top: 0px; bottom: 0px" rows="1"></textarea>
+		</div>
 	</div>
 </html>
