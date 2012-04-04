@@ -97,6 +97,33 @@
 			white-space: pre-wrap;
 			vertical-align: top;
 		}
+
+		.scrollcontainer {
+			background-color: #bbbbbb;
+			position: absolute;
+			overflow: hidden;
+			width: 300px;
+			left: 50%;
+			top: 0px;
+			bottom: 200px;
+			margin: 0px;
+			padding 0px;
+			margin-left: -150px;
+		}
+
+		.scrolldiv {
+			position: absolute;
+			overflow: scroll;
+			top: 0px;
+			left: 0px;
+			right: -16px;
+			bottom: -16px;
+		}
+
+		.scrollcontent {
+			width: 100%;
+			height: 1000px;
+		}
 		
 	</style>
 
@@ -108,7 +135,13 @@
 	</div>
 
 	<div class="container" id="comm" style="top: 100%">
-		<h1 class="sid">Hello.</h1>
+		<div class="scrollcontainer">
+			<div class="scrolldiv">
+				<div class="scrollcontent">
+					<h1 class="sid">Hello.</h1>
+				</div>
+			</div>
+		</div>
 		<div id="inputcontainer" class="inputcontainer">
 			<textarea id="inputbox" class="inputbox" style="top: 0px"></textarea>
 		</div>
