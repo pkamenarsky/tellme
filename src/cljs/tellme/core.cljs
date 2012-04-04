@@ -1,8 +1,10 @@
 (ns tellme.core
   (:require [goog.dom :as dom]
+            [goog.dom.ViewportSizeMonitor :as viewport]
             [goog.userAgent :as useragent]
             [goog.events.KeyHandler :as keyhandler]
             [goog.events.KeyCodes :as keycodes]
+            [goog.events.EventType :as evttype]
             [goog.events :as events])
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
   (:use-macros [tellme.base.fsm-macros :only [defsm]]))
@@ -64,6 +66,26 @@
                 (js/clearInterval (.-jsAnimation element))))
             10))))
 
+(defn update-scrollbar []
+  (let [container (dom/getElement "scrollcontainer")
+        view (dom/getElement "scrolldiv")
+
+        top (.-scrollTop view)
+        height (.-scrollHeight view)
+        cheight (.-offsetHeight container)
+
+        p1 (dom/getElement "barpoint1")
+        p2 (dom/getElement "barpoint2")
+        
+        tpct (* 100 (/ top height))
+        spct (* 100 (/ cheight height))]
+    (set! (.-top (.-style p1)) (str tpct "%"))
+    (set! (.-top (.-style p2)) (str (+ tpct spct) "%"))))
+
+(defn create-scrollview []
+  (let [scrolldiv (dom/getElement "scrolldiv")]
+    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (update-scrollbar)))
+    (events/listen scrolldiv "scroll" (fn [event] (update-scrollbar)))))
 
 (defn main []
   (let [osidbox (dom/getElement "osidbox")
@@ -144,7 +166,9 @@
     (.focus osidbox)
     (events/listen (events/KeyHandler. osidbox) "key" keyhandler)
     (events/listen osidbox "input" changehandler)
-    (events/listen inputbox "input" resizehandler)))
+    (events/listen inputbox "input" resizehandler)
+    
+    (create-scrollview)))
 
 (js/setTimeout begin 100)
 (js/setTimeout main 200)

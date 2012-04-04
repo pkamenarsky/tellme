@@ -98,7 +98,7 @@
 			vertical-align: top;
 		}
 
-		.scrollcontainer {
+		#scrollcontainer {
 			background-color: #bbbbbb;
 			position: absolute;
 			overflow: hidden;
@@ -111,7 +111,7 @@
 			margin-left: -150px;
 		}
 
-		.scrolldiv {
+		#scrolldiv {
 			position: absolute;
 			overflow: scroll;
 			top: 0px;
@@ -120,9 +120,30 @@
 			bottom: -16px;
 		}
 
-		.scrollcontent {
+		#scrollcontent {
 			width: 100%;
 			height: 1000px;
+		}
+
+		#barcontainer {
+			position: absolute;
+			background-color: #bbbbbb;
+			top: 0px;
+			bottom: 200px;
+			left: 50%;
+			margin-left: 154px;
+			width: 8px;
+		}
+
+		#barpoint1, #barpoint2 {
+			background-color: #999999;
+			position: absolute;
+			width: 8px;
+			height: 8px;
+		}
+
+		#barpoint2 {
+			margin-top: -8px;
 		}
 		
 	</style>
@@ -135,12 +156,16 @@
 	</div>
 
 	<div class="container" id="comm" style="top: 100%">
-		<div class="scrollcontainer">
-			<div class="scrolldiv">
-				<div class="scrollcontent">
+		<div id="scrollcontainer">
+			<div id="scrolldiv">
+				<div id="scrollcontent">
 					<h1 class="sid">Hello.</h1>
 				</div>
 			</div>
+		</div>
+		<div id="barcontainer">
+			<div id="barpoint1"></div>
+			<div id="barpoint2"></div>
 		</div>
 		<div id="inputcontainer" class="inputcontainer">
 			<textarea id="inputbox" class="inputbox" style="top: 0px"></textarea>
