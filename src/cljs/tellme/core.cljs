@@ -45,11 +45,19 @@
   (let [auth (dom/getElement "auth")
         comm (dom/getElement "comm")]
 
+    ; FIXME: auth not removed
     (animate auth "-100%" #(dom/removeNode auth))
     (animate comm "0%" nil)))
 
 (defn main []
-  (let [input (dom/getElement "osid")
+  (let [osidbox (dom/getElement "osidbox")
+        inputbox (dom/getElement "inputbox")
+        shadowbox (dom/createElement "div")
+        comm (dom/getElement "comm")
+        resizehandler (fn [event]
+                        (let [value (if (> (.-length (.-value inputbox)) 0) (.-value inputbox) ".")]
+                          (set! (.-innerHTML shadowbox) value) 
+                          (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))))
         keyhandler (fn [event]
                      (let [kcode (.-keyCode event)
                            ccode (.-charCode event)]
@@ -59,7 +67,21 @@
                                     (> ccode keycodes/NINE)))
                          (.preventDefault event))))
         changehandler (fn [event]
-                        (console/log (.-value input)))]
-    (.focus input)
-    (events/listen (events/KeyHandler. input) "key" keyhandler)
-    (events/listen input "input" changehandler)))
+                        (console/log (.-value osidbox)))]
+
+    (set! (.-className shadowbox) "inputbox")
+    (set! (.-bottom (.-style shadowbox)) "100px")
+    ; ff = 2px, webkit = ?
+    (set! (.-width (.-style shadowbox)) (str (- (.-offsetWidth inputbox) 2) "px"))
+    (dom/appendChild comm shadowbox)
+    (set! (.-MozTransition (.-style inputbox)) "all 400ms ease-in-out")
+    (set! (.-webkitTransition (.-style inputbox)) "all 400ms ease-in-out")
+    (set! (.-msTransition (.-style inputbox)) "all 400ms ease-in-out")
+
+    (.focus osidbox)
+    (events/listen (events/KeyHandler. osidbox) "key" keyhandler)
+    (events/listen osidbox "input" changehandler)
+    (events/listen inputbox "input" resizehandler)))
+
+(js/setTimeout begin 100)
+(js/setTimeout main 200)
