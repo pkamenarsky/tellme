@@ -54,23 +54,49 @@
 
 ; Animation ----------------------------------------------------------------
 
-(defn ajs [element property start end unit]
-  (let [frame (atom 0)
+; this doesn't replicate css3's ease-in-out timing function but it's
+; good enough
+(defn ease-in-out [t]
+  (if (< t 0.5)
+    (* t t 2)
+    (- 1.0 (* (- t 1) (- t 1) 2))))
+
+(defn ajs [{:keys [element property end duration style]}]
+  (let [start (if style
+                (js/parseInt (.replace (aget (.-style element) property) "px" ""))
+                (aget element property))
+        stime (.getTime (js/Date.))
+        frame (atom 0)
         delta (- end start)]
-    ;(console/log (str "s: " start ", e: " end))
+    
+    (console/log "start: " start property)
+
+    ; stop previous animation
+    (if (.-jsAnimation element)
+      (js/clearInterval (.-jsAnimation element))) 
+
     (set! (.-jsAnimation element)
           (js/setInterval
             (fn []
-              ;(console/log (str (+ start (* delta (/ @frame 50))) unit))
-              (aset (.-style element) property (str (+ start (* delta (/ frame 50))) unit))
-              (when (> (swap! frame inc) 50)
-                (aset (.-style element) property (str end unit))
-                (js/clearInterval (.-jsAnimation element))))
+              (let [now (.getTime (js/Date.))
+                    t (ease-in-out (/ (- now stime) duration))
+                    lerp (+ start (* delta t))]
+
+                (if style
+                  (aset (.-style element) property (str lerp "px"))
+                  (aset element property lerp)) 
+
+                (when (> (- now stime) duration)
+                  (aset (.-style element) property (str end unit))
+                  (js/clearInterval (.-jsAnimation element))
+                  (set! (.-jsAnimation element) nil)))
+
+              (swap! frame inc))
             10))))
 
 (defn setup-animation [element]
   (set! (.-MozTransition (.-style element)) "all 400ms ease-in-out")
-  ;(set! (.-webkitTransition (.-style element)) "all 400ms ease-in-out")
+  (set! (.-webkitTransition (.-style element)) "all 400ms ease-in-out")
   (set! (.-msTransition (.-style element)) "all 400ms ease-in-out"))
 
 ; Scrollbar ----------------------------------------------------------------
@@ -119,10 +145,24 @@
     (dom/setTextContent acontent value)
     (dom/appendChild comm acontent)
 
-    (js/setTimeout (fn []
-                     (setup-animation acontent) 
-                     (set! (.-bottom (.-style acontent)) "200px"))
-                   0) 
+    ; run animation
+    (ajs {:element acontent
+          :property "bottom"
+          :end 200
+          :duration 400
+          :style true})
+
+    (ajs {:element scrolldiv
+          :property "scrollTop"
+          :end 100
+          :duration 400
+          :style false})
+
+    (comment js/setTimeout
+      (fn []
+        (setup-animation acontent) 
+        (set! (.-bottom (.-style acontent)) "200px"))
+      0) 
 
     ; setup table row div
     (set! (.-className mcontent) "messagecontent")
