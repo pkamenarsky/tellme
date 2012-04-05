@@ -69,8 +69,6 @@
         frame (atom 0)
         delta (- end start)]
     
-    (console/log "start: " start property)
-
     ; stop previous animation
     (if (.-jsAnimation element)
       (js/clearInterval (.-jsAnimation element))) 
