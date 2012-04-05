@@ -116,10 +116,8 @@
     (set! (.-top (.-style barpoint1)) (str tpct "%"))
     (set! (.-top (.-style barpoint2)) (str (+ tpct spct) "%"))))
 
-(defn update-document-size [{:keys [scrollcontainer
-                                    scrollcontent
-                                    messagepadding
-                                    messageheight] :as context}]
+(defn update-document-size [{:keys [scrollcontainer scrollcontent
+                                    messagepadding messageheight] :as context}]
 
   (let [sheight (.-offsetHeight scrollcontainer)
         cheight (.-offsetHeight scrollcontent)
@@ -132,19 +130,26 @@
 
 ; Message handling ---------------------------------------------------------
 
-(defn create-shadowbox [{:keys [comm inputbox] :as context}]
-  (let [shadowbox (dom/createElement "div")]
+(defn create-shadowbox [{:keys [comm inputbox scrollcontainer scrollcontent] :as context}]
+  (let [shadowbox (dom/createElement "div")
+        offset (if (.-GECKO goog.userAgent) -2 0)
+        width (+ (.-offsetWidth inputbox) offset)]
 
-    (when (.-GECKO goog.userAgent)
-      (set! (.-width (.-style shadowbox)) (str (- (.-offsetWidth inputbox) 2) "px"))) 
+    (set! (.-width (.-style shadowbox)) (str width "px")) 
 
     (set! (.-className shadowbox) "shadowbox")
     (set! (.-bottom (.-style shadowbox)) "1000%")
     (dom/appendChild comm shadowbox)
 
+    ; fix scrollcontainer width if we need an offset (FF-uuuu)
+    (set! (.-width (.-style scrollcontainer)) (str width "px"))
+    (set! (.-marginLeft (.-style scrollcontainer)) (str (- (/ width 2)) "px"))
+    (set! (.-width (.-style scrollcontent)) (str width "px"))
+
     (dom/setTextContent shadowbox ".")
 
-    (assoc context :shadowbox shadowbox)))
+    (into context {:shadowbox shadowbox
+                   :shadowbox-width width})))
 
 (defn adjust-inputbox-size [{:keys [inputbox shadowbox inputcontainer]}]
   (let [value (if (> (.-length (.-value inputbox)) 0) (.-value inputbox) ".")]
@@ -154,7 +159,9 @@
     (set! (.-height (.-style inputcontainer)) (str (.-offsetHeight shadowbox) "px")) 
     (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))))
 
-(defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox shadowbox messageheight messagepadding] :as context}]
+(defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox
+                           shadowbox messageheight messagepadding
+                           shadowbox-width] :as context}]
   (let [value (.-value inputbox)
 
         mcontent (dom/createElement "div")
@@ -163,22 +170,20 @@
         stop (.-scrollTop scrolldiv)
         soheight (.-offsetHeight scrollcontainer)
 
-        width (.-offsetWidth shadowbox)
         height (.-offsetHeight shadowbox)
-
         unpadded-height (- height 10)
-        
         newheight (+ messageheight height)]
 
     ; setup table row div
-    (set! (.-className mcontent) "messagecontent")  ; originally shadowbox
+    (set! (.-className mcontent) "messagecontent")
     (set! (.-height (.-style mcontent)) (str unpadded-height "px"))
 
     ; setup animation div
     (set! (.-className acontent) "shadowbox")
     (set! (.-bottom (.-style acontent)) "0px")
     (set! (.-left (.-style acontent)) "50%")
-    (set! (.-marginLeft (.-style acontent)) (str (- (/ width 2)) "px"))
+    (set! (.-width (.-style acontent)) (str shadowbox-width "px"))
+    (set! (.-marginLeft (.-style acontent)) (str (- (/ shadowbox-width 2)) "px"))
 
     (dom/setTextContent acontent value)
     (dom/appendChild comm acontent)
