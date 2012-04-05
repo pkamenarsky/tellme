@@ -140,7 +140,6 @@
   (when sticky-bottom
     (set! (.-scrollTop scrolldiv) (.-scrollHeight scrolldiv))))
 
-
 ; Message handling ---------------------------------------------------------
 
 (defn create-shadowbox [{:keys [comm inputbox scrollcontainer scrollcontent] :as context}]
@@ -164,13 +163,21 @@
     (into context {:shadowbox shadowbox
                    :shadowbox-width width})))
 
-(defn adjust-inputbox-size [{:keys [inputbox shadowbox inputcontainer]}]
-  (let [value (if (> (.-length (.-value inputbox)) 0) (.-value inputbox) ".")]
+(defn adjust-inputbox-size [{:keys [inputbox shadowbox inputcontainer
+                                    scrollcontainer barcontainer] :as context}]
 
-    (dom/setTextContent shadowbox value) 
+  (dom/setTextContent shadowbox (if (> (.-length (.-value inputbox)) 0)
+                                  (.-value inputbox)
+                                  "."))
 
-    (set! (.-height (.-style inputcontainer)) (str (.-offsetHeight shadowbox) "px")) 
-    (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))))
+  (let [height (.-offsetHeight shadowbox)]
+    (set! (.-height (.-style inputcontainer)) (str height "px")) 
+    (set! (.-height (.-style inputbox)) (str height "px"))
+    (set! (.-bottom (.-style scrollcontainer)) (str height "px"))
+    (set! (.-bottom (.-style barcontainer)) (str height "px"))
+
+    (adjust-scrolltop context)
+    (update-scrollbar context)))
 
 (defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox
                            shadowbox messageheight messagepadding
@@ -206,7 +213,7 @@
     ; run slide up animation
     (ajs {:element acontent
           :property "bottom"
-          :end 200
+          :end 31 ;FIXME
           :duration 400
           :style true
           :onend (fn []
@@ -226,7 +233,7 @@
     ; adjust message padding for when there are too few messages
     (ajs {:element messagepadding
           :property "height"
-          :end (Math/max 0 (- soheight newheight)) 
+          :end (Math/max 0 (+ height (- soheight newheight 31))) 
           :duration 400
           :style true})
 
@@ -235,17 +242,17 @@
     (adjust-inputbox-size context)
     
     (-> context
-      (update-sticky-bottom)
+      ;(update-sticky-bottom)
       (assoc :messageheight newheight))))
 
 ; main ------------------------------------------------------------------------
 
-(defn main [{:keys [osidbox inputbox inputcontainer comm scrolldiv] :as start-context}]
+(defn main [{:keys [osidbox inputbox inputcontainer comm scrolldiv scrollcontainer] :as start-context}]
   (let [shadowbox (dom/createElement "div")
         context (atom (-> start-context
                         (create-shadowbox)
                         (into {:messageheight 0
-                               :sticky-bottom false})))
+                               :sticky-bottom true})))
 
         scrollhandler (fn [event]
                         (update-scrollbar @context)
@@ -284,6 +291,11 @@
 
     (begin)
 
+    ; need this for the godless webkit scroll-on-drag "feature"
+    (events/listen scrollcontainer "scroll" (fn [event]
+                                                 (set! (.-scrollTop scrollcontainer) 0)
+                                                 (set! (.-scrollLeft scrollcontainer) 0)))
+
     ; register listeners
     (events/listen scrolldiv "scroll" scrollhandler)
     (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE windowhandler)
@@ -298,6 +310,7 @@
   {:scrollcontainer (dom/getElement "scrollcontainer")
    :scrolldiv (dom/getElement "scrolldiv")
    :scrollcontent (dom/getElement "scrollcontent")
+   :barcontainer (dom/getElement "barcontainer")
    :barpoint1 (dom/getElement "barpoint1")
    :barpoint2 (dom/getElement "barpoint2")
    :messagepadding (dom/getElement "messagepadding")
