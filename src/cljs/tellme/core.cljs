@@ -61,7 +61,7 @@
     (* t t 2)
     (- 1.0 (* (- t 1) (- t 1) 2))))
 
-(defn ajs [{:keys [element property end duration style]}]
+(defn ajs [{:keys [element property end duration style onframe onend]}]
   (let [start (if style
                 (js/parseInt (.replace (aget (.-style element) property) "px" ""))
                 (aget element property))
@@ -84,10 +84,16 @@
                   (aset (.-style element) property (str lerp "px"))
                   (aset element property lerp)) 
 
+                (when onframe
+                  (onframe t))
+
                 (when (> (- now stime) duration)
                   (aset (.-style element) property (str end unit))
                   (js/clearInterval (.-jsAnimation element))
-                  (set! (.-jsAnimation element) nil)))
+                  (set! (.-jsAnimation element) nil)
+                  
+                  (when onend
+                    (onend))))
 
               (swap! frame inc))
             10))))
@@ -110,11 +116,29 @@
     (set! (.-top (.-style barpoint1)) (str tpct "%"))
     (set! (.-top (.-style barpoint2)) (str (+ tpct spct) "%"))))
 
-(defn create-scrollview [{:keys [scrolldiv] :as context}]
-  (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (update-scrollbar context)))
-  (events/listen scrolldiv "scroll" (fn [event] (update-scrollbar context))))
+(defn update-document-size [{:keys [scrollcontainer
+                                    scrollcontent
+                                    messageheight] :as context}]
+
+  (let [sheight (.-offsetHeight scrollcontainer)]
+    (set! (.-height (.-style scrollcontent))
+         (str (Math/max messageheight sheight) "px"))))
 
 ; Message handling ---------------------------------------------------------
+
+(defn create-shadowbox [{:keys [comm inputbox] :as context}]
+  (let [shadowbox (dom/createElement "div")]
+
+    (when (.-GECKO goog.userAgent)
+      (set! (.-width (.-style shadowbox)) (str (- (.-offsetWidth inputbox) 2) "px"))) 
+
+    (set! (.-className shadowbox) "shadowbox")
+    (set! (.-bottom (.-style shadowbox)) "1000%")
+    (dom/appendChild comm shadowbox)
+
+    (dom/setTextContent shadowbox ".")
+
+    (assoc context :shadowbox shadowbox)))
 
 (defn adjust-inputbox-size [{:keys [inputbox shadowbox inputcontainer]}]
   (let [value (if (> (.-length (.-value inputbox)) 0) (.-value inputbox) ".")]
@@ -124,15 +148,20 @@
     (set! (.-height (.-style inputcontainer)) (str (.-offsetHeight shadowbox) "px")) 
     (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))))
 
-(defn add-message [{:keys [comm scrolldiv scrollcontent inputbox shadowbox] :as context}]
+(defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox shadowbox messageheight] :as context}]
   (let [value (.-value inputbox)
 
+        mcell (dom/createElement "div")
         mcontent (dom/createElement "div")
         acontent (dom/createElement "div")
 
-        top (.-scrollTop scrolldiv)
+        stop (.-scrollTop scrolldiv)
+        soheight (.-offsetHeight scrollcontainer)
+
         width (.-offsetWidth shadowbox)
-        height (.-offsetHeight shadowbox)]
+        height (.-offsetHeight shadowbox)
+        
+        newmheight (+ messageheight height)]
 
     ; setup animation div
     (set! (.-className acontent) "shadowbox")
@@ -150,42 +179,54 @@
           :duration 400
           :style true})
 
+    ; setup table row div
+    (set! (.-className mcell) "messagecontent")
+    (set! (.-className mcontent) "shadowbox")
+    (set! (.-height (.-style mcell)) (str height "px"))
+    (set! (.-height (.-style mcontent)) (str height "px"))
+
+    (dom/appendChild mcell mcontent)
+    (dom/setTextContent mcontent value)
+    
+    (dom/appendChild scrollcontent mcell)
+    (set! (.-scrollTop scrolldiv) stop)
+
+    ; run scroll animation
     (ajs {:element scrolldiv
           :property "scrollTop"
-          :end 100
+          :end (- newmheight soheight)
           :duration 400
           :style false})
 
-    (comment js/setTimeout
-      (fn []
-        (setup-animation acontent) 
-        (set! (.-bottom (.-style acontent)) "200px"))
-      0) 
-
-    ; setup table row div
-    (set! (.-className mcontent) "messagecontent")
-    (set! (.-height (.-style mcontent)) (str height "px"))
-    (dom/setTextContent mcontent value)
-    
-    (dom/appendChild scrollcontent mcontent)
-    (set! (.-scrollTop scrolldiv) top)
-
     ; clear & shrink input box to normal size
     (set! (.-value inputbox) "") 
-    (adjust-inputbox-size context)))
+    (adjust-inputbox-size context)
+    
+    (assoc context :messageheight newmheight)))
 
 ; main ------------------------------------------------------------------------
 
-(defn main [{:keys [osidbox inputbox inputcontainer comm] :as start-context}]
+(defn main [{:keys [osidbox inputbox inputcontainer comm scrolldiv] :as start-context}]
   (let [shadowbox (dom/createElement "div")
-        context (assoc start-context :shadowbox shadowbox)
+        context (atom (-> start-context
+                        (create-shadowbox)
+                        (assoc :messageheight 0)))
+
+        scrollhandler (fn [event]
+                        (update-scrollbar @context))
+
+        windowhandler (fn [event]
+                        (update-scrollbar @context)
+                        (update-document-size @context))
         
         messagehandler (fn [event]
                          (when (= (.-keyCode event) keycodes/ENTER)
-                           (add-message context)
+                           (swap! context add-message)
                            (.preventDefault event)))
+
         resizehandler (fn [event]
-                        (adjust-inputbox-size context))
+                        (adjust-inputbox-size @context))
+
         keyhandler (fn [event]
                      (let [kcode (.-keyCode event)
                            ccode (.-charCode event)]
@@ -194,34 +235,25 @@
                                 (or (< ccode keycodes/ZERO)
                                     (> ccode keycodes/NINE)))
                          (.preventDefault event))))
-        changehandler (fn [event]
-                        (console/log (.-value osidbox)))]
 
-    ;(set! (.-MozBoxSizing (.-style inputbox)) "border-box")
+        changehandler (fn [event])]
 
-    (set! (.-oldTextLength inputbox) 0)
-    (set! (.-className shadowbox) "shadowbox")
-    (set! (.-bottom (.-style shadowbox)) "1000%")
-    (when (.-GECKO goog.userAgent)
-      (set! (.-width (.-style shadowbox)) (str (- (.-offsetWidth inputbox) 2) "px"))) 
-    (dom/appendChild comm shadowbox)
-
-    (dom/setTextContent shadowbox ".")
-    (adjust-inputbox-size context)
-
-    (set! (.-MozTransition (.-style inputcontainer)) "all 400ms ease-in-out")
-    ;(set! (.-webkitTransition (.-style inputcontainer)) "all 400ms ease-in-out")
-    (set! (.-msTransition (.-style inputcontainer)) "all 400ms ease-in-out")
+    (adjust-inputbox-size @context)
+    (update-document-size @context)
+    (update-scrollbar @context)
 
     (.focus osidbox)
+
+    (begin)
+
+    ; register listeners
+    (events/listen scrolldiv "scroll" scrollhandler)
+    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE windowhandler)
     (events/listen (events/KeyHandler. osidbox) "key" keyhandler)
     (events/listen osidbox "input" changehandler)
     (events/listen inputbox "input" resizehandler)
-    (events/listen (events/KeyHandler. inputbox) "key" messagehandler)
-    
-    (create-scrollview context)))
+    (events/listen (events/KeyHandler. inputbox) "key" messagehandler)))
 
-(js/setTimeout begin 100)
 
 ; defmacro calling
 (defn get-context []

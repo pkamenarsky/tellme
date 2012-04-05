@@ -83,6 +83,8 @@
 			right: 0px;
 			width: 300px;
 			margin-left: -150px;
+			-moz-transition: all 400ms ease-in-out;
+			-ms-transition: all 400ms ease-in-out;
 		}
 
 		.inputbox, .messagecontent, .shadowbox {
@@ -95,6 +97,7 @@
 			resize: none;
 			word-wrap: break-word;
 			white-space: pre-wrap;
+			vertical-align: center;
 		}
 
 		#scrollcontainer {
@@ -115,13 +118,12 @@
 			overflow: scroll;
 			top: 0px;
 			left: 0px;
-			right: -16px;
-			bottom: -16px;
+			right: -14px;
+			bottom: -14px;
 		}
 
 		#scrollcontent {
 			width: 100%;
-			height: 1000px;
 			display: table;
 			table-layout: fixed;
 		}
@@ -164,8 +166,7 @@
 		<div id="scrollcontainer">
 			<div id="scrolldiv">
 				<div id="scrollcontent">
-					<div class="messagecontent">Hello.</div>
-					<div class="messagecontent" style="height: 100px">Hello a00000000000000000000000000000000000gain :*</div>
+					<div class="messagecontent"></div>
 				</div>
 			</div>
 		</div>
