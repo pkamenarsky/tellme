@@ -120,9 +120,13 @@
                                     scrollcontent
                                     messageheight] :as context}]
 
-  (let [sheight (.-offsetHeight scrollcontainer)]
-    (set! (.-height (.-style scrollcontent))
-         (str (Math/max messageheight sheight) "px"))))
+  (let [sheight (.-offsetHeight scrollcontainer)
+        cheight (.-offsetHeight scrollcontent)
+        newheight (Math/max messageheight sheight)]
+
+    (when (not= cheight newheight)
+      (set! (.-height (.-style scrollcontent))
+            (str newheight "px")))))
 
 ; Message handling ---------------------------------------------------------
 
@@ -161,7 +165,15 @@
         width (.-offsetWidth shadowbox)
         height (.-offsetHeight shadowbox)
         
-        newmheight (+ messageheight height)]
+        newheight (+ messageheight height)]
+
+    ; setup table row div
+    (set! (.-className mcell) "messagecontent")
+    (set! (.-className mcontent) "shadowbox")
+    (set! (.-height (.-style mcell)) (str height "px"))
+    (set! (.-height (.-style mcontent)) (str height "px"))
+
+    (dom/setTextContent mcontent value)
 
     ; setup animation div
     (set! (.-className acontent) "shadowbox")
@@ -172,29 +184,23 @@
     (dom/setTextContent acontent value)
     (dom/appendChild comm acontent)
 
-    ; run animation
+    ; run slide up animation
     (ajs {:element acontent
           :property "bottom"
           :end 200
           :duration 400
-          :style true})
+          :style true
+          :onend (fn []
+                   (dom/appendChild mcell mcontent)
+                   (dom/removeNode acontent))})
 
-    ; setup table row div
-    (set! (.-className mcell) "messagecontent")
-    (set! (.-className mcontent) "shadowbox")
-    (set! (.-height (.-style mcell)) (str height "px"))
-    (set! (.-height (.-style mcontent)) (str height "px"))
-
-    (dom/appendChild mcell mcontent)
-    (dom/setTextContent mcontent value)
-    
+    ; run scroll animation
     (dom/appendChild scrollcontent mcell)
     (set! (.-scrollTop scrolldiv) stop)
 
-    ; run scroll animation
     (ajs {:element scrolldiv
           :property "scrollTop"
-          :end (- newmheight soheight)
+          :end (- newheight soheight)
           :duration 400
           :style false})
 
@@ -202,7 +208,7 @@
     (set! (.-value inputbox) "") 
     (adjust-inputbox-size context)
     
-    (assoc context :messageheight newmheight)))
+    (assoc context :messageheight newheight)))
 
 ; main ------------------------------------------------------------------------
 
@@ -221,7 +227,8 @@
         
         messagehandler (fn [event]
                          (when (= (.-keyCode event) keycodes/ENTER)
-                           (swap! context add-message)
+                           (when (> (.-length (.-value inputbox)) 0)
+                             (swap! context add-message)) 
                            (.preventDefault event)))
 
         resizehandler (fn [event]
