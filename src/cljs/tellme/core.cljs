@@ -66,13 +66,10 @@
                 (js/clearInterval (.-jsAnimation element))))
             10))))
 
-(defn update-scrollbar []
-  (let [container (dom/getElement "scrollcontainer")
-        view (dom/getElement "scrolldiv")
-
-        top (.-scrollTop view)
-        height (.-scrollHeight view)
-        cheight (.-offsetHeight container)
+(defn update-scrollbar [{:keys [scrollcontainer scrolldiv]}]
+  (let [top (.-scrollTop scrolldiv)
+        height (.-scrollHeight scrolldiv)
+        cheight (.-offsetHeight scrollcontainer)
 
         p1 (dom/getElement "barpoint1")
         p2 (dom/getElement "barpoint2")
@@ -82,55 +79,40 @@
     (set! (.-top (.-style p1)) (str tpct "%"))
     (set! (.-top (.-style p2)) (str (+ tpct spct) "%"))))
 
-(defn create-scrollview []
-  (let [scrolldiv (dom/getElement "scrolldiv")]
-    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (update-scrollbar)))
-    (events/listen scrolldiv "scroll" (fn [event] (update-scrollbar)))))
+(defn create-scrollview [{:keys [scrolldiv] :as context}]
+  (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (update-scrollbar context)))
+  (events/listen scrolldiv "scroll" (fn [event] (update-scrollbar context))))
 
-(defn main []
-  (let [osidbox (dom/getElement "osidbox")
-        inputbox (dom/getElement "inputbox")
-        inputcontainer (dom/getElement "inputcontainer")
-        shadowbox (dom/createElement "div")
-        comm (dom/getElement "comm")
+(defn adjust-inputbox-size [{:keys [inputbox shadowbox inputcontainer]}]
+  (let [value (if (> (.-length (.-value inputbox)) 0) (.-value inputbox) ".")]
+    (dom/setTextContent shadowbox value) 
+
+    (set! (.-height (.-style inputcontainer)) (str (.-offsetHeight shadowbox) "px")) 
+    (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))))
+
+(defn add-message [{:keys [scrolldiv scrollcontent inputbox] :as context}]
+  (let [mcontent (dom/createElement "div")]
+
+    (set! (.-className mcontent) "messagecontent")
+    (set! (.-height (.-style mcontent)) "100px")
+    (dom/setTextContent mcontent (.-value inputbox))
+    
+    (dom/appendChild scrollcontent mcontent)
+    (set! (.-scrollTop scrolldiv) 0)
+
+    (set! (.-value inputbox) "") 
+    (adjust-inputbox-size context)))
+
+(defn main [{:keys [osidbox inputbox inputcontainer comm] :as start-context}]
+  (let [shadowbox (dom/createElement "div")
+        context (assoc start-context :shadowbox shadowbox)
+        
+        messagehandler (fn [event]
+                         (when (= (.-keyCode event) keycodes/ENTER)
+                           (add-message context)
+                           (.preventDefault event)))
         resizehandler (fn [event]
-                        (let [caret (.-selectionStart inputbox)
-                              value (if (> (.-length (.-value inputbox)) 0) (.-value inputbox) ".")
-                              fcaret (if (or
-                                           (>= caret (.-length value))
-                                           (>= (.-length value) (.-oldTextLength inputbox))) 
-                                       (inc caret)
-                                       (dec caret))]
-                          (dom/setTextContent shadowbox value) 
-
-                          (set! (.-oldTextLength inputbox) (.-length value))
-
-                          (set! (.-height (.-style inputcontainer)) (str (.-offsetHeight shadowbox) "px"))
-                          (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))
-                          
-                          ; UNGODLY HACK BEWARE BEWARE BEWARE
-                          ;(dom/removeNode inputbox)
-                          ;(dom/appendChild inputcontainer inputbox)
-
-                          (set! (.-visibility (.-style inputbox)) "hidden")
-                          (set! (.-display (.-style inputbox)) "hidden")
-                          (set! (.-iii inputbox) (.-offsetHeight inputbox))
-                          (set! (.-display (.-style inputbox)) "block")
-                          (set! (.-visibility (.-style inputbox)) "visible")
-
-                          (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))
-                          ;(.setSelectionRange inputbox fcaret fcaret)
-
-                          (js/setTimeout (fn []
-                          (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))
-                                           ; UNGODLY HACK BEWARE BEWARE BEWARE
-                                           ;(.setSelectionRange inputbox fcaret fcaret)
-
-                                           ;(set! (.-scrollHeight inputbox) (.-offsetHeight shadowbox))
-                                           ;(set! (.-scrollTop inputbox) 0)
-                                           (comment when (not= (.-offsetHeight inputcontainer) (inc (.-offsetHeight shadowbox)))
-                                                    (ajs inputcontainer "height" (.-offsetHeight inputcontainer) (.-offsetHeight shadowbox) "px"))
-                                           ) 0)))
+                        (adjust-inputbox-size context))
         keyhandler (fn [event]
                      (let [kcode (.-keyCode event)
                            ccode (.-charCode event)]
@@ -167,8 +149,22 @@
     (events/listen (events/KeyHandler. osidbox) "key" keyhandler)
     (events/listen osidbox "input" changehandler)
     (events/listen inputbox "input" resizehandler)
+    (events/listen (events/KeyHandler. inputbox) "key" messagehandler)
     
-    (create-scrollview)))
+    (create-scrollview context)
+    (add-message "asdasd")))
 
 (js/setTimeout begin 100)
-(js/setTimeout main 200)
+
+(defn get-context []
+  {:scrollcontainer (dom/getElement "scrollcontainer")
+   :scrolldiv (dom/getElement "scrolldiv")
+   :scrollcontent (dom/getElement "scrollcontent")
+   :barpoint1 (dom/getElement "barpoint1")
+   :barpoint2 (dom/getElement "barpoint2")
+   :inputcontainer (dom/getElement "inputcontainer")
+   :comm (dom/getElement "comm")
+   :osidbox (dom/getElement "osidbox")
+   :inputbox (dom/getElement "inputbox")})
+
+(events/listen js/window evttype/LOAD #(main (get-context)))
