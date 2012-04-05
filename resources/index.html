@@ -97,7 +97,6 @@
 			resize: none;
 			word-wrap: break-word;
 			white-space: pre-wrap;
-			vertical-align: center;
 		}
 
 		#scrollcontainer {
@@ -124,12 +123,17 @@
 
 		#scrollcontent {
 			width: 100%;
-			display: table;
-			table-layout: fixed;
+			/* display: table;
+			table-layout: fixed; */
 		}
 
 		.messagecontent {
-			display: table-row;
+			/* display: table-row; */
+		}
+
+		.messagecontent {
+			/*margin-top: -5px;
+			margin-bottom: -5px; */
 		}
 
 		#barcontainer {
@@ -166,7 +170,7 @@
 		<div id="scrollcontainer">
 			<div id="scrolldiv">
 				<div id="scrollcontent">
-					<div class="messagecontent"></div>
+					<div id="messagepadding" class="messagecontent" style="padding: 0px"></div>
 				</div>
 			</div>
 		</div>

@@ -118,15 +118,17 @@
 
 (defn update-document-size [{:keys [scrollcontainer
                                     scrollcontent
+                                    messagepadding
                                     messageheight] :as context}]
 
   (let [sheight (.-offsetHeight scrollcontainer)
         cheight (.-offsetHeight scrollcontent)
-        newheight (Math/max messageheight sheight)]
+        newheight (Math/max messageheight sheight)
+        paddingheight (Math/max 0 (- newheight messageheight))]
 
     (when (not= cheight newheight)
-      (set! (.-height (.-style scrollcontent))
-            (str newheight "px")))))
+      (set! (.-height (.-style scrollcontent)) (str newheight "px"))
+      (set! (.-height (.-style messagepadding)) (str paddingheight "px")))))
 
 ; Message handling ---------------------------------------------------------
 
@@ -152,10 +154,9 @@
     (set! (.-height (.-style inputcontainer)) (str (.-offsetHeight shadowbox) "px")) 
     (set! (.-height (.-style inputbox)) (str (.-offsetHeight shadowbox) "px"))))
 
-(defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox shadowbox messageheight] :as context}]
+(defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox shadowbox messageheight messagepadding] :as context}]
   (let [value (.-value inputbox)
 
-        mcell (dom/createElement "div")
         mcontent (dom/createElement "div")
         acontent (dom/createElement "div")
 
@@ -164,16 +165,14 @@
 
         width (.-offsetWidth shadowbox)
         height (.-offsetHeight shadowbox)
+
+        unpadded-height (- height 10)
         
         newheight (+ messageheight height)]
 
     ; setup table row div
-    (set! (.-className mcell) "messagecontent")
-    (set! (.-className mcontent) "shadowbox")
-    (set! (.-height (.-style mcell)) (str height "px"))
-    (set! (.-height (.-style mcontent)) (str height "px"))
-
-    (dom/setTextContent mcontent value)
+    (set! (.-className mcontent) "messagecontent")  ; originally shadowbox
+    (set! (.-height (.-style mcontent)) (str unpadded-height "px"))
 
     ; setup animation div
     (set! (.-className acontent) "shadowbox")
@@ -191,11 +190,11 @@
           :duration 400
           :style true
           :onend (fn []
-                   (dom/appendChild mcell mcontent)
+                   (dom/setTextContent mcontent value)
                    (dom/removeNode acontent))})
 
     ; run scroll animation
-    (dom/appendChild scrollcontent mcell)
+    (dom/appendChild scrollcontent mcontent)
     (set! (.-scrollTop scrolldiv) stop)
 
     (ajs {:element scrolldiv
@@ -203,6 +202,13 @@
           :end (- newheight soheight)
           :duration 400
           :style false})
+
+    ; adjust message padding for when there are too few messages
+    (ajs {:element messagepadding
+          :property "height"
+          :end (Math/max 0 (- soheight newheight)) 
+          :duration 400
+          :style true})
 
     ; clear & shrink input box to normal size
     (set! (.-value inputbox) "") 
@@ -269,6 +275,7 @@
    :scrollcontent (dom/getElement "scrollcontent")
    :barpoint1 (dom/getElement "barpoint1")
    :barpoint2 (dom/getElement "barpoint2")
+   :messagepadding (dom/getElement "messagepadding")
    :inputcontainer (dom/getElement "inputcontainer")
    :comm (dom/getElement "comm")
    :osidbox (dom/getElement "osidbox")
