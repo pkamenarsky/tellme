@@ -135,13 +135,13 @@
         offset (if (.-GECKO goog.userAgent) -2 0)
         width (+ (.-offsetWidth inputbox) offset)]
 
-    (set! (.-width (.-style shadowbox)) (str width "px")) 
-
     (set! (.-className shadowbox) "shadowbox")
     (set! (.-bottom (.-style shadowbox)) "1000%")
     (dom/appendChild comm shadowbox)
 
-    ; fix scrollcontainer width if we need an offset (FF-uuuu)
+    ; fix widths if we need an offset
+    ; wouldn't need to do that but FF is a pixel off here
+    (set! (.-width (.-style shadowbox)) (str width "px")) 
     (set! (.-width (.-style scrollcontainer)) (str width "px"))
     (set! (.-marginLeft (.-style scrollcontainer)) (str (- (/ width 2)) "px"))
     (set! (.-width (.-style scrollcontent)) (str width "px"))
@@ -182,6 +182,8 @@
     (set! (.-className acontent) "shadowbox")
     (set! (.-bottom (.-style acontent)) "0px")
     (set! (.-left (.-style acontent)) "50%")
+
+    ; wouldn't need to do that but FF is a pixel off here
     (set! (.-width (.-style acontent)) (str shadowbox-width "px"))
     (set! (.-marginLeft (.-style acontent)) (str (- (/ shadowbox-width 2)) "px"))
 
