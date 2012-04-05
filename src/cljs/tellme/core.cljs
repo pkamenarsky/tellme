@@ -128,6 +128,19 @@
       (set! (.-height (.-style scrollcontent)) (str newheight "px"))
       (set! (.-height (.-style messagepadding)) (str paddingheight "px")))))
 
+; Sticky bottom ------------------------------------------------------------
+
+(defn update-sticky-bottom [{:keys [scrolldiv] :as context}]
+  (let [cheight (.-offsetHeight scrolldiv)
+        stop (.-scrollTop scrolldiv)
+        sheight (.-scrollHeight scrolldiv)] 
+    (assoc context :sticky-bottom (>= stop (- sheight cheight)))))
+
+(defn adjust-scrolltop [{:keys [scrolldiv sticky-bottom]}]
+  (when sticky-bottom
+    (set! (.-scrollTop scrolldiv) (.-scrollHeight scrolldiv))))
+
+
 ; Message handling ---------------------------------------------------------
 
 (defn create-shadowbox [{:keys [comm inputbox scrollcontainer scrollcontent] :as context}]
@@ -174,7 +187,7 @@
         unpadded-height (- height 10)
         newheight (+ messageheight height)]
 
-    ; setup table row div
+    ; setup content div
     (set! (.-className mcontent) "messagecontent")
     (set! (.-height (.-style mcontent)) (str unpadded-height "px"))
 
@@ -221,7 +234,9 @@
     (set! (.-value inputbox) "") 
     (adjust-inputbox-size context)
     
-    (assoc context :messageheight newheight)))
+    (-> context
+      (update-sticky-bottom)
+      (assoc :messageheight newheight))))
 
 ; main ------------------------------------------------------------------------
 
@@ -229,14 +244,17 @@
   (let [shadowbox (dom/createElement "div")
         context (atom (-> start-context
                         (create-shadowbox)
-                        (assoc :messageheight 0)))
+                        (into {:messageheight 0
+                               :sticky-bottom false})))
 
         scrollhandler (fn [event]
-                        (update-scrollbar @context))
+                        (update-scrollbar @context)
+                        (swap! context update-sticky-bottom))
 
         windowhandler (fn [event]
                         (update-scrollbar @context)
-                        (update-document-size @context))
+                        (update-document-size @context)
+                        (adjust-scrolltop @context))
         
         messagehandler (fn [event]
                          (when (= (.-keyCode event) keycodes/ENTER)
