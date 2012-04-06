@@ -75,13 +75,13 @@
                 (let [now (.getTime (js/Date.))
                       t (ease-in-out (/ (- now stime) duration))]
 
-                  (f t)
-
-                  (when (> (- now stime) duration)
-                    (f 1.0)
-                    (when onend
-                      (onend))
-                    (js/clearInterval @timer)))
+                  (if (> (- now stime) duration)
+                    (do
+                      (f 1.0) 
+                      (when onend
+                        (onend)) 
+                      (js/clearInterval @timer)) 
+                    (f t)))
 
                 (swap! frame inc))
               10))))
@@ -91,6 +91,13 @@
   (let [start @a
         delta (- end start)]
     (fn [t]
+      (reset! a (+ start (* delta t))))))
+
+(defn lerpatom2 [a end]
+  (let [start @a
+        delta (- end start)]
+    (fn [t]
+      (console/log "t: " t ", end: " (+ start (* delta t)))
       (reset! a (+ start (* delta t))))))
 
 (defn lerp [object k end]
@@ -236,31 +243,25 @@
     (dom/appendChild scrollcontent mcontent)
     (reset! scroll-topE stop)
 
-    (console/log "anim")
-    (aobj :scroll 100 (lerpatom scroll-topE (- (+ @content-height height) (- (+ height @table-height) 31)))
+    (comment console/log "anim")
+    (aobj :scroll 100 (lerpatom scroll-topE (- @content-height @table-height))
           (fn []
             ; run slide up animation
             (ajs {:element acontent
                   :property "bottom"
                   :end 31 ;FIXME
-                  :duration 400
+                  :duration 200
                   :style true
                   :onend (fn []
                            (dom/setTextContent mcontent value)
                            (dom/removeNode acontent))})
 
-            (console/log "done")
-            (aobj :message 400 (lerpatom message-height newheight)))) 
+            (comment onsole/log "done")
 
-    (comment ajs {:element scrolldiv
-          :property "scrollTop"
-          :end (- newheight soheight)
-          :duration 400
-          :style false})
-
-    ; clear & shrink input box to normal size
-    (set! (.-value inputbox) "")
-    (reset! input-message "")))
+            ; clear & shrink input box to normal size
+            (set! (.-value inputbox) "")
+            (reset! input-message "")
+            (aobj :message 200 (lerpatom message-height newheight))))))
 
 (defn main [{:keys [osidbox inputbox inputcontainer comm scrolldiv
                     scrollcontainer barpoint1 barpoint2 barcontainer
@@ -301,6 +302,7 @@
         changehandler (fn [event])]
 
     (defreaction scroll-topE
+                 (comment console/log "se: " scroll-topE)
                  (set! (.-scrollTop scrolldiv) scroll-topE))
 
     (defreaction input-message
@@ -309,8 +311,8 @@
                                        input-message
                                        "."))
 
-                 (aobj :input 400 (lerpatom input-size (.-offsetHeight shadowbox)))
-                 (aobj :table 400 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))))
+                 (aobj :input 200 (lerpatom input-size (.-offsetHeight shadowbox)))
+                 (aobj :table 200 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))))
 
     (comment defdep table-height [input-size]
             (.-offsetHeight scrollcontainer))
