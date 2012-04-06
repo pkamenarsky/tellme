@@ -3,6 +3,27 @@
 (ns tellme.base.fsm-macros
   (:use tellme.base.fsm))
 
+(defmacro defdep [res deps & body]
+  (let [f (gensym)
+        k (keyword (gensym))]
+    `(let [~f (fn [~@deps]
+                (reset! ~res ~@body))]
+
+       ~@(map (fn [dep] `(add-watch ~dep ~k (fn [~'_ ~'_ ~'o ~'n]
+                                              (when (not= ~'o ~'n)
+                                                (~f ~@(map (fn [d] (if (= d dep) 'n `@~d))
+                                                           deps)))))) deps)
+
+       ~f)))
+
+(defmacro defreaction [dep & body]
+  `(add-watch ~dep
+              ~(keyword (gensym))
+              (fn [i# i# o# n#]
+                (when (not= o# n#)
+                  (let [~dep n#]
+                    ~@body)))))
+
 ; Purely functional FSM ----------------------------------------------------
 
 (comment

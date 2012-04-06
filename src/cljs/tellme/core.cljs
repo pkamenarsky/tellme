@@ -7,7 +7,7 @@
             [goog.events.EventType :as evttype]
             [goog.events :as events])
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
-  (:use-macros [tellme.base.fsm-macros :only [defsm]]))
+  (:use-macros [tellme.base.fsm-macros :only [defdep defreaction defsm]]))
 
 (def sm (defsm
           nil
@@ -61,10 +61,12 @@
     (* t t 2)
     (- 1.0 (* (- t 1) (- t 1) 2))))
 
-(defn aobj [duration f]
+(defn aobj [tag duration f]
   (let [stime (.getTime (js/Date.))
         frame (atom 0)
         timer (atom nil)] 
+
+    ; implement tag stop
 
     (reset! timer
             (js/setInterval
@@ -136,18 +138,13 @@
          :message-height 0
 
          :sticky-bottom true
-         :scroll-top 0
-
-         :message-padding 0
-         :content-height 0
-         :point1-top 0
-         :point2-top 0}))
+         :scroll-top 0}))
 
 (defn adjust-sticky-bottom [{:keys [table-height content-height scroll-top] :as sizes}]
   (into sizes {:sticky-bottom (>= scroll-top (- content-height table-height))
                :scroll-top scroll-top}))
 
-(defn adjust-sizes [{:keys [scroll-top table-height message-height sticky-bottom] :as sizes}
+(defn update-table-dom! [{:keys [scroll-top table-height message-height sticky-bottom] :as sizes}
                     {:keys [barpoint1 barpoint2 messagepadding scrollcontainer scrolldiv]}]
 
   (let [message-padding (Math/max 0 (- table-height message-height))
@@ -156,27 +153,19 @@
         tpct (* 100 (/ scroll-top content-height))
         spct (* 100 (/ table-height content-height))]
 
-    (into sizes
-          {:message-padding message-padding
-           :content-height content-height
-           :scroll-top (if sticky-bottom
-                         (- content-height table-height)
-                         scroll-top)
-           :point1-top tpct
-           :point2-top (+ tpct spct)})))
-
-(defn adjust-dom! [{:keys [table-height content-height scroll-top
-                           message-padding point1-top point2-top] :as sizes}
-                   {:keys [barpoint1 barpoint2 messagepadding
-                           barcontainer scrollcontainer scrolldiv]}]
-
     (set! (.-height (.-style messagepadding)) (str message-padding "px")) ; FIXME: names
     (set! (.-height (.-style scrollcontainer)) (str content-height "px"))
     (set! (.-height (.-style barcontainer)) (str table-height "px"))
-    (set! (.-scrollTop scrolldiv) scroll-top)
+    (set! (.-scrollTop scrolldiv) (if sticky-bottom
+                                    (- content-height table-height)
+                                    scroll-top))
 
-    (set! (.-top (.-style barpoint1)) (str point1-top "%"))
-    (set! (.-top (.-style barpoint2)) (str point2-top "%")))
+    (set! (.-top (.-style barpoint1)) (str tpct "%"))
+    (set! (.-top (.-style barpoint2)) (str (+ tpct spct) "%"))))
+
+; DOM ----------------------------------------------------------------------
+
+
 
 ; Message handling ---------------------------------------------------------
 
@@ -305,7 +294,85 @@
 
 ; main ------------------------------------------------------------------------
 
-(defn main [{:keys [osidbox inputbox inputcontainer comm scrolldiv scrollcontainer] :as start-context}]
+(def table-height (atom -1))
+(def message-height (atom -1))
+(def message-padding (atom -1))
+(def content-height (atom -1))
+(def scroll-top (atom -1))
+(def bar-top (atom -1))
+(def bar-bottom (atom -1))
+
+(defdep message-padding
+        [table-height message-height]
+        (- table-height message-height))
+
+(defdep content-height
+        [message-padding message-height]
+        (+ message-padding message-height))
+
+(defdep bar-top
+        [scroll-top content-height]
+        (* 100 (/ scroll-top content-height)))
+
+(defdep bar-bottom
+        [bar-top table-height content-height]
+        (+ bar-top (* 100 (/ table-height content-height))))
+
+(defn main [{:keys [osidbox inputbox inputcontainer comm scrolldiv
+                    scrollcontainer barpoint1 barpoint2] :as start-context}]
+
+  (let [shadowbox (dom/createElement "div")
+        context (atom (-> start-context
+                        (create-shadowbox)
+                        (into {:messageheight 0
+                               :sticky-bottom true})))
+
+        scrollhandler (fn [event])
+
+        windowhandler (fn [event]
+                        (reset! table-height (.-offsetHeight scrollcontainer)))
+        
+        messagehandler (fn [event]
+                         (when (= (.-keyCode event) keycodes/ENTER)
+                           (when (> (.-length (.-value inputbox)) 0)
+                             (comment swap! context add-message)) 
+                           (.preventDefault event)))
+
+        resizehandler (fn [event]
+                        (comment adjust-inputbox-size @context))
+
+        keyhandler (fn [event]
+                     (let [kcode (.-keyCode event)
+                           ccode (.-charCode event)]
+
+                       (if (and (not= kcode keycodes/BACKSPACE)
+                                (or (< ccode keycodes/ZERO)
+                                    (> ccode keycodes/NINE)))
+                         (.preventDefault event))))
+
+        changehandler (fn [event])]
+
+    (defreaction bar-top (set! (.-top (.-style barpoint1)) (str bar-top "%")))
+    (defreaction bar-bottom (set! (.-top (.-style barpoint2)) (str bar-bottom "%")))
+
+    (.focus osidbox)
+
+    (begin)
+
+    ; need this for the godless webkit scroll-on-drag "feature"
+    (events/listen scrollcontainer "scroll" (fn [event]
+                                                 (set! (.-scrollTop scrollcontainer) 0)
+                                                 (set! (.-scrollLeft scrollcontainer) 0)))
+
+    ; register listeners
+    (events/listen scrolldiv "scroll" scrollhandler)
+    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE windowhandler)
+    (events/listen (events/KeyHandler. osidbox) "key" keyhandler)
+    (events/listen osidbox "input" changehandler)
+    (events/listen inputbox "input" resizehandler)
+    (events/listen (events/KeyHandler. inputbox) "key" messagehandler)))
+
+(defn main2 [{:keys [osidbox inputbox inputcontainer comm scrolldiv scrollcontainer] :as start-context}]
   (let [shadowbox (dom/createElement "div")
         context (atom (-> start-context
                         (create-shadowbox)
