@@ -61,6 +61,32 @@
     (* t t 2)
     (- 1.0 (* (- t 1) (- t 1) 2))))
 
+(defn aobj [duration f]
+  (let [stime (.getTime (js/Date.))
+        frame (atom 0)
+        timer (atom nil)] 
+
+    (reset! timer
+            (js/setInterval
+              (fn []
+                (let [now (.getTime (js/Date.))
+                      t (ease-in-out (/ (- now stime) duration))]
+
+                  (f t)
+
+                  (when (> (- now stime) duration)
+                    (f 1.0)
+                    (js/clearInterval @timer)))
+
+                (swap! frame inc))
+              10))))
+
+(defn lerp [object k end]
+  (let [start (object k)
+        delta (- end start)]
+    (fn [t]
+      (assoc object k (+ start (* delta t))))))
+
 (defn ajs [{:keys [element property end duration style onframe onend]}]
   (let [start (if style
                 (js/parseInt (.replace (aget (.-style element) property) "px" ""))
@@ -103,42 +129,54 @@
   (set! (.-webkitTransition (.-style element)) "all 400ms ease-in-out")
   (set! (.-msTransition (.-style element)) "all 400ms ease-in-out"))
 
-; Scrollbar ----------------------------------------------------------------
+; Size adjustment ----------------------------------------------------------
 
-(defn update-scrollbar [{:keys [barpoint1 barpoint2 scrollcontainer scrolldiv]}]
-  (let [top (.-scrollTop scrolldiv)
-        height (.-scrollHeight scrolldiv)
-        cheight (.-offsetHeight scrollcontainer)
+(def sizes
+  (atom {:table-height 0
+         :message-height 0
+
+         :sticky-bottom true
+         :scroll-top 0
+
+         :message-padding 0
+         :content-height 0
+         :point1-top 0
+         :point2-top 0}))
+
+(defn adjust-sticky-bottom [{:keys [table-height content-height scroll-top] :as sizes}]
+  (into sizes {:sticky-bottom (>= scroll-top (- content-height table-height))
+               :scroll-top scroll-top}))
+
+(defn adjust-sizes [{:keys [scroll-top table-height message-height sticky-bottom] :as sizes}
+                    {:keys [barpoint1 barpoint2 messagepadding scrollcontainer scrolldiv]}]
+
+  (let [message-padding (Math/max 0 (- table-height message-height))
+        content-height (+ message-padding message-height)
         
-        tpct (* 100 (/ top height))
-        spct (* 100 (/ cheight height))]
+        tpct (* 100 (/ scroll-top content-height))
+        spct (* 100 (/ table-height content-height))]
 
-    (set! (.-top (.-style barpoint1)) (str tpct "%"))
-    (set! (.-top (.-style barpoint2)) (str (+ tpct spct) "%"))))
+    (into sizes
+          {:message-padding message-padding
+           :content-height content-height
+           :scroll-top (if sticky-bottom
+                         (- content-height table-height)
+                         scroll-top)
+           :point1-top tpct
+           :point2-top (+ tpct spct)})))
 
-(defn update-document-size [{:keys [scrollcontainer scrollcontent
-                                    messagepadding messageheight] :as context}]
+(defn adjust-dom! [{:keys [table-height content-height scroll-top
+                           message-padding point1-top point2-top] :as sizes}
+                   {:keys [barpoint1 barpoint2 messagepadding
+                           barcontainer scrollcontainer scrolldiv]}]
 
-  (let [sheight (.-offsetHeight scrollcontainer)
-        cheight (.-offsetHeight scrollcontent)
-        newheight (Math/max messageheight sheight)
-        paddingheight (Math/max 0 (- newheight messageheight))]
+    (set! (.-height (.-style messagepadding)) (str message-padding "px")) ; FIXME: names
+    (set! (.-height (.-style scrollcontainer)) (str content-height "px"))
+    (set! (.-height (.-style barcontainer)) (str table-height "px"))
+    (set! (.-scrollTop scrolldiv) scroll-top)
 
-    (when (not= cheight newheight)
-      (set! (.-height (.-style scrollcontent)) (str newheight "px"))
-      (set! (.-height (.-style messagepadding)) (str paddingheight "px")))))
-
-; Sticky bottom ------------------------------------------------------------
-
-(defn update-sticky-bottom [{:keys [scrolldiv] :as context}]
-  (let [cheight (.-offsetHeight scrolldiv)
-        stop (.-scrollTop scrolldiv)
-        sheight (.-scrollHeight scrolldiv)] 
-    (assoc context :sticky-bottom (>= stop (- sheight cheight)))))
-
-(defn adjust-scrolltop [{:keys [scrolldiv sticky-bottom]}]
-  (when sticky-bottom
-    (set! (.-scrollTop scrolldiv) (.-scrollHeight scrolldiv))))
+    (set! (.-top (.-style barpoint1)) (str point1-top "%"))
+    (set! (.-top (.-style barpoint2)) (str point2-top "%")))
 
 ; Message handling ---------------------------------------------------------
 
@@ -171,10 +209,36 @@
                                   "."))
 
   (let [height (.-offsetHeight shadowbox)]
-    (set! (.-height (.-style inputcontainer)) (str height "px")) 
-    (set! (.-height (.-style inputbox)) (str height "px"))
-    (set! (.-bottom (.-style scrollcontainer)) (str height "px"))
-    (set! (.-bottom (.-style barcontainer)) (str height "px"))
+    (ajs {:element inputcontainer
+          :property "height"
+          :duration 400
+          :end height
+          :style true})
+
+    (ajs {:element inputbox
+          :property "height"
+          :duration 400
+          :end height
+          :style true})
+
+    (ajs {:element scrollcontainer
+          :property "bottom"
+          :duration 400
+          :end height
+          :style true
+          :onframe (partial table-resized context)})
+
+    (ajs {:element barcontainer
+          :property "bottom"
+          :duration 400
+          :end height
+          :style true})
+
+
+    (comment (set! (.-height (.-style inputcontainer)) (str height "px")) 
+             (set! (.-height (.-style inputbox)) (str height "px"))
+             (set! (.-bottom (.-style scrollcontainer)) (str height "px"))
+             (set! (.-bottom (.-style barcontainer)) (str height "px")))
 
     (adjust-scrolltop context)
     (update-scrollbar context)))
@@ -192,7 +256,8 @@
 
         height (.-offsetHeight shadowbox)
         unpadded-height (- height 10)
-        newheight (+ messageheight height)]
+        newheight (+ messageheight height)
+        newcontext (assoc context :messageheight newheight)]
 
     ; setup content div
     (set! (.-className mcontent) "messagecontent")
@@ -224,22 +289,15 @@
     (dom/appendChild scrollcontent mcontent)
     (set! (.-scrollTop scrolldiv) stop)
 
-    (ajs {:element scrolldiv
+    (comment ajs {:element scrolldiv
           :property "scrollTop"
           :end (- newheight soheight)
           :duration 400
           :style false})
 
-    ; adjust message padding for when there are too few messages
-    (ajs {:element messagepadding
-          :property "height"
-          :end (Math/max 0 (+ height (- soheight newheight 31))) 
-          :duration 400
-          :style true})
-
     ; clear & shrink input box to normal size
     (set! (.-value inputbox) "") 
-    (adjust-inputbox-size context)
+    (adjust-inputbox-size newcontext)
     
     (-> context
       ;(update-sticky-bottom)
