@@ -173,7 +173,6 @@
 (def scroll-topE (atom -1))
 (def scroll-topB (atom -1))
 (def sticky-bottom (atom true))
-(def animating (atom false))
 
 (defdep message-padding
         [table-height message-height]
@@ -185,15 +184,14 @@
 
 (defdep sticky-bottom
         [scroll-topB]
-        (console/log "sb: " (>= scroll-topB (- @content-height @table-height))) 
-        (if @animating
-          @sticky-bottom
-          (>= scroll-topB (- @content-height @table-height))))
+        (comment console/log "sb: " (>= scroll-topB (- @content-height @table-height))) 
+        (comment console/log "topB: " scroll-topB ", ch: " @content-height ", th: " @table-height) 
+        (< (- (- @content-height @table-height) scroll-topB) 3))
 
 (defdep scroll-topE
         [table-height content-height]
-        (console/log "sbEEE: " @sticky-bottom)
-        (if @sticky-bottom (- content-height table-height) @scroll-topB))
+        (comment console/log "sbEEE: " @sticky-bottom)
+        (if @sticky-bottom (+ 1 (- content-height table-height)) @scroll-topB))
 
 (defdep bar-top
         [scroll-topB content-height]
@@ -234,24 +232,25 @@
     (dom/setTextContent acontent value)
     (dom/appendChild comm acontent)
 
-    ; run slide up animation
-    (ajs {:element acontent
-          :property "bottom"
-          :end 31 ;FIXME
-          :duration 400
-          :style true
-          :onend (fn []
-                   (dom/setTextContent mcontent value)
-                   (dom/removeNode acontent))})
-
     ; run scroll animation
     (dom/appendChild scrollcontent mcontent)
     (reset! scroll-topE stop)
 
-    (reset! animating true)
-    (aobj :message 400 (lerpatom message-height newheight))
-    (aobj :scroll 400 (lerpatom scroll-topE (+ height (- @content-height @table-height)))
-          #(reset! animating false))
+    (console/log "anim")
+    (aobj :scroll 100 (lerpatom scroll-topE (- (+ @content-height height) (- (+ height @table-height) 31)))
+          (fn []
+            ; run slide up animation
+            (ajs {:element acontent
+                  :property "bottom"
+                  :end 31 ;FIXME
+                  :duration 400
+                  :style true
+                  :onend (fn []
+                           (dom/setTextContent mcontent value)
+                           (dom/removeNode acontent))})
+
+            (console/log "done")
+            (aobj :message 400 (lerpatom message-height newheight)))) 
 
     (comment ajs {:element scrolldiv
           :property "scrollTop"
@@ -275,6 +274,7 @@
         shadowbox (:shadowbox @context)
 
         scrollhandler (fn [event]
+                        (comment js/setTimeout #(reset! scroll-topB (.-scrollTop scrolldiv)) 0)
                         (reset! scroll-topB (.-scrollTop scrolldiv)))
 
         windowhandler (fn [event]
@@ -309,10 +309,8 @@
                                        input-message
                                        "."))
 
-                 (reset! animating true)
                  (aobj :input 400 (lerpatom input-size (.-offsetHeight shadowbox)))
-                 (aobj :table 400 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))
-                       #(reset! animating false)))
+                 (aobj :table 400 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))))
 
     (comment defdep table-height [input-size]
             (.-offsetHeight scrollcontainer))
@@ -340,7 +338,10 @@
                                                  (set! (.-scrollLeft scrollcontainer) 0)))
 
     ; register listeners
+    ;(events/listen scrolldiv "DOMMouseScroll" scrollhandler)
+    ;(events/listen scrolldiv "mousewheel" scrollhandler)
     (events/listen scrolldiv "scroll" scrollhandler)
+
     (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE windowhandler)
     (events/listen (events/KeyHandler. osidbox) "key" keyhandler)
     (events/listen osidbox "input" changehandler)
