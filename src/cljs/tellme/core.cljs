@@ -83,6 +83,12 @@
                 (swap! frame inc))
               10))))
 
+(defn lerpatom [a end]
+  (let [start @a
+        delta (- end start)]
+    (fn [t]
+      (reset! a (+ start (* delta t))))))
+
 (defn lerp [object k end]
   (let [start (object k)
         delta (- end start)]
@@ -126,47 +132,6 @@
               (swap! frame inc))
             10))))
 
-(defn setup-animation [element]
-  (set! (.-MozTransition (.-style element)) "all 400ms ease-in-out")
-  (set! (.-webkitTransition (.-style element)) "all 400ms ease-in-out")
-  (set! (.-msTransition (.-style element)) "all 400ms ease-in-out"))
-
-; Size adjustment ----------------------------------------------------------
-
-(def sizes
-  (atom {:table-height 0
-         :message-height 0
-
-         :sticky-bottom true
-         :scroll-top 0}))
-
-(defn adjust-sticky-bottom [{:keys [table-height content-height scroll-top] :as sizes}]
-  (into sizes {:sticky-bottom (>= scroll-top (- content-height table-height))
-               :scroll-top scroll-top}))
-
-(defn update-table-dom! [{:keys [scroll-top table-height message-height sticky-bottom] :as sizes}
-                    {:keys [barpoint1 barpoint2 messagepadding scrollcontainer scrolldiv]}]
-
-  (let [message-padding (Math/max 0 (- table-height message-height))
-        content-height (+ message-padding message-height)
-        
-        tpct (* 100 (/ scroll-top content-height))
-        spct (* 100 (/ table-height content-height))]
-
-    (set! (.-height (.-style messagepadding)) (str message-padding "px")) ; FIXME: names
-    (set! (.-height (.-style scrollcontainer)) (str content-height "px"))
-    (set! (.-height (.-style barcontainer)) (str table-height "px"))
-    (set! (.-scrollTop scrolldiv) (if sticky-bottom
-                                    (- content-height table-height)
-                                    scroll-top))
-
-    (set! (.-top (.-style barpoint1)) (str tpct "%"))
-    (set! (.-top (.-style barpoint2)) (str (+ tpct spct) "%"))))
-
-; DOM ----------------------------------------------------------------------
-
-
-
 ; Message handling ---------------------------------------------------------
 
 (defn create-shadowbox [{:keys [comm inputbox scrollcontainer scrollcontent] :as context}]
@@ -202,6 +167,11 @@
 (def bar-top (atom -1))
 (def bar-bottom (atom -1))
 
+(def scroll-topE (atom -1))
+(def scroll-topB (atom -1))
+(def scroll-top (atom -1))
+(def sticky-bottom (atom true))
+
 (defdep message-padding
         [table-height message-height]
         (- table-height message-height))
@@ -209,6 +179,16 @@
 (defdep content-height
         [message-padding message-height]
         (+ message-padding message-height))
+
+(defdep scroll-topB [scroll-topE] scroll-topE)
+
+(defdep sticky-bottom
+        [scroll-topB content-height table-height]
+        (>= (scroll-topB (- content-height table-height))))
+
+(defdep scroll-top
+        [table-height content-height scroll-topE]
+        (if @sticky-bottom (- content-height table-height) scroll-topE))
 
 (defdep bar-top
         [scroll-top content-height]
@@ -219,8 +199,7 @@
         (+ bar-top (* 100 (/ table-height content-height))))
 
 (defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox
-                           shadowbox messageheight messagepadding
-                           shadowbox-width] :as context}]
+                           shadowbox messagepadding shadowbox-width] :as context}]
   (let [value (.-value inputbox)
 
         mcontent (dom/createElement "div")
@@ -231,7 +210,7 @@
 
         height (.-offsetHeight shadowbox)
         unpadded-height (- height 10)
-        newheight (+ messageheight height)
+        newheight (+ @message-height height)
         newcontext (assoc context :messageheight newheight)]
 
     ; setup content div
@@ -262,7 +241,9 @@
 
     ; run scroll animation
     (dom/appendChild scrollcontent mcontent)
-    (set! (.-scrollTop scrolldiv) stop)
+    (reset! scroll-topE stop)
+
+    (aobj :scroll 400 (lerpatom message-height newheight))
 
     (comment ajs {:element scrolldiv
           :property "scrollTop"
@@ -271,11 +252,12 @@
           :style false})
 
     ; clear & shrink input box to normal size
-    (set! (.-value inputbox) "") 
-    (adjust-inputbox-size newcontext)))
+    (set! (.-value inputbox) "")
+    (reset! input-message "")))
 
 (defn main [{:keys [osidbox inputbox inputcontainer comm scrolldiv
-                    scrollcontainer barpoint1 barpoint2 barcontainer] :as start-context}]
+                    scrollcontainer barpoint1 barpoint2 barcontainer
+                    messagepadding] :as start-context}]
 
   (let [context (atom (-> start-context
                         (create-shadowbox)
@@ -284,7 +266,8 @@
 
         shadowbox (:shadowbox @context)
 
-        scrollhandler (fn [event])
+        scrollhandler (fn [event]
+                        (reset! scroll-topB (.-scrollTop scrolldiv)))
 
         windowhandler (fn [event]
                         (reset! table-height (.-offsetHeight scrollcontainer)))
@@ -309,8 +292,8 @@
 
         changehandler (fn [event])]
 
-    (defdep table-height [input-size]
-            (.-offsetHeight scrollcontainer))
+    (defreaction scroll-top
+                 (set! (.-scrollTop scrolldiv)))
 
     (defreaction input-message
                  (dom/setTextContent shadowbox
@@ -318,11 +301,16 @@
                                        input-message
                                        "."))
 
-                 ; animate this
-                 (js/setTimeout #(reset! input-size (.-offsetHeight shadowbox)) 0))
+                 (aobj :input 400 (lerpatom input-size (.-offsetHeight shadowbox)))
+                 (aobj :table 400 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))))
+
+    (comment defdep table-height [input-size]
+            (.-offsetHeight scrollcontainer))
 
     (defreaction bar-top (set! (.-top (.-style barpoint1)) (str bar-top "%")))
     (defreaction bar-bottom (set! (.-top (.-style barpoint2)) (str bar-bottom "%")))
+
+    (defreaction message-padding (set! (.-height (.-style messagepadding)) (str message-padding "px")))
 
     (defreaction input-size
                  (set! (.-bottom (.-style barcontainer)) (str input-size "px"))
@@ -369,7 +357,7 @@
         messagehandler (fn [event]
                          (when (= (.-keyCode event) keycodes/ENTER)
                            (when (> (.-length (.-value inputbox)) 0)
-                             (swap! context add-message)) 
+                             (add-message @context)) 
                            (.preventDefault event)))
 
         resizehandler (fn [event]
