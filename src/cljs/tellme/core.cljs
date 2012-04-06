@@ -190,47 +190,33 @@
     (into context {:shadowbox shadowbox
                    :shadowbox-width width})))
 
-(defn adjust-inputbox-size [{:keys [inputbox shadowbox inputcontainer
-                                    scrollcontainer barcontainer] :as context}]
+; main ------------------------------------------------------------------------
 
-  (dom/setTextContent shadowbox (if (> (.-length (.-value inputbox)) 0)
-                                  (.-value inputbox)
-                                  "."))
+(def input-message (atom nil))
+(def input-size (atom -1))
+(def table-height (atom -1))
+(def message-height (atom -1))
+(def message-padding (atom -1))
+(def content-height (atom -1))
+(def scroll-top (atom -1))
+(def bar-top (atom -1))
+(def bar-bottom (atom -1))
 
-  (let [height (.-offsetHeight shadowbox)]
-    (ajs {:element inputcontainer
-          :property "height"
-          :duration 400
-          :end height
-          :style true})
+(defdep message-padding
+        [table-height message-height]
+        (- table-height message-height))
 
-    (ajs {:element inputbox
-          :property "height"
-          :duration 400
-          :end height
-          :style true})
+(defdep content-height
+        [message-padding message-height]
+        (+ message-padding message-height))
 
-    (ajs {:element scrollcontainer
-          :property "bottom"
-          :duration 400
-          :end height
-          :style true
-          :onframe (partial table-resized context)})
+(defdep bar-top
+        [scroll-top content-height]
+        (* 100 (/ scroll-top content-height)))
 
-    (ajs {:element barcontainer
-          :property "bottom"
-          :duration 400
-          :end height
-          :style true})
-
-
-    (comment (set! (.-height (.-style inputcontainer)) (str height "px")) 
-             (set! (.-height (.-style inputbox)) (str height "px"))
-             (set! (.-bottom (.-style scrollcontainer)) (str height "px"))
-             (set! (.-bottom (.-style barcontainer)) (str height "px")))
-
-    (adjust-scrolltop context)
-    (update-scrollbar context)))
+(defdep bar-bottom
+        [bar-top table-height content-height]
+        (+ bar-top (* 100 (/ table-height content-height))))
 
 (defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox
                            shadowbox messageheight messagepadding
@@ -286,46 +272,17 @@
 
     ; clear & shrink input box to normal size
     (set! (.-value inputbox) "") 
-    (adjust-inputbox-size newcontext)
-    
-    (-> context
-      ;(update-sticky-bottom)
-      (assoc :messageheight newheight))))
-
-; main ------------------------------------------------------------------------
-
-(def table-height (atom -1))
-(def message-height (atom -1))
-(def message-padding (atom -1))
-(def content-height (atom -1))
-(def scroll-top (atom -1))
-(def bar-top (atom -1))
-(def bar-bottom (atom -1))
-
-(defdep message-padding
-        [table-height message-height]
-        (- table-height message-height))
-
-(defdep content-height
-        [message-padding message-height]
-        (+ message-padding message-height))
-
-(defdep bar-top
-        [scroll-top content-height]
-        (* 100 (/ scroll-top content-height)))
-
-(defdep bar-bottom
-        [bar-top table-height content-height]
-        (+ bar-top (* 100 (/ table-height content-height))))
+    (adjust-inputbox-size newcontext)))
 
 (defn main [{:keys [osidbox inputbox inputcontainer comm scrolldiv
-                    scrollcontainer barpoint1 barpoint2] :as start-context}]
+                    scrollcontainer barpoint1 barpoint2 barcontainer] :as start-context}]
 
-  (let [shadowbox (dom/createElement "div")
-        context (atom (-> start-context
+  (let [context (atom (-> start-context
                         (create-shadowbox)
                         (into {:messageheight 0
                                :sticky-bottom true})))
+
+        shadowbox (:shadowbox @context)
 
         scrollhandler (fn [event])
 
@@ -335,11 +292,11 @@
         messagehandler (fn [event]
                          (when (= (.-keyCode event) keycodes/ENTER)
                            (when (> (.-length (.-value inputbox)) 0)
-                             (comment swap! context add-message)) 
+                             (add-message @context)) 
                            (.preventDefault event)))
 
         resizehandler (fn [event]
-                        (comment adjust-inputbox-size @context))
+                        (reset! input-message (.-value inputbox)))
 
         keyhandler (fn [event]
                      (let [kcode (.-keyCode event)
@@ -352,8 +309,28 @@
 
         changehandler (fn [event])]
 
+    (defdep table-height [input-size]
+            (.-offsetHeight scrollcontainer))
+
+    (defreaction input-message
+                 (dom/setTextContent shadowbox
+                                     (if (> (.-length input-message) 0)
+                                       input-message
+                                       "."))
+
+                 ; animate this
+                 (js/setTimeout #(reset! input-size (.-offsetHeight shadowbox)) 0))
+
     (defreaction bar-top (set! (.-top (.-style barpoint1)) (str bar-top "%")))
     (defreaction bar-bottom (set! (.-top (.-style barpoint2)) (str bar-bottom "%")))
+
+    (defreaction input-size
+                 (set! (.-bottom (.-style barcontainer)) (str input-size "px"))
+                 (set! (.-height (.-style inputcontainer)) (str input-size "px"))
+                 (set! (.-height (.-style inputbox)) (str input-size "px"))
+                 (set! (.-bottom (.-style scrollcontainer)) (str input-size "px")))
+
+    (reset! input-message "")
 
     (.focus osidbox)
 
@@ -373,12 +350,13 @@
     (events/listen (events/KeyHandler. inputbox) "key" messagehandler)))
 
 (defn main2 [{:keys [osidbox inputbox inputcontainer comm scrolldiv scrollcontainer] :as start-context}]
-  (let [shadowbox (dom/createElement "div")
-        context (atom (-> start-context
+  (let [context (atom (-> start-context
                         (create-shadowbox)
                         (into {:messageheight 0
                                :sticky-bottom true})))
 
+        shadowbox (:shadowbox context)
+ 
         scrollhandler (fn [event]
                         (update-scrollbar @context)
                         (swap! context update-sticky-bottom))
