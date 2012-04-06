@@ -7,7 +7,7 @@
   (let [f (gensym)
         k (keyword (gensym))]
     `(let [~f (fn [~@deps]
-                (reset! ~res ~@body))]
+                (reset! ~res (do ~@body)))]
 
        ~@(map (fn [dep] `(add-watch ~dep ~k (fn [~'_ ~'_ ~'o ~'n]
                                               (when (not= ~'o ~'n)

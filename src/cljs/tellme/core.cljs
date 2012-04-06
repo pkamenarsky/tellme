@@ -61,7 +61,8 @@
     (* t t 2)
     (- 1.0 (* (- t 1) (- t 1) 2))))
 
-(defn aobj [tag duration f]
+(defn aobj
+  ([tag duration f onend] 
   (let [stime (.getTime (js/Date.))
         frame (atom 0)
         timer (atom nil)] 
@@ -78,10 +79,13 @@
 
                   (when (> (- now stime) duration)
                     (f 1.0)
+                    (when onend
+                      (onend))
                     (js/clearInterval @timer)))
 
                 (swap! frame inc))
               10))))
+  ([tag duration f] (aobj tag duration f nil)))
 
 (defn lerpatom [a end]
   (let [start @a
@@ -163,36 +167,37 @@
 (def message-height (atom -1))
 (def message-padding (atom -1))
 (def content-height (atom -1))
-(def scroll-top (atom -1))
 (def bar-top (atom -1))
 (def bar-bottom (atom -1))
 
 (def scroll-topE (atom -1))
 (def scroll-topB (atom -1))
-(def scroll-top (atom -1))
 (def sticky-bottom (atom true))
+(def animating (atom false))
 
 (defdep message-padding
         [table-height message-height]
-        (- table-height message-height))
+        (Math/max 0 (- table-height message-height)))
 
 (defdep content-height
         [message-padding message-height]
         (+ message-padding message-height))
 
-(defdep scroll-topB [scroll-topE] scroll-topE)
-
 (defdep sticky-bottom
-        [scroll-topB content-height table-height]
-        (>= (scroll-topB (- content-height table-height))))
+        [scroll-topB]
+        (console/log "sb: " (>= scroll-topB (- @content-height @table-height))) 
+        (if @animating
+          @sticky-bottom
+          (>= scroll-topB (- @content-height @table-height))))
 
-(defdep scroll-top
-        [table-height content-height scroll-topE]
-        (if @sticky-bottom (- content-height table-height) scroll-topE))
+(defdep scroll-topE
+        [table-height content-height]
+        (console/log "sbEEE: " @sticky-bottom)
+        (if @sticky-bottom (- content-height table-height) @scroll-topB))
 
 (defdep bar-top
-        [scroll-top content-height]
-        (* 100 (/ scroll-top content-height)))
+        [scroll-topB content-height]
+        (* 100 (/ scroll-topB content-height)))
 
 (defdep bar-bottom
         [bar-top table-height content-height]
@@ -243,7 +248,10 @@
     (dom/appendChild scrollcontent mcontent)
     (reset! scroll-topE stop)
 
-    (aobj :scroll 400 (lerpatom message-height newheight))
+    (reset! animating true)
+    (aobj :message 400 (lerpatom message-height newheight))
+    (aobj :scroll 400 (lerpatom scroll-topE (+ height (- @content-height @table-height)))
+          #(reset! animating false))
 
     (comment ajs {:element scrolldiv
           :property "scrollTop"
@@ -292,8 +300,8 @@
 
         changehandler (fn [event])]
 
-    (defreaction scroll-top
-                 (set! (.-scrollTop scrolldiv)))
+    (defreaction scroll-topE
+                 (set! (.-scrollTop scrolldiv) scroll-topE))
 
     (defreaction input-message
                  (dom/setTextContent shadowbox
@@ -301,8 +309,10 @@
                                        input-message
                                        "."))
 
+                 (reset! animating true)
                  (aobj :input 400 (lerpatom input-size (.-offsetHeight shadowbox)))
-                 (aobj :table 400 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))))
+                 (aobj :table 400 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))
+                       #(reset! animating false)))
 
     (comment defdep table-height [input-size]
             (.-offsetHeight scrollcontainer))
@@ -336,65 +346,6 @@
     (events/listen osidbox "input" changehandler)
     (events/listen inputbox "input" resizehandler)
     (events/listen (events/KeyHandler. inputbox) "key" messagehandler)))
-
-(defn main2 [{:keys [osidbox inputbox inputcontainer comm scrolldiv scrollcontainer] :as start-context}]
-  (let [context (atom (-> start-context
-                        (create-shadowbox)
-                        (into {:messageheight 0
-                               :sticky-bottom true})))
-
-        shadowbox (:shadowbox context)
- 
-        scrollhandler (fn [event]
-                        (update-scrollbar @context)
-                        (swap! context update-sticky-bottom))
-
-        windowhandler (fn [event]
-                        (update-scrollbar @context)
-                        (update-document-size @context)
-                        (adjust-scrolltop @context))
-        
-        messagehandler (fn [event]
-                         (when (= (.-keyCode event) keycodes/ENTER)
-                           (when (> (.-length (.-value inputbox)) 0)
-                             (add-message @context)) 
-                           (.preventDefault event)))
-
-        resizehandler (fn [event]
-                        (adjust-inputbox-size @context))
-
-        keyhandler (fn [event]
-                     (let [kcode (.-keyCode event)
-                           ccode (.-charCode event)]
-
-                       (if (and (not= kcode keycodes/BACKSPACE)
-                                (or (< ccode keycodes/ZERO)
-                                    (> ccode keycodes/NINE)))
-                         (.preventDefault event))))
-
-        changehandler (fn [event])]
-
-    (adjust-inputbox-size @context)
-    (update-document-size @context)
-    (update-scrollbar @context)
-
-    (.focus osidbox)
-
-    (begin)
-
-    ; need this for the godless webkit scroll-on-drag "feature"
-    (events/listen scrollcontainer "scroll" (fn [event]
-                                                 (set! (.-scrollTop scrollcontainer) 0)
-                                                 (set! (.-scrollLeft scrollcontainer) 0)))
-
-    ; register listeners
-    (events/listen scrolldiv "scroll" scrollhandler)
-    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE windowhandler)
-    (events/listen (events/KeyHandler. osidbox) "key" keyhandler)
-    (events/listen osidbox "input" changehandler)
-    (events/listen inputbox "input" resizehandler)
-    (events/listen (events/KeyHandler. inputbox) "key" messagehandler)))
-
 
 ; defmacro calling
 (defn get-context []
