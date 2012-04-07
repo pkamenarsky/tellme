@@ -52,7 +52,6 @@
   (let [stime (.getTime (js/Date.))
         frame (atom 0)] 
 
-    ; implement tag stop
     (when (@aobjs tag)
       (js/clearInterval (@aobjs tag)))
 
@@ -113,6 +112,7 @@
 ; main ------------------------------------------------------------------------
 
 (def input-message (atom nil))
+(def shadow-size (atom -1))
 (def input-size (atom -1))
 (def table-height (atom -1))
 (def message-height (atom -1))
@@ -125,31 +125,22 @@
 (def scroll-topB (atom -1))
 (def sticky-bottom (atom true))
 
-(defdep message-padding
-        [table-height message-height]
+(defdep message-padding [table-height message-height]
         (Math/max 0 (- table-height message-height)))
 
-(defdep content-height
-        [message-padding message-height]
+(defdep content-height [message-padding message-height]
         (+ message-padding message-height))
 
-(defdep sticky-bottom
-        [scroll-topB]
-        (comment console/log "sb: " (>= scroll-topB (- @content-height @table-height))) 
-        (comment console/log "topB: " scroll-topB ", ch: " @content-height ", th: " @table-height) 
+(defdep sticky-bottom [scroll-topB]
         (< (- (- @content-height @table-height) scroll-topB) 3))
 
-(defdep scroll-topE
-        [table-height content-height]
-        (comment console/log "sbEEE: " @sticky-bottom)
+(defdep scroll-topE [table-height content-height]
         (if @sticky-bottom (+ 1 (- content-height table-height)) @scroll-topB))
 
-(defdep bar-top
-        [scroll-topB content-height]
+(defdep bar-top [scroll-topB content-height]
         (* 100 (/ scroll-topB content-height)))
 
-(defdep bar-bottom
-        [bar-top table-height content-height]
+(defdep bar-bottom [bar-top table-height content-height]
         (+ bar-top (* 100 (/ table-height content-height))))
 
 (defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox
@@ -210,7 +201,6 @@
         shadowbox (:shadowbox @context)
 
         scrollhandler (fn [event]
-                        (comment js/setTimeout #(reset! scroll-topB (.-scrollTop scrolldiv)) 0)
                         (reset! scroll-topB (.-scrollTop scrolldiv)))
 
         windowhandler (fn [event]
@@ -239,12 +229,15 @@
     (defreaction scroll-topE
                  (set! (.-scrollTop scrolldiv) scroll-topE))
 
-    (defreaction input-message
-                 (dom/setTextContent shadowbox
-                                     (if (> (.-length input-message) 0)
-                                       input-message
-                                       "."))
+    (defdep shadow-size [input-message]
+            (dom/setTextContent shadowbox
+                                (if (> (.-length input-message) 0)
+                                  input-message
+                                  "."))
 
+            (.-offsetHeight shadowbox))
+
+    (defreaction shadow-size
                  (aobj :input 200 (lerpatom input-size (.-offsetHeight shadowbox)))
                  (aobj :table 200 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))))
 
