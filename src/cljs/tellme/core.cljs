@@ -19,22 +19,6 @@
            (js/alert (+ a b))
            (ignore-msg))))
 
-(defn test []
-  (-> sm
-    (goto :start) 
-    (send-message {:a 5 :b 7})) 
-  (+ 1 3))
-
-(def ^:dynamic x "bblbla")
-
-(defn foo [] (console/log x))
-
-(defn footest []
-  (binding [x "ho"] (foo)
-    (set! x "asdasd")
-    (foo))
-  (foo))
-
 (defn animate [element style callback]
   (set! (.-msTransition (.-style element)) "all 400ms ease-in-out") 
   (set! (.-webkitTransition (.-style element)) "all 400ms ease-in-out") 
@@ -61,30 +45,34 @@
     (* t t 2)
     (- 1.0 (* (- t 1) (- t 1) 2))))
 
+(def aobjs (atom {}))
+
 (defn aobj
   ([tag duration f onend] 
   (let [stime (.getTime (js/Date.))
-        frame (atom 0)
-        timer (atom nil)] 
+        frame (atom 0)] 
 
     ; implement tag stop
+    (when (@aobjs tag)
+      (js/clearInterval (@aobjs tag)))
 
-    (reset! timer
-            (js/setInterval
-              (fn []
-                (let [now (.getTime (js/Date.))
-                      t (ease-in-out (/ (- now stime) duration))]
+    (swap! aobjs assoc tag 
+           (js/setInterval
+             (fn []
+               (let [now (.getTime (js/Date.))
+                     t (ease-in-out (/ (- now stime) duration))]
 
-                  (if (> (- now stime) duration)
-                    (do
-                      (f 1.0) 
-                      (when onend
-                        (onend)) 
-                      (js/clearInterval @timer)) 
-                    (f t)))
+                 (if (> (- now stime) duration)
+                   (do
+                     (f 1.0) 
+                     (when onend
+                       (onend)) 
+                     (js/clearInterval (@aobjs tag))
+                     (swap! aobjs dissoc tag)) 
+                   (f t)))
 
-                (swap! frame inc))
-              10))))
+               (swap! frame inc))
+             10))))
   ([tag duration f] (aobj tag duration f nil)))
 
 (defn lerpatom [a end]
@@ -93,55 +81,11 @@
     (fn [t]
       (reset! a (+ start (* delta t))))))
 
-(defn lerpatom2 [a end]
-  (let [start @a
+(defn lerpstyle [element p end]
+  (let [start (js/parseInt (.replace (aget (.-style element) p) "px" ""))
         delta (- end start)]
     (fn [t]
-      (console/log "t: " t ", end: " (+ start (* delta t)))
-      (reset! a (+ start (* delta t))))))
-
-(defn lerp [object k end]
-  (let [start (object k)
-        delta (- end start)]
-    (fn [t]
-      (assoc object k (+ start (* delta t))))))
-
-(defn ajs [{:keys [element property end duration style onframe onend]}]
-  (let [start (if style
-                (js/parseInt (.replace (aget (.-style element) property) "px" ""))
-                (aget element property))
-        stime (.getTime (js/Date.))
-        frame (atom 0)
-        delta (- end start)]
-    
-    ; stop previous animation
-    (if (.-jsAnimation element)
-      (js/clearInterval (.-jsAnimation element))) 
-
-    (set! (.-jsAnimation element)
-          (js/setInterval
-            (fn []
-              (let [now (.getTime (js/Date.))
-                    t (ease-in-out (/ (- now stime) duration))
-                    lerp (+ start (* delta t))]
-
-                (if style
-                  (aset (.-style element) property (str lerp "px"))
-                  (aset element property lerp)) 
-
-                (when onframe
-                  (onframe t))
-
-                (when (> (- now stime) duration)
-                  (aset (.-style element) property (str end unit))
-                  (js/clearInterval (.-jsAnimation element))
-                  (set! (.-jsAnimation element) nil)
-                  
-                  (when onend
-                    (onend))))
-
-              (swap! frame inc))
-            10))))
+      (aset (.-style element) p (str (+ start (* delta t)) "px")))))
 
 ; Message handling ---------------------------------------------------------
 
@@ -216,12 +160,10 @@
         acontent (dom/createElement "div")
 
         stop (.-scrollTop scrolldiv)
-        soheight (.-offsetHeight scrollcontainer)
 
         height (.-offsetHeight shadowbox)
         unpadded-height (- height 10)
-        newheight (+ @message-height height)
-        newcontext (assoc context :messageheight newheight)]
+        newheight (+ @message-height height)]
 
     ; setup content div
     (set! (.-className mcontent) "messagecontent")
@@ -243,20 +185,13 @@
     (dom/appendChild scrollcontent mcontent)
     (reset! scroll-topE stop)
 
-    (comment console/log "anim")
     (aobj :scroll 100 (lerpatom scroll-topE (- @content-height @table-height))
           (fn []
             ; run slide up animation
-            (ajs {:element acontent
-                  :property "bottom"
-                  :end 31 ;FIXME
-                  :duration 200
-                  :style true
-                  :onend (fn []
-                           (dom/setTextContent mcontent value)
-                           (dom/removeNode acontent))})
-
-            (comment onsole/log "done")
+            (aobj :slide 200 (lerpstyle acontent "bottom" 31)
+                  (fn []
+                    (dom/setTextContent mcontent value)
+                    (dom/removeNode acontent)))
 
             ; clear & shrink input box to normal size
             (set! (.-value inputbox) "")
@@ -302,7 +237,6 @@
         changehandler (fn [event])]
 
     (defreaction scroll-topE
-                 (comment console/log "se: " scroll-topE)
                  (set! (.-scrollTop scrolldiv) scroll-topE))
 
     (defreaction input-message
@@ -339,9 +273,6 @@
                                                  (set! (.-scrollTop scrollcontainer) 0)
                                                  (set! (.-scrollLeft scrollcontainer) 0)))
 
-    ; register listeners
-    ;(events/listen scrolldiv "DOMMouseScroll" scrollhandler)
-    ;(events/listen scrolldiv "mousewheel" scrollhandler)
     (events/listen scrolldiv "scroll" scrollhandler)
 
     (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE windowhandler)
