@@ -156,6 +156,8 @@
 (def scroll-topB (atom -1))
 (def sticky-bottom (atom true))
 
+(def bar-visible (atom true))
+
 (defdep message-padding [table-height message-height]
         (Math/max 0 (- table-height message-height)))
 
@@ -163,9 +165,11 @@
         (+ message-padding message-height))
 
 (defdep sticky-bottom [scroll-topB]
-        (< (- (- @content-height @table-height) scroll-topB) 3))
+        ;(js* "console.log(~{0}, ~{1}, ~{2})" scroll-topB @content-height @table-height)
+        (< (- (- @content-height @table-height) scroll-topB) 10))
 
 (defdep scroll-topE [table-height content-height]
+        ;(js* "console.log('EEE', ~{0}, ~{1}, ~{2}, ~{3})" @scroll-topB content-height table-height @sticky-bottom)
         (if @sticky-bottom (+ 1 (- content-height table-height)) @scroll-topB))
 
 (defdep bar-top [scroll-topB content-height]
@@ -173,6 +177,9 @@
 
 (defdep bar-bottom [bar-top table-height content-height]
         (+ bar-top (* 100 (/ table-height content-height))))
+
+(defdep bar-visible [table-height content-height]
+        (> content-height table-height))
 
 (defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox
                            shadowbox messagepadding shadowbox-width] :as context}]
@@ -245,9 +252,11 @@
         shadowbox (:shadowbox @context)
 
         scrollhandler (fn [event]
+                        ;(js* "console.log('stB')")
                         (reset! scroll-topB (.-scrollTop scrolldiv)))
 
         windowhandler (fn [event]
+                        ;(js* "console.log('wnd')")
                         (reset! table-height (.-offsetHeight scrollcontainer)))
         
         messagehandler (fn [event]
@@ -298,6 +307,24 @@
                  (set! (.-height (.-style inputcontainer)) (str input-size "px"))
                  (set! (.-height (.-style inputbox)) (str input-size "px"))
                  (set! (.-bottom (.-style scrollcontainer)) (str input-size "px")))
+
+    (defreaction bar-visible
+                 (set! (.-width (.-style barpoint1)) (if bar-visible "6px" "0px"))
+                 (set! (.-height (.-style barpoint1)) (if bar-visible "6px" "0px"))
+                 (set! (.-marginLeft (.-style barpoint1)) (if bar-visible "-3px" "0px"))
+                 (set! (.-marginTop (.-style barpoint1)) (if bar-visible "0px" "3px"))
+
+                 (set! (.-width (.-style barpoint2)) (if bar-visible "6px" "0px"))
+                 (set! (.-height (.-style barpoint2)) (if bar-visible "6px" "0px"))
+                 (set! (.-marginLeft (.-style barpoint2)) (if bar-visible "-3px" "0px"))
+                 (set! (.-marginTop (.-style barpoint2)) (if bar-visible "-6px" "-3px"))
+
+                 ;(set! (.-MozTransform (.-style barpoint1)) (if bar-visible "scale(1)" "scale(0)"))
+                 ;(set! (.-MozTransform (.-style barpoint2)) (if bar-visible "scale(1)" "scale(0)"))
+
+                 ;(set! (.-visibility (.-style barpoint1)) (if bar-visible "visible" "hidden"))
+                 ;(set! (.-visibility (.-style barpoint2)) (if bar-visible "visible" "hidden"))
+                 )
 
     (reset! input-message "")
 
