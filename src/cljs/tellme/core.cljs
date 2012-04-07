@@ -229,7 +229,8 @@
               ; FIXME: 31
               (aobj :slide 200 (lerpstyle acontent "bottom" 31)
                     (fn [_]
-                      (dom/setTextContent mcontent value)
+                      ;(dom/setTextContent mcontent value)
+                      (set! (.-innerHTML mcontent) value)
                       (dom/removeNode acontent)))
 
               ; clear & shrink input box to normal size
@@ -291,6 +292,8 @@
             (.-offsetHeight shadowbox))
 
     (defreaction shadow-size
+                 (aflush :input)
+                 (aflush :table)
                  (aobj :input 200 (lerpatom input-size (.-offsetHeight shadowbox)))
                  (aobj :table 200 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))))
 
