@@ -181,9 +181,13 @@
 (defdep bar-visible [table-height content-height]
         (> content-height table-height))
 
+(defn linkify [text]
+  (.replace text js/url_pattern "<a href='$1'>$1</a>"))
+
 (defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox
                            shadowbox messagepadding shadowbox-width] :as context}]
-  (let [value (.-value inputbox)
+  ; FIXME: remote messages
+  (let [value (.-innerHTML shadowbox)
 
         mcontent (dom/createElement "div")
         acontent (dom/createElement "div")
@@ -207,7 +211,8 @@
     (set! (.-width (.-style acontent)) (str shadowbox-width "px"))
     (set! (.-marginLeft (.-style acontent)) (str (- (/ shadowbox-width 2)) "px"))
 
-    (dom/setTextContent acontent value)
+    ;(dom/setTextContent acontent value)
+    (set! (.-innerHTML acontent) value)
     (dom/appendChild comm acontent)
 
     (dom/appendChild scrollcontent mcontent)
@@ -230,7 +235,7 @@
               (aobj :slide 200 (lerpstyle acontent "bottom" 31)
                     (fn [_]
                       ;(dom/setTextContent mcontent value)
-                      (set! (.-innerHTML mcontent) value)
+                      (set! (.-innerHTML mcontent) (linkify value))
                       (dom/removeNode acontent)))
 
               ; clear & shrink input box to normal size
