@@ -54,7 +54,7 @@
   "f :: t -> nil
   onend :: premature:boolean -> nil"
   ([tag duration f onend] 
-  (let [duration (* 10 duration)
+  (let [duration (* 1 duration)
         stime (.getTime (js/Date.))
         frame (atom 0)
         olda (@aobjs tag)] 
@@ -85,8 +85,22 @@
                 (swap! frame inc))
               10)
             :f f
-            :onend onend})))
+            :onend onend})
+    
+    (@aobjs tag)))
   ([tag duration f] (aobj tag duration f nil)))
+
+(defn aflush [tag]
+  (let [a (@aobjs tag)]
+
+    (when a
+      (js/clearInterval (:timer a))
+      ((:f a) 1.0)
+
+      (when (:onend a)
+        ((:onend a) true))
+      
+      (swap! aobjs dissoc tag))))
 
 (defn lerpatom [a end]
   (let [start @a
@@ -99,6 +113,9 @@
         delta (- end start)]
     (fn [t]
       (aset (.-style element) p (str (+ start (* delta t)) "px")))))
+
+(defn chaina [as]
+  )
 
 ; Message handling ---------------------------------------------------------
 
@@ -190,26 +207,31 @@
     (reset! scroll-topE stop)
 
     ; run scroll animation
-    (aobj :scroll 100 (lerpatom scroll-topE (- @content-height @table-height))
-          (fn [premature]
-            
-            ; run slide up animation
-            ; FIXME: 31
-            (aobj :slide 200 (lerpstyle acontent "bottom" 31)
-                  (fn [_]
-                    (dom/setTextContent mcontent value)
-                    (dom/removeNode acontent)))
+    (aflush :scroll)
+    (aflush :slide)
+    (aflush :message)
+    (aflush :input)
+    (aflush :table)
+    (let [newheight (+ @message-height height)]
+      (aobj :scroll 100 (lerpatom scroll-topE (- @content-height @table-height))
+            (fn [premature]
 
-            ; clear & shrink input box to normal size
-            (set! (.-value inputbox) "")
-            (reset! input-message "")
+              (comment console/log "prem: " premature ", nh: " newheight)
 
-            (if premature
-              (do
-                (reset! message-height (+ @message-height height))
-                (reset! scroll-topE (- @content-height @table-height))) 
+              ; run slide up animation
+              ; FIXME: 31
+              (aobj :slide 200 (lerpstyle acontent "bottom" 31)
+                    (fn [_]
+                      (dom/setTextContent mcontent value)
+                      (dom/removeNode acontent)))
 
-              (aobj :message 200 (lerpatom message-height (+ @message-height height))))))))
+              ; clear & shrink input box to normal size
+              (set! (.-value inputbox) "")
+              (reset! input-message "")
+
+              (aobj :message 200 (lerpatom message-height newheight)))))))
+
+; main ---------------------------------------------------------------------
 
 (defn main [{:keys [osidbox inputbox inputcontainer comm scrolldiv
                     scrollcontainer barpoint1 barpoint2 barcontainer
