@@ -23,16 +23,19 @@
   (set! (.-msTransition (.-style element)) "all 400ms ease-in-out") 
   (set! (.-webkitTransition (.-style element)) "all 400ms ease-in-out") 
   (set! (.-MozTransition (.-style element)) "all 400ms ease-in-out") 
+  (set! (.-oTransition (.-style element)) "all 400ms ease-in-out") 
   (set! (.-top (.-style element)) style)
 
   (when callback
-    (.addEventListener element "transitionend" callback true)))
+    (.addEventListener element "webkitTransitionEnd" callback true)
+    (.addEventListener element "transitionend" callback true)
+    (.addEventListener element "msTransitionEnd" callback true)
+    (.addEventListener element "oTransitionEnd" callback true)))
 
 (defn begin []
   (let [auth (dom/getElement "auth")
         comm (dom/getElement "comm")]
 
-    ; FIXME: auth not removed
     (animate auth "-100%" #(dom/removeNode auth))
     (animate comm "0%" nil)))
 
@@ -48,30 +51,41 @@
 (def aobjs (atom {}))
 
 (defn aobj
+  "f :: t -> nil
+  onend :: premature:boolean -> nil"
   ([tag duration f onend] 
-  (let [stime (.getTime (js/Date.))
-        frame (atom 0)] 
+  (let [duration (* 10 duration)
+        stime (.getTime (js/Date.))
+        frame (atom 0)
+        olda (@aobjs tag)] 
 
-    (when (@aobjs tag)
-      (js/clearInterval (@aobjs tag)))
+    (when olda
+      (js/clearInterval (:timer olda))
+      ((:f olda) 1.0)
+
+      (when (:onend olda)
+        ((:onend olda) true)))
 
     (swap! aobjs assoc tag 
-           (js/setInterval
-             (fn []
-               (let [now (.getTime (js/Date.))
-                     t (ease-in-out (/ (- now stime) duration))]
+           {:timer
+            (js/setInterval
+              (fn []
+                (let [now (.getTime (js/Date.))
+                      t (ease-in-out (/ (- now stime) duration))]
 
-                 (if (> (- now stime) duration)
-                   (do
-                     (f 1.0) 
-                     (when onend
-                       (onend)) 
-                     (js/clearInterval (@aobjs tag))
-                     (swap! aobjs dissoc tag)) 
-                   (f t)))
+                  (if (> (- now stime) duration)
+                    (do
+                      (f 1.0) 
+                      (when onend
+                        (onend false)) 
+                      (js/clearInterval (:timer (@aobjs tag)))
+                      (swap! aobjs dissoc tag)) 
+                    (f t)))
 
-               (swap! frame inc))
-             10))))
+                (swap! frame inc))
+              10)
+            :f f
+            :onend onend})))
   ([tag duration f] (aobj tag duration f nil)))
 
 (defn lerpatom [a end]
@@ -177,18 +191,25 @@
 
     ; run scroll animation
     (aobj :scroll 100 (lerpatom scroll-topE (- @content-height @table-height))
-          (fn []
+          (fn [premature]
+            
             ; run slide up animation
             ; FIXME: 31
             (aobj :slide 200 (lerpstyle acontent "bottom" 31)
-                  (fn []
+                  (fn [_]
                     (dom/setTextContent mcontent value)
                     (dom/removeNode acontent)))
 
             ; clear & shrink input box to normal size
             (set! (.-value inputbox) "")
             (reset! input-message "")
-            (aobj :message 200 (lerpatom message-height newheight))))))
+
+            (if premature
+              (do
+                (reset! message-height (+ @message-height height))
+                (reset! scroll-topE (- @content-height @table-height))) 
+
+              (aobj :message 200 (lerpatom message-height (+ @message-height height))))))))
 
 (defn main [{:keys [osidbox inputbox inputcontainer comm scrolldiv
                     scrollcontainer barpoint1 barpoint2 barcontainer
