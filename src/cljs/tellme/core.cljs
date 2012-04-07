@@ -172,13 +172,14 @@
     (dom/setTextContent acontent value)
     (dom/appendChild comm acontent)
 
-    ; run scroll animation
     (dom/appendChild scrollcontent mcontent)
     (reset! scroll-topE stop)
 
+    ; run scroll animation
     (aobj :scroll 100 (lerpatom scroll-topE (- @content-height @table-height))
           (fn []
             ; run slide up animation
+            ; FIXME: 31
             (aobj :slide 200 (lerpstyle acontent "bottom" 31)
                   (fn []
                     (dom/setTextContent mcontent value)
