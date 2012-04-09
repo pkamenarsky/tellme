@@ -114,8 +114,18 @@
     (fn [t]
       (aset (.-style element) p (str (+ start (* delta t)) "px")))))
 
-(defn chaina [as]
-  )
+(def ^:dynamic *ablock* 5)
+
+(defn with-block [f]
+  (binding [*ablock* 666]
+    (f))
+  (f))
+
+(defn pnlock []
+  (console/log *ablock*))
+
+(defn tblock []
+  (with-block pnlock))
 
 ; Message handling ---------------------------------------------------------
 
@@ -159,9 +169,11 @@
 (def bar-visible (atom true))
 
 (defdep message-padding [table-height message-height]
+        ;(js* "console.log('padding', ~{0}, ~{1})" table-height message-height)
         (Math/max 0 (- table-height message-height)))
 
 (defdep content-height [message-padding message-height]
+        ;(js* "console.log('cheight', ~{0}, ~{1})" message-padding message-height)
         (+ message-padding message-height))
 
 (defdep sticky-bottom [scroll-topB]
@@ -181,13 +193,14 @@
 (defdep bar-visible [table-height content-height]
         (> content-height table-height))
 
-(defn linkify [text]
-  (.replace text js/url_pattern "<a href='$1'>$1</a>"))
+(defn linkify [{htmlbox :htmlbox} text]
+  (dom/setTextContent htmlbox text)
+  (.replace (.-innerHTML htmlbox) js/url_pattern "<a href='$1' target='_blank'>$1</a>"))
 
 (defn add-message [{:keys [comm scrolldiv scrollcontainer scrollcontent inputbox
                            shadowbox messagepadding shadowbox-width] :as context}]
   ; FIXME: remote messages
-  (let [value (.-innerHTML shadowbox)
+  (let [value (.-value inputbox)
 
         mcontent (dom/createElement "div")
         acontent (dom/createElement "div")
@@ -235,7 +248,7 @@
               (aobj :slide 200 (lerpstyle acontent "bottom" 31)
                     (fn [_]
                       ;(dom/setTextContent mcontent value)
-                      (set! (.-innerHTML mcontent) (linkify value))
+                      (set! (.-innerHTML mcontent) (linkify context value))
                       (dom/removeNode acontent)))
 
               ; clear & shrink input box to normal size
@@ -252,7 +265,8 @@
 
   (let [context (atom (-> start-context
                         (create-shadowbox)
-                        (into {:messageheight 0
+                        (into {:htmlbox (dom/createElement)
+                               :messageheight 0
                                :sticky-bottom true})))
 
         shadowbox (:shadowbox @context)
@@ -300,7 +314,7 @@
                  (aflush :input)
                  (aflush :table)
                  (aobj :input 200 (lerpatom input-size (.-offsetHeight shadowbox)))
-                 (aobj :table 200 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))))
+                 (comment aobj :table 200 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))))
 
     (comment defdep table-height [input-size]
             (.-offsetHeight scrollcontainer))
@@ -314,7 +328,8 @@
                  (set! (.-bottom (.-style barcontainer)) (str input-size "px"))
                  (set! (.-height (.-style inputcontainer)) (str input-size "px"))
                  (set! (.-height (.-style inputbox)) (str input-size "px"))
-                 (set! (.-bottom (.-style scrollcontainer)) (str input-size "px")))
+                 (set! (.-bottom (.-style scrollcontainer)) (str input-size "px"))
+                 (reset! table-height (.-offsetHeight scrollcontainer)))
 
     (defreaction bar-visible
                  (set! (.-width (.-style barpoint1)) (if bar-visible "6px" "0px"))
