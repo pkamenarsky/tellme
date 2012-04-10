@@ -116,16 +116,12 @@
 
 (def ^:dynamic *ablock* 5)
 
-(defn with-block [f]
+(defn with-block [name f]
   (binding [*ablock* 666]
     (f))
   (f))
 
-(defn pnlock []
-  (console/log *ablock*))
-
-(defn tblock []
-  (with-block pnlock))
+(defn aseq [])
 
 ; Message handling ---------------------------------------------------------
 
@@ -229,7 +225,19 @@
     (dom/appendChild comm acontent)
 
     (dom/appendChild scrollcontent mcontent)
+    ;(set! (.-innerHTML mcontent) (linkify context value))
     (reset! scroll-topE stop)
+
+    (comment
+      (with-block
+        :scroll
+        [
+        ; sequential block
+         [scroll-topE 100 (- @content-height @table-height)]
+         [overlay-bottom 200 31]
+         [message-height 200 newheight]]
+        ; parallel with seq block above
+        ))
 
     ; run scroll animation
     (aflush :scroll)
