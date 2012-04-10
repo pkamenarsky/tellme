@@ -432,4 +432,4 @@
    :osidbox (dom/getElement "osidbox")
    :inputbox (dom/getElement "inputbox")})
 
-(events/listen js/window evttype/LOAD #(main (get-context)))
+;(events/listen js/window evttype/LOAD #(main (get-context)))

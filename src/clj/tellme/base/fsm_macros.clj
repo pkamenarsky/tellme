@@ -5,15 +5,26 @@
 
 ; DOM ----------------------------------------------------------------------
 
+(defn from-unit [u]
+  (case u
+    :px "px"
+    :pct "%"
+    :pt "pt"
+    (throw (Exception. "Invalid unit in set-styles"))))
+
 (defn from-value [v]
   (cond
-    (vector? v) (str (first v) (name (second v)))
+    (vector? v) (if (number? (first v))
+                  (str (first v) (name (from-unit (second v))))
+                  `(str ~(first v) ~(name (from-unit (second v))))) 
     (string? v) v
     :else (throw (Exception. "Invalid value format in set-styles"))))
 
+(defmacro set-style [element p v]
+  `(set! (~(symbol (str ".-" (name p))) (.-style ~element)) ~(from-value v)))
+
 (defmacro set-styles [element styles]
-  `(do ~@(map (fn [[p v]] `(set! (~(symbol (str ".-" (name p))) (.-style ~element)) ~(from-value v)))
-       styles)))
+  `(do ~@(map (fn [[p v]] `(set-style ~element ~p ~v)) styles)))
 
 ; Dataflow -----------------------------------------------------------------
 
