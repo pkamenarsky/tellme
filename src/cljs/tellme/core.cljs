@@ -49,6 +49,30 @@
     (- 1.0 (* (- t 1) (- t 1) 2))))
 
 (def aobjs (atom {}))
+(def atimer (atom nil))
+
+(defn runa []
+  (doseq [[tag [f stime duration onend]] @aobjs]
+    (let [now (.getTime (js/Date.))
+          t (ease-in-out (/ (- now stime) duration))]
+
+      (if (> (- now stime) duration)
+        (do
+          (f 1.0) 
+          (when onend
+            (onend false)) 
+          (swap! aobjs dissoc tag)
+          
+          (when (zero? (count @aobjs))
+            (js/clearInterval @atimer)
+            (reset! atimer nil))) 
+        (f t)))))
+
+(defn aobj2 [tag duration f onend]
+  (when (zero? (count @aobjs))
+    (reset! atimer (js/setInterval runa 10)))
+  
+  (swap! aobjs assoc tag [f (.getTime (js/Date.)) duration onend]))
 
 (defn aobj
   "f :: t -> nil
@@ -120,8 +144,6 @@
   (binding [*ablock* 666]
     (f))
   (f))
-
-(defn aseq [])
 
 ; Message handling ---------------------------------------------------------
 
