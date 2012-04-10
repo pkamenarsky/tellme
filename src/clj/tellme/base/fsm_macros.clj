@@ -3,6 +3,20 @@
 (ns tellme.base.fsm-macros
   (:use tellme.base.fsm))
 
+; DOM ----------------------------------------------------------------------
+
+(defn from-value [v]
+  (cond
+    (vector? v) (str (first v) (name (second v)))
+    (string? v) v
+    :else (throw (Exception. "Invalid value format in set-styles"))))
+
+(defmacro set-styles [element styles]
+  `(do ~@(map (fn [[p v]] `(set! (~(symbol (str ".-" (name p))) (.-style ~element)) ~(from-value v)))
+       styles)))
+
+; Dataflow -----------------------------------------------------------------
+
 (defmacro defdep [res deps & body]
   (let [f (gensym)
         k (keyword (gensym))]

@@ -72,9 +72,15 @@
   (when (zero? (count @aobjs))
     (reset! atimer (js/setInterval runa 10)))
   
-  (swap! aobjs assoc tag [f (.getTime (js/Date.)) duration onend]))
+  (comment when-let [[f _ _ onend] (@aobjs tag)]
+    (f 1.0)
+    
+    (when onend
+      (onend true)))
+  
+  (swap! aobjs assoc tag [f (.getTime (js/Date.)) (* 10 duration) onend]))
 
-(defn aobj
+(comment defn aobj
   "f :: t -> nil
   onend :: premature:boolean -> nil"
   ([tag duration f onend] 
@@ -174,6 +180,7 @@
 (def shadow-size (atom -1))
 (def input-size (atom -1))
 (def table-height (atom -1))
+(def evntl-message-height (atom -1))
 (def message-height (atom -1))
 (def message-padding (atom -1))
 (def content-height (atom -1))
@@ -227,7 +234,9 @@
 
         height (.-offsetHeight shadowbox)
         unpadded-height (- height 10)
-        newheight (+ @message-height height)]
+        newheight (+ @evntl-message-height height)]
+
+    (swap! evntl-message-height + height)
 
     ; setup content div
     (set! (.-className mcontent) "messagecontent")
@@ -244,11 +253,11 @@
 
     ;(dom/setTextContent acontent value)
     (set! (.-innerHTML acontent) value)
-    (dom/appendChild comm acontent)
+    ;(dom/appendChild comm acontent)
 
     (dom/appendChild scrollcontent mcontent)
-    ;(set! (.-innerHTML mcontent) (linkify context value))
-    (reset! scroll-topE stop)
+    (set! (.-innerHTML mcontent) (linkify context value))
+    ;(reset! scroll-topE stop)
 
     (comment
       (with-block
@@ -262,20 +271,31 @@
         ))
 
     ; run scroll animation
-    (aflush :scroll)
-    (aflush :slide)
-    (aflush :message)
-    (aflush :input)
-    (aflush :table)
-    (let [newheight (+ @message-height height)]
-      (aobj :scroll 100 (lerpatom scroll-topE (- @content-height @table-height))
+    (comment
+      do(aflush :scroll)
+      (aflush :slide)
+      (aflush :message)
+      (aflush :input)
+      (aflush :table))
+
+    (set! (.-value inputbox) "")
+    (reset! input-message "")
+
+    (aobj2 :message 200 (lerpatom message-height @evntl-message-height))
+
+    (comment let [newheight (+ @message-height height)]
+      (aobj2 :scroll 100 (lerpatom scroll-topE (- @content-height @table-height))
             (fn [premature]
 
               (comment console/log "prem: " premature ", nh: " newheight)
 
+              (when premature
+                (set! (.-innerHTML mcontent) (linkify context value)) 
+                (dom/removeNode acontent))
+
               ; run slide up animation
               ; FIXME: 31
-              (aobj :slide 200 (lerpstyle acontent "bottom" 31)
+              (aobj2 :slide 200 (lerpstyle acontent "bottom" 31)
                     (fn [_]
                       ;(dom/setTextContent mcontent value)
                       (set! (.-innerHTML mcontent) (linkify context value))
@@ -285,7 +305,7 @@
               (set! (.-value inputbox) "")
               (reset! input-message "")
 
-              (aobj :message 200 (lerpatom message-height newheight)))))))
+              (aobj2 :message 200 (lerpatom message-height @evntl-message-height)))))))
 
 ; main ---------------------------------------------------------------------
 
@@ -341,9 +361,9 @@
             (.-offsetHeight shadowbox))
 
     (defreaction shadow-size
-                 (aflush :input)
-                 (aflush :table)
-                 (aobj :input 200 (lerpatom input-size (.-offsetHeight shadowbox)))
+                 ;(aflush :input)
+                 ;(aflush :table)
+                 (aobj2 :input 200 (lerpatom input-size (.-offsetHeight shadowbox)))
                  (comment aobj :table 200 (fn [_] (reset! table-height (.-offsetHeight scrollcontainer)))))
 
     (comment defdep table-height [input-size]
@@ -352,7 +372,7 @@
     (defreaction bar-top (set! (.-top (.-style barpoint1)) (str bar-top "%")))
     (defreaction bar-bottom (set! (.-top (.-style barpoint2)) (str bar-bottom "%")))
 
-    (defreaction message-padding (set! (.-height (.-style messagepadding)) (str message-padding "px")))
+    (defreaction message-padding (comment console/log message-padding) (set! (.-height (.-style messagepadding)) (str message-padding "px")))
 
     (defreaction input-size
                  (set! (.-bottom (.-style barcontainer)) (str input-size "px"))
