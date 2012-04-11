@@ -14,9 +14,9 @@
 
 (def create-div (partial dom/createElement "div"))
 
-(def quote-css (css {:fontFamily "Georgia"
-                     :fontStyle "italic"
-                     :fontSize "16px"
+(def quote-css (css {:fontFamily "Helvetica"
+                     :fontStyle "normal"
+                     :fontSize "14px"
                      :wordWrap "break-word"
                      :whiteSpace "pre-wrap"}))
 
@@ -88,8 +88,8 @@
                                                           :marginTop [yq :px]}) 
 
                                         (table/resize-row table 0 text-height true)
-                                        (anm/aobj :qmargin 200 (anm/lerpstyle text "marginTop" 0))
-                                        (anm/aobj :qindent 200 (anm/lerpstyle text "textIndent" 0))) 
+                                        (anm/aobj :qmargin 400 (anm/lerpstyle text "marginTop" 0))
+                                        (anm/aobj :qindent 400 (anm/lerpstyle text "textIndent" 0))) 
 
                                       ; add rest element row & animate
                                       (quote-css erest)
@@ -99,20 +99,27 @@
                                       (table/add-row table)
                                       (table/resize-row table 1 (.-offsetHeight shadow) false)
 
-                                      (let [text-height (.-offsetHeight erest)]
+                                      (let [text-height (.-offsetHeight erest)
+                                            top (table/row-top table 0)]
                                         (set-styles erest {:textIndent [xr :px]
                                                            :marginTop [yr :px]}) 
 
+                                        (dom/appendChild (table/element table) erest)
+                                        (set-styles erest {:top [top :px]
+                                                           :position "absolute"
+                                                           :color "#aaaaaa"})
+
                                         (table/resize-row table 1 text-height true)
-                                        (anm/aobj :qmargin 200 (anm/lerpstyle text "marginTop" 0))
-                                        (anm/aobj :qindent 200 (anm/lerpstyle text "textIndent" 0)))
+                                        (anm/aobj :rtop 400 (anm/lerpstyle erest "top" (+ top 60)))
+                                        (anm/aobj :rmargin 400 (anm/lerpstyle erest "marginTop" 0))
+                                        (anm/aobj :rindent 400 (anm/lerpstyle erest "textIndent" 0)))
                                       ))) 
     (table/element table)))
 
 ; Tests --------------------------------------------------------------------
 
 (defn test-quote []
-  (let [table (create-quote "asdasdadfdsfsdfdsf aadsasdas adskasd dasdkda sdajsh adskjads" 300)]
+  (let [table (create-quote "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book." 300)]
     (set-styles table
                 {:position "absolute"
                  :top [200 :px]

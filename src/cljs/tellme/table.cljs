@@ -116,8 +116,8 @@
 
     (if animated
       (do
-        (anm/aobj index 200 (anm/lerpstyle element "height" rowheight)) 
-        (anm/aobj :messages 200 (anm/lerpatom message-height newheight)))
+        (anm/aobj index 400 (anm/lerpstyle element "height" rowheight)) 
+        (anm/aobj :messages 400 (anm/lerpatom message-height newheight)))
       (do
         (set-style element :height [rowheight :px]) 
         (reset! message-height newheight))) 
@@ -127,10 +127,11 @@
     
     newheight))
 
+(defn row-top [{:keys [rows]} index]
+  (.-offsetTop (:element (@rows index))))
+
 (defn set-row-text [{:keys [rows]} index text]
-  (let [{:keys [element]} (@rows index)]
-    (set! (.-innerHTML element) text))
-  
+  (set! (.-innerHTML (:element (@rows index))) text)
   index)
 
 (defn set-row-contents [{:keys [rows]} index view]
