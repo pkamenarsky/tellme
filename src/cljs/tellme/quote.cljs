@@ -75,10 +75,12 @@
     ; FIXME: test with selection with input element
     (events/listen text "mouseup" (fn [event]
                                     (let [srange (.getRangeAt (js/getSelection js/window) 0)
-                                          [tquote trest [xq yq] [xr yr]] (slice-text content srange)]
+                                          [tquote trest [xq yq] [xr yr]] (slice-text content srange)
+                                          erest (create-div)]
 
                                       (console/log (pr-str (slice-text content srange)))
 
+                                      ; animate quote element
                                       (dom/setTextContent text tquote)
                                       
                                       (let [text-height (.-offsetHeight text)]
@@ -89,10 +91,21 @@
                                         (anm/aobj :qmargin 200 (anm/lerpstyle text "marginTop" 0))
                                         (anm/aobj :qindent 200 (anm/lerpstyle text "textIndent" 0))) 
 
-                                      (table/add-row table)
-                                      (table/set-row-contents table 0 text)
-                                      (table/resize-row table 0 (.-offsetHeight shadow) false)
+                                      ; add rest element row & animate
+                                      (quote-css erest)
+                                      (set-style erest :width [width :px])
+                                      (dom/setTextContent erest trest)
 
+                                      (table/add-row table)
+                                      (table/resize-row table 1 (.-offsetHeight shadow) false)
+
+                                      (let [text-height (.-offsetHeight erest)]
+                                        (set-styles erest {:textIndent [xr :px]
+                                                           :marginTop [yr :px]}) 
+
+                                        (table/resize-row table 1 text-height true)
+                                        (anm/aobj :qmargin 200 (anm/lerpstyle text "marginTop" 0))
+                                        (anm/aobj :qindent 200 (anm/lerpstyle text "textIndent" 0)))
                                       ))) 
     (table/element table)))
 
