@@ -5,7 +5,9 @@
             [goog.events.KeyHandler :as keyhandler]
             [goog.events.KeyCodes :as keycodes]
             [goog.events.EventType :as evttype]
-            [goog.events :as events])
+            [goog.events :as events]
+            
+            [tellme.animation :as anm])
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
   (:use-macros [tellme.base.fsm-macros :only [defdep defreaction defsm set-styles set-style]]))
 
@@ -84,17 +86,20 @@
 (defn remove-at [v at]
   (into (subvec v 0 at) (subvec v (inc at))))
 
-(defn add-row [{:keys [content rows]} at]
-  (let [element (create-div)
-        row {:element element
-             :height 0}]
-    (set-styles element {:width [100 :pct]
-                         :height [0 :px]})
+(defn add-row
+  ([{:keys [content rows]} at]
+   (let [element (create-div)
+         row {:element element
+              :height 0}]
+     (set-styles element {:width [100 :pct]
+                          :height [0 :px]})
 
-    (dom/appendChild content element)
-    (swap! rows insert-at row at)
+     (dom/appendChild content element)
+     (swap! rows insert-at row at)
 
-    row))
+     at))
+  ([{:keys [rows] :as table}]
+   (add-row table (count @rows))))
 
 (defn remove-row [{:keys [message-height content rows]} index]
   (let [{:keys [element height] :as row} (@rows index)]
@@ -103,17 +108,35 @@
     (swap! message-height - height)
     (swap! rows remove-at index)
 
-    row))
+    index))
 
-(defn resize-row [{:keys [rows message-height] :as table} index rowheight]
+(defn resize-row [{:keys [rows message-height evntl-message-height] :as table} index rowheight animated]
   (let [{:keys [element height]} (@rows index)
-        newheight (+ (- @message-height height) rowheight)]
+        newheight (+ (- @evntl-message-height height) rowheight)]
 
-    (set-style element :height [newheight :px])
-    (reset! message-height newheight)
+    (if animated
+      (do
+        (anm/aobj index 200 (anm/lerpstyle element "height" rowheight)) 
+        (anm/aobj :messages 200 (anm/lerpatom message-height newheight)))
+      (do
+        (set-style element :height [rowheight :px]) 
+        (reset! message-height newheight))) 
+
+    (reset! evntl-message-height newheight)
     (swap! rows assoc-in [index :height] rowheight)
     
     newheight))
+
+(defn set-row-text [{:keys [rows]} index text]
+  (let [{:keys [element]} (@rows index)]
+    (set! (.-innerHTML element) text))
+  
+  index)
+
+(defn set-row-contents [{:keys [rows]} index view]
+  (let [{:keys [element]} (@rows index)]
+    (dom/removeChildren element)
+    (dom/appendChild element view)))
 
 ; Tests --------------------------------------------------------------------
 
@@ -130,5 +153,13 @@
     
     (table-resized table)
     
-    (add-row table 0)
-    (resize-row table 0 150)))
+    (js/setInterval
+      (fn []
+        (loop [i 0]
+          (let [index (add-row table)] 
+            (resize-row table index 20 true) 
+            (set-row-text table index (str "adfdfsf" index)))
+          (when (< i 3)
+            (recur (inc i)))))
+      1000)))
+

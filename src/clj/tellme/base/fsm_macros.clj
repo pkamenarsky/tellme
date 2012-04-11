@@ -24,7 +24,12 @@
   `(set! (~(symbol (str ".-" (name p))) (.-style ~element)) ~(from-value v)))
 
 (defmacro set-styles [element styles]
-  `(do ~@(map (fn [[p v]] `(set-style ~element ~p ~v)) styles)))
+  `(do
+     ~@(map (fn [[p v]] `(set-style ~element ~p ~v)) styles)
+     ~element))
+
+(defmacro css [styles]
+  `(fn [element#] (set-styles element# ~styles)))
 
 ; Dataflow -----------------------------------------------------------------
 
