@@ -326,24 +326,6 @@
 
 ;(events/listen js/window evttype/LOAD #(main (get-context)))
 
-; FSM ----------------------------------------------------------------------
-
-(def base-sm
-  (defsm
-    ; fsm data
-    {:queue []
-     :table nil}
-
-    ; states
-    ([:ready {:keys [site text height]} {:keys [table queue]}]
-     (cond
-       (= site :local) (let [row (table/add-row table)]
-                         (table/resize-row table row height true)
-                         (table/set-row-text table row text))
-       :else nil)
-     
-     (ignore-msg)))) 
-
 ; --------------------------------------------------------------------------
 
 (def create-div (partial dom/createElement "div"))
@@ -372,13 +354,62 @@
 (def center-css (css {:left [50 :pct]
                       :marginLeft [(/ width -2) :px]}))
 
+; FSM ----------------------------------------------------------------------
+
+(def base-sm
+  (defsm
+    ; fsm data
+    {:queue []
+     :table nil
+     :locked false}
+
+    ; states
+    ([:ready {:keys [site text height] :as message}
+      {:keys [table queue locked] :as data}]
+
+     (if locked
+       (next-state :ready (update-in data [:queue] conj message))
+       (let [row (table/add-row table)]
+
+         (table/resize-row table row height true)
+         (cond
+           ; received a new local message
+           ; * disable scrolling
+           ; * make sure table is at bottom
+           (= site :local) (let [overlay (create-div)]
+
+                             ((comp (css {:bottom [0 :px]})
+                                    center-css
+                                    padding-css
+                                    base-css) overlay)
+
+                             (dom/setTextContent overlay text)
+                             (dom/appendChild (.-body (dom/getDocument)) overlay)
+
+                             (anm/aobj :overlay 400 (anm/lerpstyle overlay "bottom" 31)
+                                       (fn []
+                                         (table/set-row-text table row text)
+                                         (dom/removeNode overlay)
+                                         
+                                         ))
+
+                             ; lock sliding
+                             (next-state :ready (assoc data :locked true)))
+           :else (do
+                   (table/set-row-text table row text)
+                   (ignore-msg))))) 
+     ))) 
+
+; main ---------------------------------------------------------------------
+
 (defn main3 []
   (let [table (table/create-table)
         shadow (create-div)
         input (dom/createElement "textarea")
 
         sm (atom (fsm/with-data base-sm {:queue []
-                                         :table table})) 
+                                         :table table
+                                         :locked false})) 
         
         message (atom nil)
         shadow-height (atom -1)
@@ -399,7 +430,7 @@
             (.-offsetHeight shadow))
 
     (defreaction shadow-height
-                 (anm/aobj :input 200 (anm/lerpatom input-height shadow-height)))
+                 (anm/aobj :input 400 (anm/lerpatom input-height shadow-height)))
 
     (defreaction input-height
                  (set-style input :height [input-height :px])
@@ -429,7 +460,8 @@
                    (fn [event]
                      (when (= (.-keyCode event) keycodes/ENTER)
                        (when (> (.-length (.-value input)) 0)
-                         (swap! sm fsm/send-message {:site :local
+                         (swap! sm fsm/send-message {:self sm
+                                                     :site :local
                                                      :text (.-value input)
                                                      :height (.-offsetHeight shadow)})
 
