@@ -5,9 +5,12 @@
             [goog.events.KeyHandler :as keyhandler]
             [goog.events.KeyCodes :as keycodes]
             [goog.events.EventType :as evttype]
-            [goog.events :as events])
+            [goog.events :as events]
+
+            [tellme.animation :as anm]
+            [tellme.table :as table])
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
-  (:use-macros [tellme.base.fsm-macros :only [defdep defreaction defsm]]))
+  (:use-macros [tellme.base.fsm-macros :only [defdep defreaction defsm set-style set-styles css]]))
 
 (def sm (defsm
           nil
@@ -38,118 +41,6 @@
 
     (animate auth "-100%" #(dom/removeNode auth))
     (animate comm "0%" nil)))
-
-; Animation ----------------------------------------------------------------
-
-; this doesn't replicate css3's ease-in-out timing function but it's
-; good enough
-(defn ease-in-out [t]
-  (if (< t 0.5)
-    (* t t 2)
-    (- 1.0 (* (- t 1) (- t 1) 2))))
-
-(def aobjs (atom {}))
-(def atimer (atom nil))
-
-(defn runa []
-  (doseq [[tag [f stime duration onend]] @aobjs]
-    (let [now (.getTime (js/Date.))
-          t (ease-in-out (/ (- now stime) duration))]
-
-      (if (> (- now stime) duration)
-        (do
-          (f 1.0) 
-          (when onend
-            (onend false)) 
-          (swap! aobjs dissoc tag)
-          
-          (when (zero? (count @aobjs))
-            (js/clearInterval @atimer)
-            (reset! atimer nil))) 
-        (f t)))))
-
-(defn aobj2 [tag duration f onend]
-  (when (zero? (count @aobjs))
-    (reset! atimer (js/setInterval runa 10)))
-  
-  (comment when-let [[f _ _ onend] (@aobjs tag)]
-    (f 1.0)
-    
-    (when onend
-      (onend true)))
-  
-  (swap! aobjs assoc tag [f (.getTime (js/Date.)) (* 10 duration) onend]))
-
-(comment defn aobj
-  "f :: t -> nil
-  onend :: premature:boolean -> nil"
-  ([tag duration f onend] 
-  (let [duration (* 1 duration)
-        stime (.getTime (js/Date.))
-        frame (atom 0)
-        olda (@aobjs tag)] 
-
-    (when olda
-      (js/clearInterval (:timer olda))
-      ((:f olda) 1.0)
-
-      (when (:onend olda)
-        ((:onend olda) true)))
-
-    (swap! aobjs assoc tag 
-           {:timer
-            (js/setInterval
-              (fn []
-                (let [now (.getTime (js/Date.))
-                      t (ease-in-out (/ (- now stime) duration))]
-
-                  (if (> (- now stime) duration)
-                    (do
-                      (f 1.0) 
-                      (when onend
-                        (onend false)) 
-                      (js/clearInterval (:timer (@aobjs tag)))
-                      (swap! aobjs dissoc tag)) 
-                    (f t)))
-
-                (swap! frame inc))
-              10)
-            :f f
-            :onend onend})
-    
-    (@aobjs tag)))
-  ([tag duration f] (aobj tag duration f nil)))
-
-(defn aflush [tag]
-  (let [a (@aobjs tag)]
-
-    (when a
-      (js/clearInterval (:timer a))
-      ((:f a) 1.0)
-
-      (when (:onend a)
-        ((:onend a) true))
-      
-      (swap! aobjs dissoc tag))))
-
-(defn lerpatom [a end]
-  (let [start @a
-        delta (- end start)]
-    (fn [t]
-      (reset! a (+ start (* delta t))))))
-
-(defn lerpstyle [element p end]
-  (let [start (js/parseInt (.replace (aget (.-style element) p) "px" ""))
-        delta (- end start)]
-    (fn [t]
-      (aset (.-style element) p (str (+ start (* delta t)) "px")))))
-
-(def ^:dynamic *ablock* 5)
-
-(defn with-block [name f]
-  (binding [*ablock* 666]
-    (f))
-  (f))
 
 ; Message handling ---------------------------------------------------------
 
@@ -433,3 +324,83 @@
    :inputbox (dom/getElement "inputbox")})
 
 ;(events/listen js/window evttype/LOAD #(main (get-context)))
+
+; --------------------------------------------------------------------------
+
+(def create-div (partial dom/createElement "div"))
+
+(def width 300)
+(def backgroundColor "#fdf6e3")
+(def color "#657b83")
+(def border (str "1px solid " color))
+
+(def base-css (css {:color color
+                    :position "absolute"
+                    :width [width :px]
+                    :lineHeight [18 :px]
+                    :fontFamily "Helvetica"
+                    :fontSize [16 :px]
+                    :wordWrap "break-word"
+                    :whiteSpace "pre-wrap"
+                    :overflow "hidden"}))
+
+(def padding-css (css {:paddingTop [5 :px]
+                       :paddingBottom [5 :px]}))
+
+(def center-css (css {:left [50 :pct]
+                      :marginLeft [(/ width -2) :px]}))
+
+(defn main3 []
+  (let [table (table/create-table)
+        shadow (create-div)
+        input (dom/createElement "textarea")
+        
+        message (atom nil)
+        shadow-height (atom -1)
+        input-height (atom -1)]
+
+    ; styles
+    ((comp base-css center-css (css {:top [0 :px]})) (table/element table))
+
+    ((comp base-css padding-css (css {:top [1000 :pct]})) shadow)
+    ((comp base-css center-css padding-css (css {:bottom [0 :px]
+                                                 :border [0 :px]
+                                                 :borderTop border
+                                                 :backgroundColor "transparent"
+                                                 :resize "none"})) input)
+    
+    ; dependencies
+    (defdep shadow-height [message]
+            (dom/setTextContent shadow (if (> (.-length message) 0) message "."))
+            (.-offsetHeight shadow))
+
+    (defreaction shadow-height
+                 (anm/aobj :input 200 (anm/lerpatom input-height shadow-height)))
+
+    (defreaction input-height
+                 (set-style input :height [input-height :px])
+                 (set-style (table/element table) :bottom [input-height :px])
+                 (table/table-resized table))
+
+    ; dom
+    (dom/appendChild (.-body (dom/getDocument)) (table/element table))
+    (table/table-resized table)
+
+    (table/add-row table)
+    (table/resize-row table 0 31 false)
+    (table/set-row-text table 0 "adasdas")
+
+    (dom/appendChild (.-body (dom/getDocument)) input)
+    (dom/appendChild (.-body (dom/getDocument)) shadow)
+
+    ; events
+    (events/listen input "input" (fn [event]
+                                   (reset! message (.-value input))))
+
+    ; init
+    (reset! message "")
+    
+    ))
+
+(events/listen js/window evttype/LOAD main3)
+

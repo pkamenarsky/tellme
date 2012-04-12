@@ -79,19 +79,19 @@
                                           erest (create-div)]
 
                                       (when slice
-                                        (console/log (pr-str (slice-text content srange))) 
+                                        ;(console/log (pr-str (slice-text content srange))) 
 
                                         ; animate quote element
                                         ;(dom/setTextContent text tquote) 
-                                        (set! (.-innerHTML text) (.replace tquote (js/RegExp. " " "g") "&nbsp")) 
+                                        (set! (.-innerHTML text) (.replace tquote (js/RegExp. " " "g") "&nbsp;")) 
 
                                         (let [text-height (.-offsetHeight text)]
                                           (set-styles text {:textIndent [xq :px]
                                                             :marginTop [yq :px]}) 
 
                                           (table/resize-row table 0 text-height true)
-                                          (anm/aobj :qmargin 600 (anm/lerpstyle text "marginTop" 0))
-                                          (anm/aobj :qindent 600 (anm/lerpstyle text "textIndent" 0) #(dom/setTextContent text tquote)))
+                                          (anm/aobj :qmargin 300 (anm/lerpstyle text "marginTop" 0))
+                                          (anm/aobj :qindent 300 (anm/lerpstyle text "textIndent" 0) #(dom/setTextContent text tquote)))
 
                                         ; add rest element row & animate
                                         (quote-css erest) 
@@ -113,9 +113,9 @@
                                                              :color "#aaaaaa"})
 
                                           (table/resize-row table 1 text-height true)
-                                          (anm/aobj :rtop 600 (anm/lerpstyle erest "top" (+ top 60)))
-                                          (anm/aobj :rmargin 600 (anm/lerpstyle erest "marginTop" 0))
-                                          (anm/aobj :rindent 600 (anm/lerpstyle erest "textIndent" 0)))) 
+                                          (anm/aobj :rtop 300 (anm/lerpstyle erest "top" (+ top 60)))
+                                          (anm/aobj :rmargin 300 (anm/lerpstyle erest "marginTop" 0))
+                                          (anm/aobj :rindent 300 (anm/lerpstyle erest "textIndent" 0)))) 
                                       ))) 
     (table/element table)))
 
@@ -131,4 +131,4 @@
 
     (dom/appendChild (.-body (dom/getDocument)) table)))
 
-(events/listen js/window evttype/LOAD test-quote)
+;(events/listen js/window evttype/LOAD test-quote)

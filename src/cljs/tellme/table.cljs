@@ -110,22 +110,28 @@
 
     index))
 
-(defn resize-row [{:keys [rows message-height evntl-message-height] :as table} index rowheight animated]
+(defn resize-row
+  ([{:keys [rows message-height evntl-message-height] :as table} index rowheight animated onend]
   (let [{:keys [element height]} (@rows index)
         newheight (+ (- @evntl-message-height height) rowheight)]
 
     (if animated
       (do
         (anm/aobj index 400 (anm/lerpstyle element "height" rowheight)) 
-        (anm/aobj :messages 400 (anm/lerpatom message-height newheight)))
+        (anm/aobj :messages 400 (anm/lerpatom message-height newheight) onend))
       (do
         (set-style element :height [rowheight :px]) 
-        (reset! message-height newheight))) 
+        (reset! message-height newheight)
+        
+        (when onend
+          (onend)))) 
 
     (reset! evntl-message-height newheight)
     (swap! rows assoc-in [index :height] rowheight)
     
     newheight))
+  ([table index rowheight animated]
+   (resize-row table index rowheight animated nil)))
 
 (defn row-top [{:keys [rows]} index]
   (.-offsetTop (:element (@rows index))))
