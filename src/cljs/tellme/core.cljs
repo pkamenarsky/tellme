@@ -375,35 +375,48 @@
     ([:ready {:keys [slide text height self] :as message}
       {:keys [table queue] :as data}]
 
-     (let [row (table/add-row table)]
-       (table/resize-row table row height true)
+     (if slide
+       ; received a new local message
+       (do
+         (if (table/at? table :bottom)
+           (let [row (table/add-row table)
+                 overlay (create-div)]
 
-       (if slide
-         ; received a new local message
-         ; * disable scrolling
-         ; * make sure table is at bottom
-         (let [overlay (create-div)]
+             ((comp (css {:bottom [0 :px]})
+                    center-css
+                    padding-css
+                    base-css) overlay) 
 
-           ((comp (css {:bottom [0 :px]})
-                  center-css
-                  padding-css
-                  base-css) overlay)
+             (table/resize-row table row height true) 
 
-           (dom/setTextContent overlay text)
-           (dom/appendChild (.-body (dom/getDocument)) overlay)
+             (dom/setTextContent overlay text) 
+             (dom/appendChild (.-body (dom/getDocument)) overlay) 
 
-           (anm/aobj :overlay 400 (anm/lerpstyle overlay "bottom" 31)
-                     (fn []
-                       (table/set-row-text table row text)
-                       (dom/removeNode overlay)
-                       (swap! self fsm/send-message :go-to-ready)))
+             (anm/aobj :overlay 400 (anm/lerpstyle overlay "bottom" 31)
+                       (fn []
+                         (table/set-row-text table row text)
+                         (dom/removeNode overlay)
+                         (swap! self fsm/send-message :go-to-ready)))) 
 
-           ; lock sliding
-           (next-state :locked))
-         (do
-           (table/set-row-text table row text)
-           (ignore-msg)))) 
-     ))) 
+           ; else (if table/at? table bottom)
+           (table/scroll-to table
+                            :bottom
+                            (+ height 1000)
+                            ; after sliding, return to :ready and add the message
+                            ; we wanted to add in the first place (but had to scroll
+                            ; down before doing so)
+                            (fn []
+                              (reset! self (-> @self
+                                             (fsm/send-message :go-to-ready)
+                                             (fsm/send-message message)))))) 
+         ; lock sliding
+         (fsm/next-state :locked)) 
+
+       ; else (if slide)
+       (let [row (table/add-row table)]
+         (table/resize-row table row height true)
+         (table/set-row-text table row text)
+         (fsm/ignore-msg)))))) 
 
 ; main ---------------------------------------------------------------------
 

@@ -15,6 +15,8 @@
 
 (def create-div (partial dom/createElement "div"))
 
+(def id (atom 0))
+
 (defn create-table []
   (let [root (create-div)
         scroll (create-div)
@@ -90,8 +92,12 @@
                                    (set! (.-scrollTop root) 0)
                                    (set! (.-scrollLeft root) 0)))
 
-    {:root root
+    {:id (swap! id inc)
+     :root root
      :scroll scroll
+     :scroll-top scroll-top
+     :scroll-topB scroll-topB
+     :sticky-bottom sticky-bottom
      :content content
      :table-height table-height
      :message-height message-height
@@ -175,8 +181,13 @@
   "table :: table
   location :: number | :top | :bottom
   onend :: nil | (-> nil)"
-  [table location onend]
-  )
+  [{:keys [id scroll scroll-top content-height table-height] :as table} location offset onend]
+
+  (reset! scroll-top (.-scrollTop scroll))
+  (anm/aobj id 100 (anm/lerpatom scroll-top (+ offset (- @content-height @table-height))) onend))
+
+(defn at? [{:keys [scroll content-height table-height]} location]
+  (< (- (- @content-height @table-height) (.-scrollTop scroll)) 4))
 
 ; Tests --------------------------------------------------------------------
 
