@@ -7,12 +7,13 @@
             [goog.events.EventType :as evttype]
             [goog.events :as events]
 
+            [tellme.base.fsm :as fsm]
             [tellme.animation :as anm]
             [tellme.table :as table])
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
   (:use-macros [tellme.base.fsm-macros :only [defdep defreaction defsm set-style set-styles css]]))
 
-(def sm (defsm
+(def sm_ (defsm
           nil
           ([:start :in data]
            (js/alert "asdasda")
@@ -325,6 +326,24 @@
 
 ;(events/listen js/window evttype/LOAD #(main (get-context)))
 
+; FSM ----------------------------------------------------------------------
+
+(def base-sm
+  (defsm
+    ; fsm data
+    {:queue []
+     :table nil}
+
+    ; states
+    ([:ready {:keys [site text height]} {:keys [table queue]}]
+     (cond
+       (= site :local) (let [row (table/add-row table)]
+                         (table/resize-row table row height true)
+                         (table/set-row-text table row text))
+       :else nil)
+     
+     (ignore-msg)))) 
+
 ; --------------------------------------------------------------------------
 
 (def create-div (partial dom/createElement "div"))
@@ -340,6 +359,9 @@
                     :lineHeight [18 :px]
                     :fontFamily "Helvetica"
                     :fontSize [16 :px]
+                    :padding [0 :px]
+                    :border [0 :px]
+                    :outline [0 :px]
                     :wordWrap "break-word"
                     :whiteSpace "pre-wrap"
                     :overflow "hidden"}))
@@ -354,20 +376,22 @@
   (let [table (table/create-table)
         shadow (create-div)
         input (dom/createElement "textarea")
+
+        sm (atom (fsm/with-data base-sm {:queue []
+                                         :table table})) 
         
         message (atom nil)
         shadow-height (atom -1)
         input-height (atom -1)]
 
     ; styles
-    ((comp base-css center-css (css {:top [0 :px]})) (table/element table))
+    ((comp (css {:top [0 :px]}) base-css center-css) (table/element table))
 
-    ((comp base-css padding-css (css {:top [1000 :pct]})) shadow)
-    ((comp base-css center-css padding-css (css {:bottom [0 :px]
-                                                 :border [0 :px]
-                                                 :borderTop border
-                                                 :backgroundColor "transparent"
-                                                 :resize "none"})) input)
+    ((comp (css {:top [1000 :pct]}) padding-css base-css) shadow)
+    ((comp (css {:bottom [0 :px]
+                 :borderTop border
+                 :backgroundColor "transparent"
+                 :resize "none"}) padding-css center-css base-css) input)
     
     ; dependencies
     (defdep shadow-height [message]
@@ -397,7 +421,24 @@
     (events/listen input "input" (fn [event]
                                    (reset! message (.-value input))))
 
+    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event]
+                                                               (table/table-resized table)))
+
+    (events/listen (events/KeyHandler. input)
+                   "key"
+                   (fn [event]
+                     (when (= (.-keyCode event) keycodes/ENTER)
+                       (when (> (.-length (.-value input)) 0)
+                         (swap! sm fsm/send-message {:site :local
+                                                     :text (.-value input)
+                                                     :height (.-offsetHeight shadow)})
+
+                         (set! (.-value input) "")
+                         (reset! message "")) 
+                       (.preventDefault event))))  
+
     ; init
+    (swap! sm fsm/goto :ready)
     (reset! message "")
     
     ))
