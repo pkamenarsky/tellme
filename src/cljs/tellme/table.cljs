@@ -81,6 +81,7 @@
         (if @sticky-bottom (+ 1 (- content-height table-height)) @scroll-topB))
 
     (defreaction scroll-top
+                 (reset! scroll-topB scroll-top)
                  (set! (.-scrollTop scroll) scroll-top))
 
     ; events

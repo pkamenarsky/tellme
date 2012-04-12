@@ -401,7 +401,7 @@
            ; else (if table/at? table bottom)
            (table/scroll-to table
                             :bottom
-                            (+ height 1000)
+                            height
                             ; after sliding, return to :ready and add the message
                             ; we wanted to add in the first place (but had to scroll
                             ; down before doing so)
