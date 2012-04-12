@@ -42,8 +42,8 @@
     (when (not (.-collapsed srange))
       (.collapse erange false)
 
-      [(.substring text (.-startOffset srange) (.-endOffset srange))
-       (.substring text (.-endOffset srange))
+      [(.trim (.substring text (.-startOffset srange) (.-endOffset srange)))
+       (.trim (.substring text (.-endOffset srange)))
        (get-range-point srange marker)
        (get-range-point erange marker)])))
 
@@ -75,51 +75,54 @@
     ; FIXME: test with selection with input element
     (events/listen text "mouseup" (fn [event]
                                     (let [srange (.getRangeAt (js/getSelection js/window) 0)
-                                          [tquote trest [xq yq] [xr yr]] (slice-text content srange)
+                                          [tquote trest [xq yq] [xr yr] :as slice] (slice-text content srange)
                                           erest (create-div)]
 
-                                      (console/log (pr-str (slice-text content srange)))
+                                      (when slice
+                                        (console/log (pr-str (slice-text content srange))) 
 
-                                      ; animate quote element
-                                      (dom/setTextContent text tquote)
-                                      
-                                      (let [text-height (.-offsetHeight text)]
-                                        (set-styles text {:textIndent [xq :px]
-                                                          :marginTop [yq :px]}) 
+                                        ; animate quote element
+                                        ;(dom/setTextContent text tquote) 
+                                        (set! (.-innerHTML text) (.replace tquote (js/RegExp. " " "g") "&nbsp")) 
 
-                                        (table/resize-row table 0 text-height true)
-                                        (anm/aobj :qmargin 400 (anm/lerpstyle text "marginTop" 0))
-                                        (anm/aobj :qindent 400 (anm/lerpstyle text "textIndent" 0))) 
+                                        (let [text-height (.-offsetHeight text)]
+                                          (set-styles text {:textIndent [xq :px]
+                                                            :marginTop [yq :px]}) 
 
-                                      ; add rest element row & animate
-                                      (quote-css erest)
-                                      (set-style erest :width [width :px])
-                                      (dom/setTextContent erest trest)
+                                          (table/resize-row table 0 text-height true)
+                                          (anm/aobj :qmargin 600 (anm/lerpstyle text "marginTop" 0))
+                                          (anm/aobj :qindent 600 (anm/lerpstyle text "textIndent" 0) #(dom/setTextContent text tquote)))
 
-                                      (table/add-row table)
-                                      (table/resize-row table 1 (.-offsetHeight shadow) false)
+                                        ; add rest element row & animate
+                                        (quote-css erest) 
+                                        (set-style erest :width [width :px]) 
+                                        (dom/setTextContent erest trest) 
 
-                                      (let [text-height (.-offsetHeight erest)
-                                            top (table/row-top table 0)]
-                                        (set-styles erest {:textIndent [xr :px]
-                                                           :marginTop [yr :px]}) 
+                                        (table/add-row table) 
+                                        (table/resize-row table 1 (- (.-offsetHeight shadow) yr) false) 
 
-                                        (dom/appendChild (table/element table) erest)
-                                        (set-styles erest {:top [top :px]
-                                                           :position "absolute"
-                                                           :color "#aaaaaa"})
+                                        (let [text-height (.-offsetHeight erest)
+                                              top (table/row-top table 0)]
 
-                                        (table/resize-row table 1 text-height true)
-                                        (anm/aobj :rtop 400 (anm/lerpstyle erest "top" (+ top 60)))
-                                        (anm/aobj :rmargin 400 (anm/lerpstyle erest "marginTop" 0))
-                                        (anm/aobj :rindent 400 (anm/lerpstyle erest "textIndent" 0)))
+                                          (dom/appendChild (table/element table) erest)
+
+                                          (set-styles erest {:textIndent [xr :px]
+                                                             :marginTop [yr :px]
+                                                             :top [top :px]
+                                                             :position "absolute"
+                                                             :color "#aaaaaa"})
+
+                                          (table/resize-row table 1 text-height true)
+                                          (anm/aobj :rtop 600 (anm/lerpstyle erest "top" (+ top 60)))
+                                          (anm/aobj :rmargin 600 (anm/lerpstyle erest "marginTop" 0))
+                                          (anm/aobj :rindent 600 (anm/lerpstyle erest "textIndent" 0)))) 
                                       ))) 
     (table/element table)))
 
 ; Tests --------------------------------------------------------------------
 
 (defn test-quote []
-  (let [table (create-quote "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book." 300)]
+  (let [table (create-quote "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book." 500)]
     (set-styles table
                 {:position "absolute"
                  :top [200 :px]
