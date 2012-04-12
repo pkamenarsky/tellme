@@ -21,6 +21,10 @@
         padding (create-div)
         content (create-div)
 
+        scroll-top (atom -1)
+        scroll-topB (atom -1)
+        sticky-bottom (atom -1)
+
         table-height (atom -1)
         message-height (atom -1)
         message-padding (atom -1)
@@ -28,6 +32,7 @@
         content-height (atom -1)
         rows (atom [])]
 
+    ; dom
     (set-styles root
                 {:overflow "hidden"
                  :margin [0 :px]
@@ -54,15 +59,36 @@
     (dom/appendChild scroll content)
     (dom/appendChild root scroll)
 
+    ; dependencies
     (defdep message-padding [table-height message-height]
             (Math/max 0 (- table-height message-height)))
+
     (defreaction message-padding
                  (set-style padding :height [message-padding :px]))
 
     (defdep content-height [message-padding message-height]
             (+ message-padding message-height))
+
     (defreaction content-height
                  (set-style content :height [content-height :px]))
+
+    (defdep sticky-bottom [scroll-topB]
+            (< (- (- @content-height @table-height) scroll-topB) 10))
+
+    (defdep scroll-top [table-height content-height]
+        (if @sticky-bottom (+ 1 (- content-height table-height)) @scroll-topB))
+
+    (defreaction scroll-top
+                 (set! (.-scrollTop scroll) scroll-top))
+
+    ; events
+    (events/listen scroll "scroll" (fn [event]
+                                     (reset! scroll-topB (.-scrollTop scroll))))
+
+    ; need this for the godless webkit scroll-on-drag "feature"
+    (events/listen root "scroll" (fn [event]
+                                   (set! (.-scrollTop root) 0)
+                                   (set! (.-scrollLeft root) 0)))
 
     {:root root
      :scroll scroll
@@ -144,6 +170,13 @@
   (let [{:keys [element]} (@rows index)]
     (dom/removeChildren element)
     (dom/appendChild element view)))
+
+(defn scroll-to
+  "table :: table
+  location :: number | :top | :bottom
+  onend :: nil | (-> nil)"
+  [table location onend]
+  )
 
 ; Tests --------------------------------------------------------------------
 
