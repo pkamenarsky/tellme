@@ -2,22 +2,6 @@
 
 ; Purely functional FSM ----------------------------------------------------
 
-(defn next-state
-  ([newstate newdata message]
-  {::stateresult true
-   :transition true
-   :newstate newstate
-   :newdata newdata
-   :message message})
-  ([newstate newdata]
-   (next-state newstate newdata nil))
- ([newstate]
-   (assoc (next-state newstate nil nil) :nodata true)))
-
-(defn ignore-msg []
-  {::stateresult true
-   :transition false})
-
 (defn send-message [{:keys [state] :as sm} message]
   (if (nil? state)
     (throw (Exception. "Trying to send message to nil state"))
@@ -42,14 +26,24 @@
           (assoc :state newstate)
           (send-message :in))))))
 
-(defn stateresult [sm {:keys [nodata transition newstate newdata message] :as res}]
-  (if (::stateresult res)
-    (if transition
-      (let [newsm (goto (if nodata sm (assoc sm :data newdata)) newstate)]
-        (if message (send-message newsm message) newsm)) 
-      sm) 
-    ; if this is not a stateresult, throw exception
-    (throw (Exception. "No state result returned"))))
+(defn stateresult [sm f]
+  (if (fn? f) (f sm) sm))
+
+(defn next-state
+  ([newstate newdata message]
+  (fn [sm] (-> sm
+             (assoc :data newdata)
+             (goto newstate)
+             (send-message message))))
+  ([newstate newdata]
+   (fn [sm] (-> sm
+              (assoc :data newdata)
+              (goto newstate))))
+ ([newstate]
+   (fn [sm] (goto sm newstate))))
+
+(defn ignore-msg []
+  (fn [sm] sm))
 
 (defn fsm
   "data :: object
