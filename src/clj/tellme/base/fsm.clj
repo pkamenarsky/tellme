@@ -42,6 +42,9 @@
  ([newstate]
    (fn [sm] (goto sm newstate))))
 
+(defn next-data [newdata]
+  (fn [sm] (assoc sm :data newdata)))
+
 (defn ignore-msg []
   (fn [sm] sm))
 

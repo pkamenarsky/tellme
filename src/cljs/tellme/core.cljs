@@ -360,44 +360,49 @@
   (defsm
     ; fsm data
     {:queue []
-     :table nil
-     :locked false}
+     :table nil}
 
-    ; states
-    ([:ready {:keys [site text height] :as message}
-      {:keys [table queue locked] :as data}]
+    ; slide locked state, just queue up messages
+    ([:locked message data]
+     (next-state :locked (update-in data [:queue] conj (assoc message :slide false))))
 
-     (if locked
-       (next-state :ready (update-in data [:queue] conj message))
-       (let [row (table/add-row table)]
+    ([:locked :go-to-ready {:keys [queue] :as data}]
+     ; when going out of :locked state, send all queued messages to self
+     (comp (fn [sm] (reduce (fn [a msg] (fsm/send-message a msg)) sm queue))
+           (fsm/next-state :ready (assoc data :queue []))))
+    
+    ; ready for displaying new messages
+    ([:ready {:keys [slide text height self] :as message}
+      {:keys [table queue] :as data}]
 
-         (table/resize-row table row height true)
-         (cond
-           ; received a new local message
-           ; * disable scrolling
-           ; * make sure table is at bottom
-           (= site :local) (let [overlay (create-div)]
+     (let [row (table/add-row table)]
+       (table/resize-row table row height true)
 
-                             ((comp (css {:bottom [0 :px]})
-                                    center-css
-                                    padding-css
-                                    base-css) overlay)
+       (if slide
+         ; received a new local message
+         ; * disable scrolling
+         ; * make sure table is at bottom
+         (let [overlay (create-div)]
 
-                             (dom/setTextContent overlay text)
-                             (dom/appendChild (.-body (dom/getDocument)) overlay)
+           ((comp (css {:bottom [0 :px]})
+                  center-css
+                  padding-css
+                  base-css) overlay)
 
-                             (anm/aobj :overlay 400 (anm/lerpstyle overlay "bottom" 31)
-                                       (fn []
-                                         (table/set-row-text table row text)
-                                         (dom/removeNode overlay)
-                                         
-                                         ))
+           (dom/setTextContent overlay text)
+           (dom/appendChild (.-body (dom/getDocument)) overlay)
 
-                             ; lock sliding
-                             (next-state :ready (assoc data :locked true)))
-           :else (do
-                   (table/set-row-text table row text)
-                   (ignore-msg))))) 
+           (anm/aobj :overlay 400 (anm/lerpstyle overlay "bottom" 31)
+                     (fn []
+                       (table/set-row-text table row text)
+                       (dom/removeNode overlay)
+                       (swap! self fsm/send-message :go-to-ready)))
+
+           ; lock sliding
+           (next-state :locked))
+         (do
+           (table/set-row-text table row text)
+           (ignore-msg)))) 
      ))) 
 
 ; main ---------------------------------------------------------------------
@@ -408,8 +413,7 @@
         input (dom/createElement "textarea")
 
         sm (atom (fsm/with-data base-sm {:queue []
-                                         :table table
-                                         :locked false})) 
+                                         :table table})) 
         
         message (atom nil)
         shadow-height (atom -1)
@@ -461,7 +465,7 @@
                      (when (= (.-keyCode event) keycodes/ENTER)
                        (when (> (.-length (.-value input)) 0)
                          (swap! sm fsm/send-message {:self sm
-                                                     :site :local
+                                                     :slide true
                                                      :text (.-value input)
                                                      :height (.-offsetHeight shadow)})
 
