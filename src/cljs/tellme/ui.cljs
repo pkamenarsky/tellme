@@ -22,11 +22,14 @@
 (defn remove-subviews [view]
   (dom/removeChildren (element view)))
 
+(comment
+  (add-children (set-styles (create-div) {:width [100 :px]})))
+
 ; TODO: view macro
 (comment
-  (ui/view [[root :div {:width [100 :px]} 
-             [scroll :div {:overflow "hidden"} 
-              [content :div {:width [100 :pct]}]]]]
+  (ui/view [root [:div {:width [100 :px]} 
+                  scroll [:div {:overflow "hidden"} 
+                          content [:div {:width [100 :pct]}]]]]
 
            (listen scroll #(...))
            (ui/add-subview ui/root root)))
