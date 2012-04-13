@@ -331,9 +331,13 @@
 (def create-div (partial dom/createElement "div"))
 
 (def width 300)
+(def right-margin 40)
+
 (def backgroundColor "#fdf6e3")
 (def color "#657b83")
 (def border (str "1px solid " color))
+
+(def quote-button-size 15)
 
 (def base-css (css {:color color
                     :position "absolute"
@@ -353,6 +357,54 @@
 
 (def center-css (css {:left [50 :pct]
                       :marginLeft [(/ width -2) :px]}))
+
+(def message-css (comp (css {:left [0 :px]
+                             :right [right-margin :px]
+                             :height [100 :pct]})
+                       base-css))
+
+(def quote-button-css (css {:position "absolute"
+                            :width [quote-button-size :px]
+                            :height [quote-button-size :px]
+                            :top [50 :pct]
+                            :marginTop [(/ quote-button-size -2) :px]
+                            :right [(/ (- right-margin quote-button-size) 2) :px]
+                            :backgroundColor "#dddddd"
+                            :borderRadius [(/ quote-button-size 2):px]
+                            :visibility "hidden"}))
+
+(def fill-css (css {:position "absolute "
+                    :width [100 :pct]}))
+
+; Utils --------------------------------------------------------------------
+
+(defn- show-quote-button [event]
+  (set-style (.-quoteButton (.-currentTarget event)) :visibility "visible"))
+
+(defn- hide-quote-button [event]
+  (set-style (.-quoteButton (.-currentTarget event)) :visibility "hidden"))
+
+(defn- quote-message [event])
+
+(defn set-message-at-row [table row {:keys [text site height]}]
+  (let [container (fill-css (create-div))
+        message (message-css (create-div))
+        quote-button (quote-button-css (create-div))]
+
+    (set-style container :height [height :px])
+    (set! (.-quoteButton container) quote-button)
+
+    (dom/appendChild container message)
+    (dom/appendChild container quote-button)
+    
+    (dom/setTextContent message text)
+    (table/set-row-contents table row container)
+    
+    ; events
+    (events/listen container "mouseover" show-quote-button)
+    (events/listen container "mouseout" hide-quote-button)
+    (events/listen container "click" quote-message)
+    ))
 
 ; FSM ----------------------------------------------------------------------
 
@@ -394,7 +446,7 @@
 
              (anm/aobj :overlay 400 (anm/lerpstyle overlay "bottom" 31)
                        (fn []
-                         (table/set-row-text table row text)
+                         (set-message-at-row table row message)
                          (dom/removeNode overlay)
                          (swap! self fsm/send-message :go-to-ready)))) 
 
@@ -415,7 +467,7 @@
        ; else (if slide)
        (let [row (table/add-row table)]
          (table/resize-row table row height true)
-         (table/set-row-text table row text)
+         (set-message-at-row table row message)
          (fsm/ignore-msg)))))) 
 
 ; main ---------------------------------------------------------------------
@@ -433,7 +485,9 @@
         input-height (atom -1)]
 
     ; styles
-    ((comp (css {:top [0 :px]}) base-css center-css) (table/element table))
+    ((comp (css {:top [0 :px]
+                 :width [(+ width right-margin) :px]}) base-css center-css)
+       (table/element table))
 
     ((comp (css {:top [1000 :pct]}) padding-css base-css) shadow)
     ((comp (css {:bottom [0 :px]
