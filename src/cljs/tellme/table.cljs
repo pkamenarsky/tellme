@@ -51,7 +51,10 @@
                  :padding [0 :px]})
 
     (set-styles content
-                {:width [100 :pct]
+                ; we need scale(1) so webkit redraws properly
+                ; never wanna hear IE bashing from webkit fanbois ever again
+                {:webkitTransform "scale(1)"
+                 :width [100 :pct]
                  :overflow "hidden"})
 
     (set-styles padding

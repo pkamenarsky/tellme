@@ -53,3 +53,9 @@
     (fn [t]
       (aset (.-style element) p (str (+ start (* delta t)) "px")))))
 
+; FIXME: unify all these
+(defn lerpscalar [element p start end]
+  (let [delta (- end start)]
+    (fn [t]
+      (aset (.-style element) p (+ start (* delta t))))))
+

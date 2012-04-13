@@ -9,7 +9,8 @@
 
             [tellme.base.fsm :as fsm]
             [tellme.animation :as anm]
-            [tellme.table :as table])
+            [tellme.table :as table]
+            [tellme.quote :as qt])
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
   (:use-macros [tellme.base.fsm-macros :only [defdep defreaction defsm set-style set-styles css]]))
 
@@ -373,8 +374,12 @@
                             :borderRadius [(/ quote-button-size 2):px]
                             :visibility "hidden"}))
 
-(def fill-css (css {:position "absolute "
-                    :width [100 :pct]}))
+(def fill-css (css {:position "absolute"
+                    :width [100 :pct]
+                    :height [100 :pct]}))
+
+(def fill-width-css (css {:position "absolute "
+                          :width [100 :pct]}))
 
 ; Utils --------------------------------------------------------------------
 
@@ -384,27 +389,42 @@
 (defn- hide-quote-button [event]
   (set-style (.-quoteButton (.-currentTarget event)) :visibility "hidden"))
 
-(defn- quote-message [event])
+(defn- quote-message [{:keys [main-container quote-overlay]} {:keys [text]} event]
+  (let [qt (qt/create-quote text width)]
 
-(defn set-message-at-row [table row {:keys [text site height]}]
-  (let [container (fill-css (create-div))
-        message (message-css (create-div))
+    ((comp (css {:top [200 :px]
+                 :bottom [150 :px]}) center-css base-css) qt) 
+
+    (set-styles quote-overlay {:visibility "visible"
+                               :opacity "0"}) 
+
+    ; fade out main and show quote overlay
+    (anm/aobj :fade-out 200 (anm/lerpscalar main-container "opacity" 1 0)
+              #(set-style main-container :visibility "hidden")) 
+    (anm/aobj :fade-in 200 (anm/lerpscalar quote-overlay "opacity" 0 1)) 
+
+    (dom/appendChild quote-overlay qt)))
+
+(defn set-message-at-row [{:keys [table] :as data} row
+                          {:keys [text site height] :as message}]
+
+  (let [container (fill-width-css (create-div))
+        msg-container (message-css (create-div))
         quote-button (quote-button-css (create-div))]
 
     (set-style container :height [height :px])
     (set! (.-quoteButton container) quote-button)
 
-    (dom/appendChild container message)
+    (dom/appendChild container msg-container)
     (dom/appendChild container quote-button)
     
-    (dom/setTextContent message text)
+    (dom/setTextContent msg-container text)
     (table/set-row-contents table row container)
     
     ; events
     (events/listen container "mouseover" show-quote-button)
     (events/listen container "mouseout" hide-quote-button)
-    (events/listen container "click" quote-message)
-    ))
+    (events/listen quote-button "click" (partial quote-message data message))))
 
 ; FSM ----------------------------------------------------------------------
 
@@ -412,7 +432,9 @@
   (defsm
     ; fsm data
     {:queue []
-     :table nil}
+     :table nil
+     :main-container nil
+     :quote-overlay nil}
 
     ; slide locked state, just queue up messages
     ([:locked message data]
@@ -446,7 +468,7 @@
 
              (anm/aobj :overlay 400 (anm/lerpstyle overlay "bottom" 31)
                        (fn []
-                         (set-message-at-row table row message)
+                         (set-message-at-row data row (assoc message :row row))
                          (dom/removeNode overlay)
                          (swap! self fsm/send-message :go-to-ready)))) 
 
@@ -467,24 +489,32 @@
        ; else (if slide)
        (let [row (table/add-row table)]
          (table/resize-row table row height true)
-         (set-message-at-row table row message)
+         (set-message-at-row data row (assoc message :row row))
          (fsm/ignore-msg)))))) 
 
 ; main ---------------------------------------------------------------------
 
 (defn main3 []
-  (let [table (table/create-table)
+  (let [main-container (create-div)
+        quote-overlay (create-div)
+
+        table (table/create-table)
         shadow (create-div)
         input (dom/createElement "textarea")
 
         sm (atom (fsm/with-data base-sm {:queue []
-                                         :table table})) 
+                                         :table table
+                                         :main-container main-container
+                                         :quote-overlay quote-overlay})) 
         
         message (atom nil)
         shadow-height (atom -1)
         input-height (atom -1)]
 
     ; styles
+    (fill-css main-container)
+    ((comp (css {:visibility "hidden"}) fill-css) quote-overlay)
+
     ((comp (css {:top [0 :px]
                  :width [(+ width right-margin) :px]}) base-css center-css)
        (table/element table))
@@ -509,15 +539,18 @@
                  (table/table-resized table))
 
     ; dom
-    (dom/appendChild (.-body (dom/getDocument)) (table/element table))
+    (dom/appendChild (.-body (dom/getDocument)) main-container)
+    (dom/appendChild (.-body (dom/getDocument)) quote-overlay)
+
+    (dom/appendChild main-container (table/element table))
     (table/table-resized table)
 
-    (table/add-row table)
-    (table/resize-row table 0 31 false)
-    (table/set-row-text table 0 "adasdas")
+    ;(table/add-row table)
+    ;(table/resize-row table 0 31 false)
+    ;(table/set-row-text table 0 "adasdas")
 
-    (dom/appendChild (.-body (dom/getDocument)) input)
-    (dom/appendChild (.-body (dom/getDocument)) shadow)
+    (dom/appendChild main-container input)
+    (dom/appendChild main-container shadow)
 
     ; events
     (events/listen input "input" (fn [event]
