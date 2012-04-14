@@ -45,7 +45,7 @@
   (dom/setTextContent dcontent content) 
   (set! (.-innerHTML dcontent) (.replace (.-innerHTML dcontent) (js/RegExp. " " "g") "&nbsp;")))
 
-(defn- slice-row [table row dcontent content]
+(defn- slice-row [{:keys [table shadow text-css] :as view} row dcontent content]
   (let [trange (.getRangeAt (js/getSelection js/window) 0)
         [tquote trest [xq yq] [xr yr] :as slice] (slice-text content trange text-css)]
 
@@ -88,14 +88,13 @@
 
         ; add rest element row & animate
         (text-css drest) 
-        (set-style drest :width [width :px]) 
         (dom/appendChild (table/element table) drest)
 
         (set-content drest trest)
 
         ; TODO: scroll to bottom
         (let [rest-height (.-offsetHeight drest)
-              top (table/row-top table 0)]
+              top (table/row-top table row)]
 
           (set-styles drest {:textIndent [xr :px]
                              :marginTop [yr :px]
@@ -107,20 +106,44 @@
           (table/resize-row table rest-row rest-height true) 
           (anm/aobj :rtop 400 (anm/lerpstyle drest "top" (- (.-offsetHeight (table/element table)) rest-height))
                     (fn []
-                      (set-style drest :position "")
                       (dom/removeNode drest)
-                      (table/set-row-contents table rest-row drest)))
+                      (add-quotable view rest-row trest)))
           (anm/aobj :rmargin 400 (anm/lerpstyle drest "marginTop" 0))
           (anm/aobj :rindent 400 (anm/lerpstyle drest "textIndent" 0)))
         
         drest))))
 
+(defn- add-quotable [{:keys [table text-css shadow] :as view} row content]
+  (let [dcontent (create-div)
+        lkey (atom nil)]
+
+    (text-css dcontent)
+
+    ; add quotable div to current row
+    (text-css dcontent) 
+    (dom/setTextContent dcontent content) 
+    (dom/setTextContent shadow content) 
+
+    (table/set-row-contents table row dcontent) 
+    (table/resize-row table row (.-offsetHeight shadow) false)
+    
+    ; FIXME: test with selection with input element
+    (reset! lkey
+            (events/listen dcontent
+                           "mouseup"
+                           (fn [event]
+                             (when (slice-row view row dcontent content)
+                               (events/unlistenByKey @lkey)))))))
+
 ; Constructor --------------------------------------------------------------
 
 (defn create-quote [content width text-css]
   (let [table (table/create-table)
-        text (create-div)
-        shadow (create-div)]
+        shadow (create-div)
+        
+        view {:table table
+              :shadow shadow
+              :text-css text-css}]
 
     ; FIXME: need to detach this
     (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event]
@@ -128,99 +151,19 @@
 
     ; FIXME: collapse with macro
     ; FIXME: find fix for table/element
-    (set-style (table/element table) :width [width :px])
-    (set-style text :width [width :px])
-    (set-style shadow :width [width :px])
+    (text-css (table/element table))
+    (text-css shadow)
 
     ; init shadow element
     ((comp (css {:position "absolute"
                  :top [1000 :pct]}) text-css) shadow)
+
     ; FIXME: need to detach this
     (dom/appendChild (.-body (dom/getDocument)) shadow)
 
-    ; quotable text
-    (text-css text)
-    (dom/setTextContent text content)
-    (dom/setTextContent shadow content)
+    ; add initial quotable
+    (add-quotable view (table/add-row table) content)
 
-    ; text goes in first table row
-    (table/add-row table)
-    (table/set-row-contents table 0 text)
-    (table/resize-row table 0 (.-offsetHeight shadow) false)
-
-    ; FIXME: test with selection with input element
-    (events/listen text "mouseup" (fn [event]
-                                    (let [srange (.getRangeAt (js/getSelection js/window) 0)
-                                          [tquote trest [xq yq] [xr yr] :as slice] (slice-text content srange text-css)
-                                          erest (create-div)
-                                          input (dom/createElement "textarea")
-                                          
-                                          input-row (table/add-row table)
-                                          rest-row (table/add-row table)]
-
-                                      (when slice
-                                        ;(console/log (pr-str (slice-text content srange text-css))) 
-
-                                        ; animate quote element
-                                        (dom/setTextContent text tquote) 
-                                        (set! (.-innerHTML text) (.replace (.-innerHTML text) (js/RegExp. " " "g") "&nbsp;")) 
-
-                                        (let [text-height (.-offsetHeight text)]
-                                          (set-styles text {:textIndent [xq :px]
-                                                            :marginTop [yq :px]}) 
-
-                                          (table/resize-row table 0 text-height true)
-                                          (anm/aobj :qmargin 400 (anm/lerpstyle text "marginTop" 0))
-                                          (anm/aobj :qindent 400 (anm/lerpstyle text "textIndent" 0) #(dom/setTextContent text tquote))
-
-                                          ; add input element
-                                          ; FIXME: 31
-                                          ((comp (css {:height [0 :px]
-                                                       :backgroundColor "transparent"
-                                                       :resize "none"
-                                                       :padding [0 :px]
-                                                       :position "absolute"}) padding-css text-css) input) 
-
-                                          ; FIXME: 31
-                                          (table/resize-row table input-row 41 true) 
-                                          (table/set-row-contents table input-row input) 
-
-                                          (anm/aobj :input-height 400 (anm/lerpstyle input "height" 41)) 
-                                          (anm/aobj :input-padding 400 (anm/lerpstyle input "paddingTop" 10)) 
-                                          (anm/aobj :input-padding-b 400 (anm/lerpstyle input "paddingBottom" 10)) 
-
-                                          (.select input)
-
-                                          ; add rest element row & animate
-                                          (text-css erest) 
-                                          (set-style erest :width [width :px]) 
-
-                                          (dom/setTextContent erest trest) 
-                                          ; FIXME: find character for webkit instead of "-"
-                                          (set! (.-innerHTML erest)
-                                                (.replace (.replace (.-innerHTML erest) (js/RegExp. " " "g") "&nbsp;") (js/RegExp. "-" "g") "=")) 
-                                          (dom/appendChild (table/element table) erest)
-
-                                          ; TODO: scroll to bottom
-                                          (let [rest-height (.-offsetHeight erest)
-                                                top (table/row-top table 0)]
-
-                                            (set-styles erest {:textIndent [xr :px]
-                                                               :marginTop [yr :px]
-                                                               :top [top :px]
-                                                               :position "absolute"
-                                                               :color "#333333"})
-
-                                            ; FIXME: 31
-                                            (table/resize-row table rest-row rest-height true) 
-                                            (anm/aobj :rtop 400 (anm/lerpstyle erest "top" (- (.-offsetHeight (table/element table)) rest-height))
-                                                      (fn []
-                                                        (set-style erest :position "")
-                                                        (dom/removeNode erest)
-                                                        (table/set-row-contents table rest-row erest)))
-                                            (anm/aobj :rmargin 400 (anm/lerpstyle erest "marginTop" 0))
-                                            (anm/aobj :rindent 400 (anm/lerpstyle erest "textIndent" 0))))) 
-                                      ))) 
     table))
 
 ; Tests --------------------------------------------------------------------
