@@ -14,16 +14,6 @@
 
 (def create-div (partial dom/createElement "div"))
 
-(def quote-css (css {:fontFamily "Helvetica"
-                     :fontStyle "normal"
-                     :fontSize "14px"
-                     :wordWrap "break-word"
-                     :whiteSpace "pre-wrap"}))
-
-(def shadow-css (comp quote-css
-                      (css {:position "absolute"
-                            :top [1000 :pct]})))
-
 (def padding-css (css {:paddingTop [5 :px]
                        :paddingBottom [5 :px]}))
 
@@ -35,12 +25,12 @@
 
     [x y]))
 
-(defn- slice-text [text srange]
+(defn- slice-text [text srange text-css]
   (let [marker (dom/createElement "span")
         erange (.cloneRange srange)]
 
     (dom/setTextContent marker ".")
-    (quote-css marker)
+    (text-css marker)
 
     (when (not (.-collapsed srange))
       (.collapse erange false)
@@ -50,7 +40,7 @@
        (get-range-point srange marker)
        (get-range-point erange marker)])))
 
-(defn create-quote [content width]
+(defn create-quote [content width text-css]
   (let [table (table/create-table)
         text (create-div)
         shadow (create-div)]
@@ -62,11 +52,12 @@
     (set-style shadow :width [width :px])
 
     ; init shadow element
-    (shadow-css shadow)
+    ((comp (css {:position "absolute"
+                 :top [1000 :pct]}) text-css) shadow)
     (dom/appendChild (.-body (dom/getDocument)) shadow)
 
     ; quotable text
-    (quote-css text)
+    (text-css text)
     (dom/setTextContent text content)
     (dom/setTextContent shadow content)
 
@@ -78,7 +69,7 @@
     ; FIXME: test with selection with input element
     (events/listen text "mouseup" (fn [event]
                                     (let [srange (.getRangeAt (js/getSelection js/window) 0)
-                                          [tquote trest [xq yq] [xr yr] :as slice] (slice-text content srange)
+                                          [tquote trest [xq yq] [xr yr] :as slice] (slice-text content srange text-css)
                                           erest (create-div)
                                           input (dom/createElement "input")
                                           
@@ -86,7 +77,7 @@
                                           rest-row (table/add-row table)]
 
                                       (when slice
-                                        ;(console/log (pr-str (slice-text content srange))) 
+                                        ;(console/log (pr-str (slice-text content srange text-css))) 
 
                                         ; animate quote element
                                         ;(dom/setTextContent text tquote) 
@@ -104,14 +95,14 @@
                                         ; FIXME: 31
                                         ((comp (css {:height [31 :px]
                                                      :backgroundColor "transparent"
-                                                     :resize "none"}) padding-css quote-css) input)
+                                                     :resize "none"}) padding-css text-css) input)
 
                                         ; FIXME: 31
                                         (table/resize-row table input-row 31 true)
                                         (table/set-row-contents table input-row input)
 
                                         ; add rest element row & animate
-                                        (quote-css erest) 
+                                        (text-css erest) 
                                         (set-style erest :width [width :px]) 
                                         (dom/setTextContent erest trest) 
 
@@ -133,18 +124,18 @@
                                           (anm/aobj :rmargin 300 (anm/lerpstyle erest "marginTop" 0))
                                           (anm/aobj :rindent 300 (anm/lerpstyle erest "textIndent" 0)))) 
                                       ))) 
-    (table/element table)))
+    table))
 
 ; Tests --------------------------------------------------------------------
 
 (defn test-quote []
   (let [table (create-quote "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book." 500)]
-    (set-styles table
+    (set-styles (table/element table)
                 {:position "absolute"
                  :top [200 :px]
                  :left [200 :px]
                  :height [400 :px]})
 
-    (dom/appendChild (.-body (dom/getDocument)) table)))
+    (dom/appendChild (.-body (dom/getDocument)) (table/element table))))
 
 ;(events/listen js/window evttype/LOAD test-quote)

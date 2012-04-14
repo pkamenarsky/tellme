@@ -172,6 +172,9 @@
 (defn row-top [{:keys [rows]} index]
   (.-offsetTop (:element (@rows index))))
 
+(defn scroll-top [{:keys [scroll]}]
+  (.-scrollTop scroll))
+
 (defn set-row-text [{:keys [rows]} index text]
   (set! (.-innerHTML (:element (@rows index))) text)
   index)
