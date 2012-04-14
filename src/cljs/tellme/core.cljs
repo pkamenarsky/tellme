@@ -554,10 +554,6 @@
     (dom/appendChild main-container (table/element table))
     (table/table-resized table)
 
-    ;(table/add-row table)
-    ;(table/resize-row table 0 31 false)
-    ;(table/set-row-text table 0 "adasdas")
-
     (dom/appendChild main-container input)
     (dom/appendChild main-container shadow)
 
@@ -588,5 +584,5 @@
     
     ))
 
-(events/listen js/window evttype/LOAD main3)
+;(events/listen js/window evttype/LOAD main3)
 

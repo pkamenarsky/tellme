@@ -36,10 +36,10 @@
   (comment when-let [[f _ _ onend] (@aobjs tag)]
     (f 1.0)
     
-    (when onend
+    (wheset-style erest :position ""n onend
       (onend true)))
   
-  (swap! aobjs assoc tag [f (.getTime (js/Date.)) (* 1 duration) onend]))
+  (swap! aobjs assoc tag [f (.getTime (js/Date.)) (* 10 duration) onend]))
 
 (defn lerpatom [a end]
   (let [start @a
