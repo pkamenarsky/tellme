@@ -112,7 +112,7 @@
                                           (anm/aobj :input-padding 400 (anm/lerpstyle input "paddingTop" 10)) 
                                           (anm/aobj :input-padding-b 400 (anm/lerpstyle input "paddingBottom" 10)) 
 
-                                          (.focus input) 
+                                          (.select input)
 
                                           ; add rest element row & animate
                                           (text-css erest) 
