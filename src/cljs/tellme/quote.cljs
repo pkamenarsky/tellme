@@ -24,6 +24,9 @@
                       (css {:position "absolute"
                             :top [1000 :pct]})))
 
+(def padding-css (css {:paddingTop [5 :px]
+                       :paddingBottom [5 :px]}))
+
 (defn- get-range-point [r marker]
   (.insertNode r marker)
   (let [x (.-offsetLeft marker)
@@ -76,7 +79,11 @@
     (events/listen text "mouseup" (fn [event]
                                     (let [srange (.getRangeAt (js/getSelection js/window) 0)
                                           [tquote trest [xq yq] [xr yr] :as slice] (slice-text content srange)
-                                          erest (create-div)]
+                                          erest (create-div)
+                                          input (dom/createElement "input")
+                                          
+                                          input-row (table/add-row table)
+                                          rest-row (table/add-row table)]
 
                                       (when slice
                                         ;(console/log (pr-str (slice-text content srange))) 
@@ -93,13 +100,22 @@
                                           (anm/aobj :qmargin 300 (anm/lerpstyle text "marginTop" 0))
                                           (anm/aobj :qindent 300 (anm/lerpstyle text "textIndent" 0) #(dom/setTextContent text tquote)))
 
+                                        ; add input element
+                                        ; FIXME: 31
+                                        ((comp (css {:height [31 :px]
+                                                     :backgroundColor "transparent"
+                                                     :resize "none"}) padding-css quote-css) input)
+
+                                        ; FIXME: 31
+                                        (table/resize-row table input-row 31 true)
+                                        (table/set-row-contents table input-row input)
+
                                         ; add rest element row & animate
                                         (quote-css erest) 
                                         (set-style erest :width [width :px]) 
                                         (dom/setTextContent erest trest) 
 
-                                        (table/add-row table) 
-                                        (table/resize-row table 1 (- (.-offsetHeight shadow) yr) false) 
+                                        (table/resize-row table rest-row (- (.-offsetHeight shadow) yr) true) 
 
                                         (let [text-height (.-offsetHeight erest)
                                               top (table/row-top table 0)]
@@ -112,7 +128,7 @@
                                                              :position "absolute"
                                                              :color "#aaaaaa"})
 
-                                          (table/resize-row table 1 text-height true)
+                                          (table/resize-row table rest-row text-height true)
                                           (anm/aobj :rtop 300 (anm/lerpstyle erest "top" (+ top 60)))
                                           (anm/aobj :rmargin 300 (anm/lerpstyle erest "marginTop" 0))
                                           (anm/aobj :rindent 300 (anm/lerpstyle erest "textIndent" 0)))) 
