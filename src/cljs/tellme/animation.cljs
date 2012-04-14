@@ -39,7 +39,7 @@
     (wheset-style erest :position ""n onend
       (onend true)))
   
-  (swap! aobjs assoc tag [f (.getTime (js/Date.)) (* 1 duration) onend]))
+  (swap! aobjs assoc tag [f (.getTime (js/Date.)) (* 0.4 duration) onend]))
 
 (defn lerpatom [a end]
   (let [start @a

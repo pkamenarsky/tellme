@@ -45,7 +45,15 @@
   (dom/setTextContent dcontent content) 
   (set! (.-innerHTML dcontent) (.replace (.-innerHTML dcontent) (js/RegExp. " " "g") "&nbsp;")))
 
-(defn- slice-row [{:keys [table shadow text-css] :as view} row dcontent content]
+(defn- input-listener [{:keys [table shadow]} row input current-height event]
+  (dom/setTextContent shadow (.-value input))
+  ; FIXME: 23, 3
+  (when-not (= @current-height (.-offsetHeight shadow))
+    (reset! current-height (.-offsetHeight shadow))
+    (table/resize-row table row (+ 23 (.-offsetHeight shadow)) true) 
+    (anm/aobj :input-size 400 (anm/lerpstyle input "height" (+ 23 (.-offsetHeight shadow))))))
+
+(defn- slice-quotable [{:keys [table shadow text-css] :as view} row dcontent content]
   (let [trange (.getRangeAt (js/getSelection js/window) 0)
         [tquote trest [xq yq] [xr yr] :as slice] (slice-text content trange text-css)]
 
@@ -74,7 +82,10 @@
                      :backgroundColor "transparent"
                      :resize "none"
                      :padding [0 :px]
-                     :position "absolute"}) padding-css text-css) input) 
+                     :margin [0 :px]
+                     :position "absolute"}) text-css) input) 
+
+        (events/listen input "input" (partial input-listener view input-row input (atom 0)))
 
         ; FIXME: 31
         (table/resize-row table input-row 41 true) 
@@ -132,7 +143,7 @@
             (events/listen dcontent
                            "mouseup"
                            (fn [event]
-                             (when (slice-row view row dcontent content)
+                             (when (slice-quotable view row dcontent content)
                                (events/unlistenByKey @lkey)))))))
 
 ; Constructor --------------------------------------------------------------
