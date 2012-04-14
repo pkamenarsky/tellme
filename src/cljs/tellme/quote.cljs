@@ -40,6 +40,83 @@
        (get-range-point srange marker)
        (get-range-point erange marker)])))
 
+(defn- set-content [dcontent content]
+  ; FIXME: find character for webkit instead of "-"
+  (dom/setTextContent dcontent content) 
+  (set! (.-innerHTML dcontent) (.replace (.-innerHTML dcontent) (js/RegExp. " " "g") "&nbsp;")))
+
+(defn- slice-row [table row dcontent content]
+  (let [trange (.getRangeAt (js/getSelection js/window) 0)
+        [tquote trest [xq yq] [xr yr] :as slice] (slice-text content trange text-css)]
+
+    (when slice
+
+      ; animate quote element
+      (set-content dcontent tquote)
+
+      (let [text-height (.-offsetHeight dcontent)
+            input-row (table/add-row table)
+            rest-row (table/add-row table)
+
+            drest (create-div)
+            input (dom/createElement "textarea")]
+
+        (set-styles dcontent {:textIndent [xq :px]
+                              :marginTop [yq :px]}) 
+
+        (table/resize-row table row text-height true)
+        (anm/aobj :qmargin 400 (anm/lerpstyle dcontent "marginTop" 0))
+        (anm/aobj :qindent 400 (anm/lerpstyle dcontent "textIndent" 0) #(dom/setTextContent dcontent tquote))
+
+        ; add input element
+        ; FIXME: 31
+        ((comp (css {:height [0 :px]
+                     :backgroundColor "transparent"
+                     :resize "none"
+                     :padding [0 :px]
+                     :position "absolute"}) padding-css text-css) input) 
+
+        ; FIXME: 31
+        (table/resize-row table input-row 41 true) 
+        (table/set-row-contents table input-row input) 
+
+        (anm/aobj :input-height 400 (anm/lerpstyle input "height" 41)) 
+        (anm/aobj :input-padding 400 (anm/lerpstyle input "paddingTop" 10)) 
+        (anm/aobj :input-padding-b 400 (anm/lerpstyle input "paddingBottom" 10)) 
+
+        (.select input)
+
+        ; add rest element row & animate
+        (text-css drest) 
+        (set-style drest :width [width :px]) 
+        (dom/appendChild (table/element table) drest)
+
+        (set-content drest trest)
+
+        ; TODO: scroll to bottom
+        (let [rest-height (.-offsetHeight drest)
+              top (table/row-top table 0)]
+
+          (set-styles drest {:textIndent [xr :px]
+                             :marginTop [yr :px]
+                             :top [top :px]
+                             :position "absolute"
+                             :color "#333333"})
+
+          ; FIXME: 31
+          (table/resize-row table rest-row rest-height true) 
+          (anm/aobj :rtop 400 (anm/lerpstyle drest "top" (- (.-offsetHeight (table/element table)) rest-height))
+                    (fn []
+                      (set-style drest :position "")
+                      (dom/removeNode drest)
+                      (table/set-row-contents table rest-row drest)))
+          (anm/aobj :rmargin 400 (anm/lerpstyle drest "marginTop" 0))
+          (anm/aobj :rindent 400 (anm/lerpstyle drest "textIndent" 0)))
+        
+        drest))))
+
+; Constructor --------------------------------------------------------------
+
 (defn create-quote [content width text-css]
   (let [table (table/create-table)
         text (create-div)
