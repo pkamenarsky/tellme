@@ -389,11 +389,16 @@
 (defn- hide-quote-button [event]
   (set-style (.-quoteButton (.-currentTarget event)) :visibility "hidden"))
 
-(defn- quote-message [{:keys [main-container quote-overlay]} {:keys [text]} event]
-  (let [qt (qt/create-quote text width)]
+(defn- quote-message [{:keys [main-container quote-overlay table]}
+                      {:keys [text row height]} event]
 
-    ((comp (css {:top [200 :px]
-                 :bottom [150 :px]}) center-css base-css) qt) 
+  (let [qt (qt/create-quote text width base-css)
+        client-height (.-clientHeight (.-body (dom/getDocument)))
+        bottom (+ height (- (table/row-top table row) (table/scroll-top table)))]
+
+    ((comp (css {:top [0 :px]
+                 ; FIXME: 10
+                 :bottom [(- client-height (- bottom 10)) :px]}) center-css base-css) (table/element qt)) 
 
     (set-styles quote-overlay {:visibility "visible"
                                :opacity "0"}) 
@@ -403,7 +408,11 @@
               #(set-style main-container :visibility "hidden")) 
     (anm/aobj :fade-in 200 (anm/lerpscalar quote-overlay "opacity" 0 1)) 
 
-    (dom/appendChild quote-overlay qt)))
+    (dom/appendChild quote-overlay (table/element qt))
+    (table/table-resized qt)
+    
+    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event]
+                                                               (table/table-resized qt)))))
 
 (defn set-message-at-row [{:keys [table] :as data} row
                           {:keys [text site height] :as message}]
