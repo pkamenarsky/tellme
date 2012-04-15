@@ -17,6 +17,14 @@
 (def padding-css (css {:paddingTop [5 :px]
                        :paddingBottom [5 :px]}))
 
+; FIXME: 41
+(def input-css (css {:height [0 :px]
+                     :backgroundColor "transparent"
+                     :resize "none"
+                     :padding [0 :px]
+                     :margin [0 :px]
+                     :position "absolute"}))
+
 (defn- get-range-point [r marker]
   (.insertNode r marker)
   (let [x (.-offsetLeft marker)
@@ -54,7 +62,10 @@
     (anm/aobj :input-size 400 (anm/lerpstyle input "height" (+ 23 (.-offsetHeight shadow))))))
 
 (defn- slice-quotable [{:keys [table shadow text-css] :as view} row dcontent content]
-  (let [trange (.getRangeAt (js/getSelection js/window) 0)
+  (dom/setTextContent shadow content)
+
+  (let [old-height (.-offsetHeight shadow)
+        trange (.getRangeAt (js/getSelection js/window) 0)
         [tquote trest [xq yq] [xr yr] :as slice] (slice-text content trange text-css)]
 
     (when slice
@@ -63,8 +74,8 @@
       (set-content dcontent tquote)
 
       (let [text-height (.-offsetHeight dcontent)
-            input-row (table/add-row table)
-            rest-row (table/add-row table)
+            input-row (table/add-row table (inc row))
+            rest-row (table/add-row table (inc input-row))
 
             drest (create-div)
             input (dom/createElement "textarea")]
@@ -78,12 +89,7 @@
 
         ; add input element
         ; FIXME: 31
-        ((comp (css {:height [0 :px]
-                     :backgroundColor "transparent"
-                     :resize "none"
-                     :padding [0 :px]
-                     :margin [0 :px]
-                     :position "absolute"}) text-css) input) 
+        ((comp input-css text-css) input) 
 
         (events/listen input "input" (partial input-listener view input-row input (atom 0)))
 
@@ -99,36 +105,30 @@
 
         ; add rest element row & animate
         (text-css drest) 
-        (dom/appendChild (table/element table) drest)
+        ;(dom/appendChild (table/content-element table) drest)
+        (table/set-row-contents table rest-row drest)
 
         (set-content drest trest)
 
-        ; TODO: scroll to bottom
-        (let [rest-height (.-offsetHeight drest)
-              top (table/row-top table row)]
+        (let [rest-height (.-offsetHeight drest)]
 
           (set-styles drest {:textIndent [xr :px]
-                             :marginTop [yr :px]
-                             :top [top :px]
-                             :position "absolute"
+                             :top [(- yr old-height) :px]
+                             :position "relative"
                              :color "#333333"})
 
-          ; FIXME: 31
           (table/resize-row table rest-row rest-height true) 
-          (anm/aobj :rtop 400 (anm/lerpstyle drest "top" (- (.-offsetHeight (table/element table)) rest-height))
+          (anm/aobj :rtop 400 (anm/lerpstyle drest "top" 0)
                     (fn []
                       (dom/removeNode drest)
                       (add-quotable view rest-row trest)))
-          (anm/aobj :rmargin 400 (anm/lerpstyle drest "marginTop" 0))
           (anm/aobj :rindent 400 (anm/lerpstyle drest "textIndent" 0)))
         
         drest))))
 
-(defn- add-quotable [{:keys [table text-css shadow] :as view} row content]
+(defn- add-quotable [{:keys [table text-css shadow rest-dcontent] :as view} row content]
   (let [dcontent (create-div)
         lkey (atom nil)]
-
-    (text-css dcontent)
 
     ; add quotable div to current row
     (text-css dcontent) 
@@ -137,6 +137,12 @@
 
     (table/set-row-contents table row dcontent) 
     (table/resize-row table row (.-offsetHeight shadow) false)
+
+    ; if this is actually the rest of a new split (i.e. if row != 0, since row 0
+    ; is always the original quote), reset the rest-dcontent atom, so that
+    ; it can be grayed out when the bottom most comment field is empty
+    (when-not (zero? row)
+      (reset! rest-dcontent dcontent))
     
     ; FIXME: test with selection with input element
     (reset! lkey
@@ -151,10 +157,14 @@
 (defn create-quote [content width text-css]
   (let [table (table/create-table)
         shadow (create-div)
+
+        quote-input (dom/createElement "textarea")
+        rest-dcontent (atom nil)
         
         view {:table table
               :shadow shadow
-              :text-css text-css}]
+              :text-css text-css
+              :rest-dcontent rest-dcontent}]
 
     ; FIXME: need to detach this
     (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event]
@@ -174,6 +184,21 @@
 
     ; add initial quotable
     (add-quotable view (table/add-row table) content)
+
+    ; add intial comment field
+    ; FIXME: 41px
+    ((comp (css {:height [41 :px]
+                 :paddingTop [10 :px]
+                 :paddingBottom [10 :px]}) input-css text-css) quote-input)
+    (table/resize-row table (table/set-row-contents table (table/add-row table) quote-input) 41 false)
+    (js/setTimeout #(.select quote-input) 0) 
+
+    ; we should put this is in a sm
+    (events/listen quote-input "input" (fn [event]
+                                         (when @rest-dcontent
+                                           (if (zero? (.-length (.-value quote-input)))
+                                             (set-style @rest-dcontent :color "#999999")
+                                             (set-style @rest-dcontent :color "#333333")))))
 
     table))
 

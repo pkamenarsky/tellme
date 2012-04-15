@@ -116,6 +116,9 @@
 (defn element [{root :root}]
   root)
 
+(defn content-element [{content :content}]
+  content)
+
 (defn insert-at [v e at]
   (into (conj (subvec v 0 at) e) (subvec v at)))
 
@@ -130,7 +133,8 @@
      (set-styles element {:width [100 :pct]
                           :height [0 :px]})
 
-     (dom/appendChild content element)
+     ; first child is the padding element so we need (inc at)
+     (dom/insertChildAt content element (inc at))
      (swap! rows insert-at row at)
 
      at))
@@ -182,7 +186,9 @@
 (defn set-row-contents [{:keys [rows]} index view]
   (let [{:keys [element]} (@rows index)]
     (dom/removeChildren element)
-    (dom/appendChild element view)))
+    (dom/appendChild element view)
+
+    index))
 
 (defn scroll-to
   "table :: table
