@@ -30,24 +30,26 @@
 (defmacro css [styles]
   `(fn [element#] (set-styles element# ~styles)))
 
-(def re-cname #"(\w*)(\.(\w*))?")
+(def re-cname #"(\w*)(\.([\w-]*))?")
 
 (defn- parse-cname [cname]
   (when-let [[_ cname _ css-class] (re-matches re-cname cname)]
     [cname (if css-class css-class "")]))
 
-(defmacro view [cname & children]
+(defmacro view 
+  "Needs (:require [domina :as dm]) until cljs enables
+  usages of single-segment namespaces without :require."
+  [cname & children]
   `(let [content# ~(if (keyword? cname)
                      (if-let [[n c] (parse-cname (name cname))]
-                       `(domina/add-class! (tellme.ui/create-element ~n) ~c)
+                       `(dm/add-class! (tellme.ui/create-element ~n) ~c)
                        (throw (Exception. (str "Invalid element spec format: " (name cname))))) 
                      `~cname)]
-     ~@(map (fn [c] `(domina/append! content# ~c)) children)
+     ~@(map (fn [c] `(dm/append! content# ~c)) children)
      content#))
 
 ; TODO: css reaction macro
 ; defdep shortcut in let etc
-; animation macro
 
 ; Dataflow -----------------------------------------------------------------
 

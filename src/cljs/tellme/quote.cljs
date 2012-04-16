@@ -10,7 +10,7 @@
             [tellme.animation :as anm]
             [tellme.table :as table]
             
-            [domina :as domina]) 
+            [domina :as dm]) 
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
   (:use-macros [tellme.base.fsm-macros :only [view defdep defreaction defsm set-styles set-style css]]))
 
@@ -221,11 +221,7 @@
 
 (defn test-quote []
   (let [table (create-quote "There's one major problem. This doesn't fit into the monadic interface. Monads are (a -> m b), they're based around functions only. There's no way to attach static information. You have only one choice, throw in some input, and see if it passes or fails."
-                            300 base-css)
-        v (view :div.sid)]
-    (dom/appendChild (.-body (dom/getDocument)) (domina/single-node v))
-    (dom/setTextContent (domina/single-node v) "Asfafsa")
-    (domina/add-class! v "bla")
+                            300 base-css)]
     (set-styles (table/element table)
                 {:position "absolute"
                  :top [0 :px]
@@ -236,4 +232,4 @@
     (dom/appendChild (.-body (dom/getDocument)) (table/element table))
     (table/table-resized table)))
 
-(events/listen js/window evttype/LOAD test-quote)
+;(events/listen js/window evttype/LOAD test-quote)

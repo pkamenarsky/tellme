@@ -6,22 +6,126 @@
             [goog.events.KeyCodes :as keycodes]
             [goog.events.EventType :as evttype]
             [goog.events :as events]
+
+            [domina :as dm]
+            [domina.events :as dme]
             
-            [tellme.animation :as anm])
+            [tellme.ui :as ui])
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
-  (:use-macros [tellme.base.fsm-macros :only [defdep defreaction defsm set-styles set-style]]))
+  (:use-macros [tellme.base.fsm-macros :only [view defdep defreaction defsm set-styles set-style]]))
+
+; Utils --------------------------------------------------------------------
+
+; finger trees would be better suited for this
+(defn insert-at [v e at]
+  (into (conj (subvec v 0 at) e) (subvec v at)))
+
+(defn remove-at [v at]
+  (into (subvec v 0 at) (subvec v (inc at))))
 
 ; --------------------------------------------------------------------------
 
-(def create-div (partial dom/createElement "div"))
+(defprotocol ITable
+  (content-node [this])
+
+  (add-row [this] [this at])
+  (remove-row [this index])
+  (resize-row [this index rowheight & opts] "opts :: {:animated boolean :onend callback}")
+  (set-row-text [this index text])
+  (set-row-contents [this index view])
+
+  (row-top [this index])
+  (scroll-top [this index])
+  (scroll-to [this location offset onend])
+  (at? [this location]))
+
+(deftype Table
+  [id root scroll padding content
+   table-height]
+
+  ITable
+  (content-node [this] content)
+
+  (add-row [this at]
+     (let [element (view :div.table-row)
+           row {:element element
+                :height 0}]
+
+       ; first child is the padding element so we need (inc at)
+       (append! content element (inc at))
+       (swap! rows insert-at row at)
+       at)) 
+
+  (add-row [this]
+   (add-row this (count @rows)))
+
+  (remove-row [this index]
+    (let [{:keys [element height] :as row} (@rows index)]
+
+      (dm/detach! element)
+      (swap! message-height - height)
+      (swap! rows remove-at index)
+
+      index))
+
+  (resize-row [this index rowheight & [{:keys [animated onend] :or {animated true}}]]
+     (let [{:keys [element height]} (@rows index)
+           newheight (+ (- evntl-message-height height) rowheight)]
+
+       (if animated
+           (ui/animate [element :style.height [rowheight :px]]
+                       [this message-height newheight :onend onend])
+         (do
+           (set-style element :height [rowheight :px]) 
+           (reset! message-height newheight)
+
+           (when onend
+             (onend)))) 
+
+       (reset! evntl-message-height newheight)
+       (swap! rows assoc-in [index :height] rowheight)
+
+       index)) 
+
+  (row-top [this index]
+    (dm/attr (:element (@rows index)) :offsetTop))
+
+  (scroll-top [this]
+    (dm/attr scroll :scrollTop))
+
+  (set-row-text [this index text]
+    (dm/set-html! (:element (@rows index)) text)
+    index)
+
+  (set-row-contents [this index view]
+    (let [{:keys [element]} (@rows index)]
+      (dm/destroy-children! element)
+      (dm/append! element view)
+
+      index))
+
+  (scroll-to [this location offset & [{:keys [onend]}]]
+
+    (reset! scroll-top (dm/attr scroll :scrollTop))
+    (ui/animate [this scroll-top (+ offset (- @content-height @table-height)) :onend onend]))
+
+  (at? [this location]
+    (< (- (- @content-height @table-height) (dm/attr scroll :scrollTop)) 4))
+
+  dm/DomContent
+  (nodes [this] [(.root this)])
+  (single-node [this] (.root this))
+  
+  View
+  (resized [this] (reset! table-height (dm/attr root :offsetHeight))))
 
 (def id (atom 0))
 
 (defn create-table []
-  (let [root (create-div)
-        scroll (create-div)
-        padding (create-div)
-        content (create-div)
+  (let [root (view :div.table-root)
+        scroll (view :div.table-scroll)
+        padding (view :div.table-padding)
+        content (view :div.table-content)
 
         scroll-top (atom -1)
         scroll-topB (atom -1)
@@ -35,34 +139,10 @@
         rows (atom [])]
 
     ; dom
-    (set-styles root
-                {:overflow "hidden"
-                 :margin [0 :px]
-                 :padding [0 :px]})
-
-    (set-styles scroll
-                {:position "absolute"
-                 :overflow "scroll"
-                 :top [0 :px]
-                 :left [0 :px]
-                 :right [-16 :px]
-                 :bottom [-16 :px]
-                 :border [0 :px]
-                 :padding [0 :px]})
-
-    (set-styles content
-                ; we need scale(1) so webkit redraws properly
-                ; never wanna hear IE bashing from webkit fanbois ever again
-                {:webkitTransform "scale(1)"
-                 :width [100 :pct]
-                 :overflow "hidden"})
-
-    (set-styles padding
-                {:width [100 :pct]})
-    
-    (dom/appendChild content padding)
-    (dom/appendChild scroll content)
-    (dom/appendChild root scroll)
+    (->> padding
+      (dm/append! content)
+      (dm/append! scroll)
+      (dm/append! root))
 
     ; dependencies
     (defdep message-padding [table-height message-height]
@@ -85,16 +165,16 @@
 
     (defreaction scroll-top
                  (reset! scroll-topB scroll-top)
-                 (set! (.-scrollTop scroll) scroll-top))
+                 (dm/set-attr! scroll :scrollTop scroll-top))
 
     ; events
-    (events/listen scroll "scroll" (fn [event]
-                                     (reset! scroll-topB (.-scrollTop scroll))))
+    (dme/listen! scroll :scroll (fn [event]
+                                  (reset! scroll-topB (dm/attr scroll :scrollTop))))
 
     ; need this for the godless webkit scroll-on-drag "feature"
-    (events/listen root "scroll" (fn [event]
-                                   (set! (.-scrollTop root) 0)
-                                   (set! (.-scrollLeft root) 0)))
+    (dme/listen! root :scroll (fn [event]
+                                (dm/set-attr! root :scrollTop) 0
+                                (dm/set-attr! root :scrollLeft) 0))
 
     {:id (swap! id inc)
      :root root
@@ -109,98 +189,6 @@
      :massege-padding message-padding
      :content-height message-height
      :rows (atom [])}))
-
-(defn table-resized [{:keys [root table-height]}]
-  (reset! table-height (.-offsetHeight root)))
-
-(defn element [{root :root}]
-  root)
-
-(defn content-element [{content :content}]
-  content)
-
-(defn insert-at [v e at]
-  (into (conj (subvec v 0 at) e) (subvec v at)))
-
-(defn remove-at [v at]
-  (into (subvec v 0 at) (subvec v (inc at))))
-
-(defn add-row
-  ([{:keys [content rows]} at]
-   (let [element (create-div)
-         row {:element element
-              :height 0}]
-     (set-styles element {:width [100 :pct]
-                          :height [0 :px]})
-
-     ; first child is the padding element so we need (inc at)
-     (dom/insertChildAt content element (inc at))
-     (swap! rows insert-at row at)
-
-     at))
-  ([{:keys [rows] :as table}]
-   (add-row table (count @rows))))
-
-(defn remove-row [{:keys [message-height content rows]} index]
-  (let [{:keys [element height] :as row} (@rows index)]
-    
-    (dom/removeNode element)
-    (swap! message-height - height)
-    (swap! rows remove-at index)
-
-    index))
-
-(defn resize-row
-  ([{:keys [rows message-height evntl-message-height] :as table} index rowheight animated onend]
-  (let [{:keys [element height]} (@rows index)
-        newheight (+ (- @evntl-message-height height) rowheight)]
-
-    (if animated
-      (do
-        (anm/aobj index 400 (anm/lerpstyle element "height" rowheight)) 
-        (anm/aobj :messages 400 (anm/lerpatom message-height newheight) onend))
-      (do
-        (set-style element :height [rowheight :px]) 
-        (reset! message-height newheight)
-        
-        (when onend
-          (onend)))) 
-
-    (reset! evntl-message-height newheight)
-    (swap! rows assoc-in [index :height] rowheight)
-    
-    newheight))
-  ([table index rowheight animated]
-   (resize-row table index rowheight animated nil)))
-
-(defn row-top [{:keys [rows]} index]
-  (.-offsetTop (:element (@rows index))))
-
-(defn scroll-top [{:keys [scroll]}]
-  (.-scrollTop scroll))
-
-(defn set-row-text [{:keys [rows]} index text]
-  (set! (.-innerHTML (:element (@rows index))) text)
-  index)
-
-(defn set-row-contents [{:keys [rows]} index view]
-  (let [{:keys [element]} (@rows index)]
-    (dom/removeChildren element)
-    (dom/appendChild element view)
-
-    index))
-
-(defn scroll-to
-  "table :: table
-  location :: number | :top | :bottom
-  onend :: nil | (-> nil)"
-  [{:keys [id scroll scroll-top content-height table-height] :as table} location offset onend]
-
-  (reset! scroll-top (.-scrollTop scroll))
-  (anm/aobj id 100 (anm/lerpatom scroll-top (+ offset (- @content-height @table-height))) onend))
-
-(defn at? [{:keys [scroll content-height table-height]} location]
-  (< (- (- @content-height @table-height) (.-scrollTop scroll)) 4))
 
 ; Tests --------------------------------------------------------------------
 
@@ -227,3 +215,4 @@
             (recur (inc i)))))
       1000)))
 
+(events/listen js/window evttype/LOAD test-table)
