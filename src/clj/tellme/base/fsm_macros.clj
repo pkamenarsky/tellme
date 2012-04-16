@@ -30,6 +30,20 @@
 (defmacro css [styles]
   `(fn [element#] (set-styles element# ~styles)))
 
+(comment
+  (let-view [container [:div.main
+                        [point1 [:div.point]
+                         point2 :div.point]]]
+           (set-styles container {:width [50 :px]})))
+
+; TODO: css reaction macro
+; defdep shortcut in let etc
+; animation macro
+
+(defmacro let-view [es]
+  (let [part (partition 2 es)]
+    `(let [~@(mapcat (fn [[k v]] `(~k ~v)) part)])))
+
 ; Dataflow -----------------------------------------------------------------
 
 (defmacro defdep [res deps & body]
