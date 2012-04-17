@@ -127,7 +127,13 @@
   (let [padding (view :div.table-padding)
         content (view :div.table-content padding)
         scroll (view :div.table-scroll content)
-        root (view :div.table-root scroll)
+        container (view :div.table-container scroll)
+
+        p1 (view :div.table-scrollbar-point)
+        p2 (view :div.table-scrollbar-point)
+        scrollbar (view :div.table-scrollbar p1 p2)
+
+        root (view :div.table-root container scrollbar)
 
         table-height (atom -1)
         message-height (atom -1)
@@ -141,6 +147,16 @@
         scroll-top (defdep [table-height content-height]
                            (if @sticky-bottom (+ 1 (- content-height table-height)) @scroll-topB))
 
+        ; scrollbar
+        bar-top (defdep [scroll-topB content-height]
+                        (* 100 (/ scroll-topB content-height)))
+
+        bar-bottom (defdep [bar-top table-height content-height]
+                           (+ bar-top (* 100 (/ table-height content-height))))
+
+        bar-visible (defdep [table-height content-height]
+                            (> content-height table-height))
+
         rows (atom [])
         this (Table. root scroll padding content scroll-top scroll-topB
                      table-height content-height evntl-message-height message-height rows)]
@@ -150,6 +166,18 @@
     (ui/bind content-height content :style.height "px")
     (ui/bind scroll-top this :scroll-topB)
     (ui/bind scroll-top scroll :attr.scrollTop)
+
+    (ui/bind bar-top p1 :style.top "px")
+    (ui/bind bar-bottom p2 :style.top "px")
+
+    (defreaction bar-visible
+                 (doseq [p [p1 p2]]
+                   (dm/remove-class! p "table-scrollbar-point-visible")
+                   (dm/remove-class! p "table-scrollbar-point-hidden")
+
+                   (if bar-visible
+                     (dm/add-class! p "table-scrollbar-point-visible"))
+                     (dm/add-class! p "table-scrollbar-point-hidden")))
 
     ; events
     (dme/listen! scroll :scroll (fn [event] (reset! scroll-topB (ui/property scroll :scrollTop))))
