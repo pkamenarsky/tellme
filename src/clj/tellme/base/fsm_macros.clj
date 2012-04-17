@@ -5,31 +5,6 @@
 
 ; DOM ----------------------------------------------------------------------
 
-(defn from-unit [u]
-  (case u
-    :px "px"
-    :pct "%"
-    :pt "pt"
-    (throw (Exception. "Invalid css unit"))))
-
-(defn from-value [v]
-  (cond
-    (vector? v) (if (number? (first v))
-                  (str (first v) (from-unit (second v)))
-                  `(str ~(first v) ~(from-unit (second v)))) 
-    :else v))
-
-(defmacro set-style [element p v]
-  `(set! (~(symbol (str ".-" (name p))) (.-style ~element)) ~(from-value v)))
-
-(defmacro set-styles [element styles]
-  `(do
-     ~@(map (fn [[p v]] `(set-style ~element ~p ~v)) styles)
-     ~element))
-
-(defmacro css [styles]
-  `(fn [element#] (set-styles element# ~styles)))
-
 (def re-cname #"(\w*)(\.([\w-]*))?")
 
 (defn- parse-cname [cname]
@@ -48,23 +23,21 @@
      ~@(map (fn [c] `(dm/append! content# ~c)) children)
      content#))
 
-; TODO: css reaction macro
-; defdep shortcut in let etc
-
 ; Dataflow -----------------------------------------------------------------
 
-(defmacro defdep [res deps & body]
+(defmacro defdep [deps & body]
   (let [f (gensym)
         k (keyword (gensym))]
-    `(let [~f (fn [~@deps]
-                (reset! ~res (do ~@body)))]
+    `(let [res# (atom nil)
+           ~f (fn [~@deps]
+                (reset! res# (do ~@body)))]
 
        ~@(map (fn [dep] `(add-watch ~dep ~k (fn [~'_ ~'_ ~'o ~'n]
                                               (when (not= ~'o ~'n)
                                                 (~f ~@(map (fn [d] (if (= d dep) 'n `@~d))
                                                            deps)))))) deps)
 
-       ~f)))
+       res#)))
 
 (defmacro defreaction [dep & body]
   `(add-watch ~dep

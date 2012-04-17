@@ -86,7 +86,8 @@
 
 (def bar-visible (atom true))
 
-(defdep message-padding [table-height message-height]
+(comment
+  (defdep message-padding [table-height message-height]
         ;(js* "console.log('padding', ~{0}, ~{1})" table-height message-height)
         (Math/max 0 (- table-height message-height)))
 
@@ -326,8 +327,11 @@
    :inputbox (dom/getElement "inputbox")})
 
 ;(events/listen js/window evttype/LOAD #(main (get-context)))
-
+ )
 ; --------------------------------------------------------------------------
+
+
+(comment
 
 (def create-div (partial dom/createElement "div"))
 
@@ -583,6 +587,6 @@
     (reset! message "")
     
     ))
-
+ )
 ;(events/listen js/window evttype/LOAD main3)
 

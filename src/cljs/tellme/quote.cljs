@@ -16,7 +16,8 @@
 
 (def create-div (partial dom/createElement "div"))
 
-(def padding-css (css {:paddingTop [5 :px]
+(comment 
+  (def padding-css (css {:paddingTop [5 :px]
                        :paddingBottom [5 :px]}))
 
 ; FIXME: 41
@@ -25,7 +26,7 @@
                      :resize "none"
                      :padding [0 :px]
                      :margin [0 :px]
-                     :position "absolute"}))
+                     :position "absolute"})) )
 
 (defn- get-range-point [r marker]
   (.insertNode r marker)
@@ -206,7 +207,7 @@
 
 ; Tests --------------------------------------------------------------------
 
-(def base-css (css {:color color
+(comment def base-css (css {:color color
                     :position "absolute"
                     :width [300 :px]
                     :lineHeight [18 :px]

@@ -41,16 +41,40 @@
     (reset! atimer (js/setInterval runa 10)))
   (swap! aobjs assoc tag [f (.getTime (js/Date.)) (* 1 duration) onend]))
 
+(def unit-map {:px "px" :pct "%" :pt "pt"})
+
+(defn from-unit [u]
+  (if-let [unit (unit-map u)]
+    unit
+    (throw (Error. "Invalid css unit"))))
+
 (defn- extract [v]
   (if (vector? v)
-    [(first v) (from-unit v)]
+    [(first v) (from-unit (second v))]
     [v nil]))
 
+(defn- starts-with [s ss]
+  (= (.lastIndexOf s ss 0) 0))
+
 (defn- lerp [f start end]
-  (let [[s u] (extract end)]
+  (let [[e u] (extract end)]
     (if u
-      (fn [t] (f (str (+ start (* t (- end start))) u)))
-      (fn [t] (f (+ start (* t (- end start))))))))
+      (fn [t] (f (str (+ start (* t (- e start))) u)))
+      (fn [t] (f (+ start (* t (- e start))))))))
+
+(defn reflect [content property & value]
+  (let [pname (name property)]
+    (cond
+      (starts-with pname "style.")
+      (do
+        (dm/log-debug (apply str value))
+        (apply dm/set-style! content (.substring pname (.-length "style.")) value)) 
+      
+      (starts-with pname "attr.")
+      (apply dm/set-attr! content (.substring pname (.-length "attr.")) value)
+
+      :else
+      (reset! (property content) (apply str value)))))
 
 (defn- tfunc [content property to]
   (let [pname (name property)] 
@@ -58,28 +82,34 @@
     ; regexps are not necessary here
     (cond
       ; animate style
-      (startsWith pname "style.")
+      (starts-with pname "style.")
       (let [style (.substring pname (.-length "style."))]
-        (lerp #(aset (.-style (single-node content)) style %) (dm/style content style) to)) 
+        (lerp #(aset (.-style (dm/single-node content)) style %) (dm/style content style) to)) 
 
       ; animate attribute
-      (startsWith pname "attr.")
+      (starts-with pname "attr.")
       (let [attr (.substring pname (.-length "attr."))]
-        (lerp #(aset (single-node content) attr %) (dm/attr content attr) to))
+        (lerp #(aset (dm/single-node content) attr %) (dm/attr content attr) to))
       
       :else
       ; animate atom field
-      (let [field (aget content pname)]
-        (lerp #(swap! field %) @field to)) 
+      (let [field (property content)]
+        (lerp #(reset! field %) @field to)) 
 
       :else nil)))
 
 (defn animate-property [content property to &
-                        [{:keys [duration onend] :or {duration 400 onend nil}}]]
+                        [{:keys [duration onend] :or {duration 400}}]]
   (aobj (str (goog.getUid content) ":" (name property)) duration (tfunc content property to) onend))
 
 (defn animate [& anms]
-  (doseq [a anms] (animate-property a)))
+  (doseq [[content property to & opts] anms] (animate-property content property to opts)))
+
+(defn bind [dep content property & unit]
+  (add-watch dep (str (goog.getUid dep) ":" (name property))
+             (fn [k r o n]
+               (when (not= o n)
+                 (apply reflect content property n unit)))))
 
 ; Elements -----------------------------------------------------------------
 
@@ -87,5 +117,5 @@
   (let [element (.createElement js/document name)]
     (reify dm/DomContent
       (single-node [this] element)
-      (nods [this] [element]))))
+      (nodes [this] [element]))))
 
