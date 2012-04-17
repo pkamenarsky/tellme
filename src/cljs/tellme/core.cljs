@@ -190,9 +190,14 @@
     ; dependencies
     (defreaction shadow-height (ui/animate-atom input-height shadow-height))
 
-    (ui/bind input-height input :style.height "px")
-    (ui/bind input-height table :style.bottom "px")
-    (defreaction input-height (ui/resized table))
+    ;(ui/bind input-height input :style.height "px")
+    ;(ui/bind input-height table :style.bottom "px")
+    ;(defreaction input-height (ui/resized table))
+
+    (defreaction input-height
+                 (dm/set-style! input :height input-height "px")
+                 (dm/set-style! table :bottom input-height "px")
+                 (ui/resized table))
 
     ; dom
     (ui/resized table)
