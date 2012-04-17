@@ -28,7 +28,7 @@
         (do
           (f 1.0) 
           (when onend
-            (onend false)) 
+            (onend)) 
           (swap! aobjs dissoc tag)
           
           (when (zero? (count @aobjs))
@@ -97,11 +97,14 @@
       :else nil)))
 
 (defn animate-property [content property to &
-                        [{:keys [duration onend] :or {duration 400}}]]
+                        {:keys [duration onend] :or {duration 400}}]
   (aobj (str (goog.getUid content) ":" (name property)) duration (tfunc content property to) onend))
 
+(defn animate-atom [a to & {:keys [duration onend] :or {duration 400}}]
+  (aobj (goog.getUid a) duration (lerp #(reset! a %) @a to)))
+
 (defn animate [& anms]
-  (doseq [[content property to & opts] anms] (animate-property content property to opts)))
+  (doseq [a anms] (apply animate-property a)))
 
 (defn bind [dep content property & unit]
   (add-watch dep (str (goog.getUid dep) ":" (name property))

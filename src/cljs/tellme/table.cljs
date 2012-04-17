@@ -25,18 +25,18 @@
 
   (add-row [this] [this at])
   (remove-row [this index])
-  (resize-row [this index rowheight & [{:keys [animated onend] :or {animated true}}]] "opts :: {:animated boolean :onend callback}")
+  (resize-row_ [this index rowheight animated onend])
   (set-row-text [this index text])
   (set-row-contents [this index view])
 
   (row-top [this index])
   (scroll-top [this index])
-  (scroll-to [this location offset onend])
+  (scroll-to_ [this location offset onend])
   (at? [this location]))
 
 (defrecord Table
   [root scroll padding content scroll-top scroll-topB
-   table-height evntl-message-height message-height rows]
+   table-height content-height evntl-message-height message-height rows]
 
   ITable
   (content-node [this] content)
@@ -63,7 +63,7 @@
 
       index))
 
-  (resize-row [this index rowheight & [{:keys [animated onend] :or {animated true}}]]
+  (resize-row_ [this index rowheight animated onend]
      (let [{:keys [element height]} (get @(.-rows this) index)
            newheight (+ (- @(.-evntl-message-height this) height) rowheight)]
 
@@ -99,13 +99,12 @@
 
       index))
 
-  (scroll-to [this location offset & [{:keys [onend]}]]
-
-    (reset! scroll-top (dm/attr scroll :scrollTop))
-    (ui/animate [this scroll-top (+ offset (- @content-height @table-height)) :onend onend]))
+  (scroll-to_ [this location offset onend]
+    (reset! (.-scroll-top this) (ui/property (.-scroll this) :scrollTop))
+    (ui/animate [this :scroll-top (+ offset (- @(.-content-height this) @(.-table-height this))) :onend onend]))
 
   (at? [this location]
-    (< (- (- @content-height @table-height) (dm/attr scroll :scrollTop)) 4))
+    (< (- (- @(.-content-height this) @(.-table-height this)) (ui/property scroll :scrollTop)) 4))
 
   dm/DomContent
   (nodes [this] (dm/nodes root))
@@ -114,11 +113,21 @@
   ui/View
   (resized [this] (reset! table-height (ui/property root :offsetHeight))))
 
+; Variadic API -------------------------------------------------------------
+
+(defn scroll-to [table location offset & {:keys [onend]}]
+  (scroll-to_ table location offset onend))
+
+(defn resize-row [table index rowheight & {:keys [animated onend] :or {animated true}}]
+  (resize-row_ table index rowheight animated onend))
+
+; Constructor --------------------------------------------------------------
+
 (defn create-table []
-  (let [root (view :div.table-root)
-        scroll (view :div.table-scroll)
-        padding (view :div.table-padding)
-        content (view :div.table-content)
+  (let [padding (view :div.table-padding)
+        content (view :div.table-content padding)
+        scroll (view :div.table-scroll content)
+        root (view :div.table-root scroll)
 
         table-height (atom -1)
         message-height (atom -1)
@@ -134,13 +143,7 @@
 
         rows (atom [])
         this (Table. root scroll padding content scroll-top scroll-topB
-                     table-height evntl-message-height message-height rows)]
-
-    ; dom
-    (->> padding
-      (dm/append! content)
-      (dm/append! scroll)
-      (dm/append! root))
+                     table-height content-height evntl-message-height message-height rows)]
 
     ; bindings
     (ui/bind message-padding padding :style.height "px")
@@ -177,4 +180,4 @@
             (recur (inc i)))))
       1000)))
 
-(events/listen js/window evttype/LOAD test-table)
+;(events/listen js/window evttype/LOAD test-table)

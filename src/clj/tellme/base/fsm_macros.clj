@@ -15,13 +15,14 @@
   "Needs (:require [domina :as dm]) until cljs enables
   usages of single-segment namespaces without :require."
   [cname & children]
-  `(let [content# ~(if (keyword? cname)
-                     (if-let [[n c] (parse-cname (name cname))]
-                       `(dm/add-class! (tellme.ui/create-element ~n) ~c)
-                       (throw (Exception. (str "Invalid element spec format: " (name cname))))) 
-                     `~cname)]
-     ~@(map (fn [c] `(dm/append! content# ~c)) children)
-     content#))
+  (let [content (gensym)]
+    `(let [~content ~(if (keyword? cname)
+                       (if-let [[n c] (parse-cname (name cname))]
+                         `(dm/add-class! (tellme.ui/create-element ~n) ~c)
+                         (throw (Exception. (str "Invalid element spec format: " (name cname))))) 
+                       `~cname)]
+       ~@(map (fn [c] `(dm/append! ~content ~c)) children)
+       ~content)))
 
 ; Dataflow -----------------------------------------------------------------
 
