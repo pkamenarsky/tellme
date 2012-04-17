@@ -126,14 +126,17 @@
 (defn create-table []
   (let [padding (view :div.table-padding)
         content (view :div.table-content padding)
-        scroll (view :div.table-scroll content)
-        container (view :div.table-container scroll)
 
-        p1 (view :div.table-scrollbar-point)
-        p2 (view :div.table-scrollbar-point)
+        p1 (view :div.table-scrollbar-point-top)
+        p2 (view :div.table-scrollbar-point-bottom)
         scrollbar (view :div.table-scrollbar p1 p2)
 
-        root (view :div.table-root container scrollbar)
+        scroll (view :div.table-scroll content)
+        ;container (view :div.table-container scroll)
+        container (view :div.table-container)
+
+        ;root (view :div.table-root container scrollbar)
+        root (view :div.table-root scroll scrollbar)
 
         table-height (atom -1)
         message-height (atom -1)
@@ -155,20 +158,20 @@
                            (+ bar-top (* 100 (/ table-height content-height))))
 
         bar-visible (defdep [table-height content-height]
-                            (> content-height table-height))
+                            (> content-height table-height)) 
 
         rows (atom [])
         this (Table. root scroll padding content scroll-top scroll-topB
                      table-height content-height evntl-message-height message-height rows)]
 
     ; bindings
-    (ui/bind message-padding padding :style.height "px")
-    (ui/bind content-height content :style.height "px")
     (ui/bind scroll-top this :scroll-topB)
     (ui/bind scroll-top scroll :attr.scrollTop)
+    (ui/bind message-padding padding :style.height "px")
+    (ui/bind content-height content :style.height "px")
 
-    (ui/bind bar-top p1 :style.top "px")
-    (ui/bind bar-bottom p2 :style.top "px")
+    (ui/bind bar-top p1 :style.top "%")
+    (ui/bind bar-bottom p2 :style.top "%")
 
     (defreaction bar-visible
                  (doseq [p [p1 p2]]
@@ -180,12 +183,12 @@
                      (dm/add-class! p "table-scrollbar-point-hidden")))
 
     ; events
-    (dme/listen! scroll :scroll (fn [event] (reset! scroll-topB (ui/property scroll :scrollTop))))
+    (dme/listen! scroll :scroll (fn [event] (comment dm/log-debug "scroll") (reset! scroll-topB (ui/property scroll :scrollTop))))
 
     ; need this for the godless webkit scroll-on-drag "feature"
-    (dme/listen! root :scroll (fn [event]
-                                (dm/set-attr! root :scrollTop) 0
-                                (dm/set-attr! root :scrollLeft) 0))
+    (dme/listen! container :scroll (fn [event]
+                                     (ui/set-property! container :scrollTop 0) 
+                                     (ui/set-property! container :scrollLeft 0)))
 
     this))
 

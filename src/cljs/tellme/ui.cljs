@@ -26,14 +26,14 @@
 
       (if (> (- now stime) duration)
         (do
-          (f 1.0) 
-          (when onend
-            (onend)) 
           (swap! aobjs dissoc tag)
-          
           (when (zero? (count @aobjs))
             (js/clearInterval @atimer)
-            (reset! atimer nil))) 
+            (reset! atimer nil))
+
+          (f 1.0) 
+          (when onend
+            (onend))) 
         (f t)))))
 
 (defn- aobj [tag duration f onend]
@@ -115,6 +115,9 @@
 
 (defn property [content property]
   (aget (dm/single-node content) (name property)))
+
+(defn set-property! [content property value]
+  (aset (dm/single-node content) (name property) value))
 
 ; Elements -----------------------------------------------------------------
 
