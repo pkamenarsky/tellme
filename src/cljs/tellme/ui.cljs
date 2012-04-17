@@ -66,12 +66,10 @@
   (let [pname (name property)]
     (cond
       (starts-with pname "style.")
-      (do
-        (dm/log-debug (apply str value))
-        (apply dm/set-style! content (.substring pname (.-length "style.")) value)) 
+      (apply dm/set-style! content (.substring pname (.-length "style.")) value) 
       
       (starts-with pname "attr.")
-      (apply dm/set-attr! content (.substring pname (.-length "attr.")) value)
+      (aset (dm/single-node content) (.substring pname (.-length "attr.")) (apply str value))
 
       :else
       (reset! (property content) (apply str value)))))
@@ -110,6 +108,10 @@
              (fn [k r o n]
                (when (not= o n)
                  (apply reflect content property n unit)))))
+
+
+(defn property [content property]
+  (aget (dm/single-node content) (name property)))
 
 ; Elements -----------------------------------------------------------------
 

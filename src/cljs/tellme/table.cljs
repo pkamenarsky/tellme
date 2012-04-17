@@ -112,7 +112,7 @@
   (single-node [this] (dm/single-node root))
   
   ui/View
-  (resized [this] (reset! table-height (dm/attr root :offsetHeight))))
+  (resized [this] (reset! table-height (ui/property root :offsetHeight))))
 
 (defn create-table []
   (let [root (view :div.table-root)
@@ -149,7 +149,7 @@
     (ui/bind scroll-top scroll :attr.scrollTop)
 
     ; events
-    (dme/listen! scroll :scroll (fn [event] (reset! scroll-topB (dm/attr scroll :scrollTop))))
+    (dme/listen! scroll :scroll (fn [event] (reset! scroll-topB (ui/property scroll :scrollTop))))
 
     ; need this for the godless webkit scroll-on-drag "feature"
     (dme/listen! root :scroll (fn [event]
