@@ -67,11 +67,11 @@
      (let [{:keys [element height]} (get @(.-rows this) index)
            newheight (+ (- @(.-evntl-message-height this) height) rowheight)]
 
-       (if animated
-           (ui/animate [element :style.height [rowheight :px]]
-                       [this :message-height newheight :onend onend])
+       (if false
+         (ui/animate [element :style.height [rowheight :px]]
+                     [this :message-height newheight :onend onend])
          (do
-           (dm/set-style element :height rowheight "px") 
+           (dm/set-style! element :height rowheight "px") 
            (reset! (.-message-height this) newheight)
 
            (when onend
@@ -100,8 +100,12 @@
       index))
 
   (scroll-to_ [this location offset onend]
-    (reset! (.-scroll-top this) (ui/property (.-scroll this) :scrollTop))
-    (ui/animate [this :scroll-top (+ offset (- @(.-content-height this) @(.-table-height this))) :onend onend]))
+    ;(reset! (.-scroll-top this) (ui/property (.-scroll this) :scrollTop))
+    ;(ui/animate [this :scroll-top (+ offset (- @(.-content-height this) @(.-table-height this))) :onend onend])
+
+    (reset! (.-scroll-top this) (+ offset (- @(.-content-height this) @(.-table-height this))))
+    (when onend
+      (onend)))
 
   (at? [this location]
     (< (- (- @(.-content-height this) @(.-table-height this)) (ui/property scroll :scrollTop)) 4))
@@ -165,8 +169,8 @@
     ; bindings
     (ui/bind scroll-top this :scroll-topB)
     (ui/bind scroll-top scroll :attr.scrollTop)
-    (ui/bind message-padding padding :style.height "px")
     (ui/bind content-height content :style.height "px")
+    (ui/bind message-padding padding :style.height "px")
 
     (ui/bind bar-top p1 :style.top "%")
     (ui/bind bar-bottom p2 :style.top "%")
