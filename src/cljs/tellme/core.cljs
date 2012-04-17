@@ -86,10 +86,9 @@
     (table/set-row-contents table row container)
     
     ; events
-    ;(dme/listen! container :mouseover show-quote-button)
-    ;(dme/listen! container :mouseout hide-quote-button)
-    ;(dme/listen! quote-button :click (partial quote-message data message))
-    ))
+    (dme/listen! container :mouseover show-quote-button)
+    (dme/listen! container :mouseout hide-quote-button)
+    (dme/listen! quote-button :click (partial quote-message data message))))
 
 ; FSM ----------------------------------------------------------------------
 

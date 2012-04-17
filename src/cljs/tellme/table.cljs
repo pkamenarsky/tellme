@@ -132,10 +132,8 @@
         scrollbar (view :div.table-scrollbar p1 p2)
 
         scroll (view :div.table-scroll content)
-        ;container (view :div.table-container scroll)
         container (view :div.table-container)
 
-        ;root (view :div.table-root container scrollbar)
         root (view :div.table-root scroll scrollbar)
 
         table-height (atom -1)
@@ -179,16 +177,16 @@
                    (dm/remove-class! p "table-scrollbar-point-hidden")
 
                    (if bar-visible
-                     (dm/add-class! p "table-scrollbar-point-visible"))
-                     (dm/add-class! p "table-scrollbar-point-hidden")))
+                     (dm/add-class! p "table-scrollbar-point-visible")
+                     (dm/add-class! p "table-scrollbar-point-hidden"))))
 
     ; events
     (dme/listen! scroll :scroll (fn [event] (comment dm/log-debug "scroll") (reset! scroll-topB (ui/property scroll :scrollTop))))
 
     ; need this for the godless webkit scroll-on-drag "feature"
-    (dme/listen! container :scroll (fn [event]
-                                     (ui/set-property! container :scrollTop 0) 
-                                     (ui/set-property! container :scrollLeft 0)))
+    (dme/listen! root :scroll (fn [event]
+                                     (ui/set-property! root :scrollTop 0) 
+                                     (ui/set-property! root :scrollLeft 0)))
 
     this))
 
