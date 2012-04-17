@@ -67,15 +67,17 @@
      (let [{:keys [element height]} (get @(.-rows this) index)
            newheight (+ (- @(.-evntl-message-height this) height) rowheight)]
 
-       (if false
+       (if animated
          (ui/animate [element :style.height [rowheight :px]]
                      [this :message-height newheight :onend onend])
          (do
            (dm/set-style! element :height rowheight "px") 
            (reset! (.-message-height this) newheight)
 
+           ; the calling code will most likely expect this to happen
+           ; on the next main loop cycle
            (when onend
-             (onend)))) 
+             (js/setTimeout onend 0)))) 
 
        (reset! (.-evntl-message-height this) newheight)
        (swap! (.-rows this) assoc-in [index :height] rowheight)
@@ -103,9 +105,11 @@
     ;(reset! (.-scroll-top this) (ui/property (.-scroll this) :scrollTop))
     ;(ui/animate [this :scroll-top (+ offset (- @(.-content-height this) @(.-table-height this))) :onend onend])
 
-    (reset! (.-scroll-top this) (+ offset (- @(.-content-height this) @(.-table-height this))))
-    (when onend
-      (onend)))
+    ;(reset! (.-scroll-top this) (+ offset (- @(.-content-height this) @(.-table-height this))))
+    (ui/set-property! (.-scroll this) :scrollTop (+ offset (- @(.-content-height this) @(.-table-height this))))
+
+    (js/setTimeout #(when onend
+                     (onend)) 0))
 
   (at? [this location]
     (< (- (- @(.-content-height this) @(.-table-height this)) (ui/property scroll :scrollTop)) 4))
@@ -150,6 +154,7 @@
 
         sticky-bottom (defdep [scroll-topB] (< (- (- @content-height @table-height) scroll-topB) 10))
         scroll-top (defdep [table-height content-height]
+                           ;(dm/log-debug (str "scroll-top: ch: " content-height ", th: " table-height))
                            (if @sticky-bottom (+ 1 (- content-height table-height)) @scroll-topB))
 
         ; scrollbar
@@ -164,16 +169,33 @@
 
         rows (atom [])
         this (Table. root scroll padding content scroll-top scroll-topB
-                     table-height content-height evntl-message-height message-height rows)]
+                     table-height content-height evntl-message-height message-height rows)
+        
+        align (fn []
+                ;(dm/log-debug (str "align: mp: " @message-padding ", ch: " @content-height ", sb: " @sticky-bottom))
+                (dm/set-style! padding :height @message-padding "px")
+                (dm/set-style! content :height @content-height "px")
+                (when @sticky-bottom
+                  (ui/set-property! scroll :scrollTop (+ 1 (- @content-height @table-height)))))]
+
+    (reset! sticky-bottom true)
 
     ; bindings
-    (ui/bind scroll-top this :scroll-topB)
-    (ui/bind scroll-top scroll :attr.scrollTop)
-    (ui/bind content-height content :style.height "px")
-    (ui/bind message-padding padding :style.height "px")
+    ;(ui/bind content-height content :style.height "px")
+    ;(ui/bind message-padding padding :style.height "px")
+
+    ;(ui/bind scroll-top this :scroll-topB)
+    ;(ui/bind scroll-top scroll :attr.scrollTop)
+
+    (defreaction content-height (align))
+    (defreaction message-padding (align))
+    (defreaction table-height (align))
 
     (ui/bind bar-top p1 :style.top "%")
     (ui/bind bar-bottom p2 :style.top "%")
+
+    ;(defreaction sticky-bottom
+     ;            (dm/log-debug (str "sticky-bottom: " sticky-bottom)))
 
     (defreaction bar-visible
                  (doseq [p [p1 p2]]

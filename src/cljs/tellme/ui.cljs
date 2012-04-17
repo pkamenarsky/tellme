@@ -20,21 +20,23 @@
 (def atimer (atom nil))
 
 (defn- runa []
-  (doseq [[tag [f stime duration onend]] @aobjs]
-    (let [now (.getTime (js/Date.))
+  (doseq [[tag _] @aobjs]
+    (let [[f stime duration onend :as anm] (@aobjs tag)
+          now (.getTime (js/Date.))
           t (ease-in-out (/ (- now stime) duration))]
 
-      (if (> (- now stime) duration)
-        (do
-          (swap! aobjs dissoc tag)
-          (when (zero? (count @aobjs))
-            (js/clearInterval @atimer)
-            (reset! atimer nil))
+      (when anm
+        (if (> (- now stime) duration)
+          (do
+            (swap! aobjs dissoc tag)
+            (when (zero? (count @aobjs))
+              (js/clearInterval @atimer)
+              (reset! atimer nil))
 
-          (f 1.0) 
-          (when onend
-            (onend))) 
-        (f t)))))
+            (f 1.0) 
+            (when onend
+              (onend))) 
+          (f t))))))
 
 (defn- aobj [tag duration f onend]
   (when (zero? (count @aobjs))
