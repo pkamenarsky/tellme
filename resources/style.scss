@@ -1,0 +1,368 @@
+@import 'css3-sass-mixins/all';
+
+$scrollbar-margin: 8;
+$scrollbar-size: 6;
+
+$width: 300px;
+$right-margin: 40px;
+
+$bg-color: #fdf6e3;
+$color: #657b83;
+$light-color: #dddddd;	// fixme
+$border: 1px solid + " " + $color;
+
+$quote-button-size: 15px;
+
+/* --- */
+
+.table-root {
+	overflow: hidden;
+	margin: 0px;
+	padding: 0px;
+}
+
+.table-scrollbar {
+	position: absolute;
+	top: 0px;
+	right: 0px;
+	bottom: 0px;
+	width: $scrollbar-margin;
+}
+
+.table-scrollbar-point-top, .table-scrollbar-point-bottom {
+	position: absolute;
+	background-color: $light-color;
+	width: 6px;
+	height: 6px;
+	left: 0px;
+
+	@include border-radius(3px);
+}
+
+.table-scrollbar-point-bottom {
+	margin-top: -6px;
+}
+
+.table-scrollbar-point-visible {
+	width: 6px;
+	height: 6px;
+}
+
+.table-scrollbar-point-hidden {
+	width: 0px;
+	height: 0px;
+}
+
+.table-scroll {
+	position: absolute;
+	overflow: scroll;
+	top: 0px;
+	left: 0px;
+	right: -16px;
+	bottom: -16px;
+	border: 0px;
+	padding: 0px;
+}
+
+.table-padding {
+	width: 100%;
+}
+
+.table-content {
+	/* we need scale(1) so webkit redraws properly; never
+	wanna hear IE bashing from webkit fanbois ever again */
+	-webkit-transform: scale(1);
+	width: 100%;
+	overflow: hidden;
+}
+
+.table-row {
+	width: 100%;
+	height: 0px;
+}
+
+/* --- */
+
+@mixin base {
+	color: $color;
+	position: absolute;
+	width: $width;
+	line-height: 18px;
+	font-family: Helvetica;
+	font-size: 16px;
+	padding: 0px;
+	border: 0px;
+	outline: 0px;
+	word-wrap: break-word;
+	white-space: pre-wrap;
+	overflow: hidden;
+}
+
+@mixin padding {
+	padding-top: 5px;
+	padding-bottom: 5px;
+}
+
+@mixin center {
+	left: 50%;
+	margin-left: $width / -2;
+}
+
+@mixin fill {
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	bottom: 0px;
+	right: 0px;
+}
+
+/* --- */
+
+body {
+	position: absolute;
+}
+
+.fill {
+	@include fill;
+}
+
+.fill-width {
+	position: absolute;
+	width: 100%;
+}
+
+.message {
+	@include base;
+
+	left: 0px;
+	right: $right-margin;
+	height: 100%;
+}
+
+.message-overlay {
+	@include base;
+	@include padding;
+	@include center;
+
+	bottom: 0px;
+}
+
+.quote-button {
+	position: absolute;
+	width: $quote-button-size;
+	height: $quote-button-size;
+	top: 50%;
+	margin-top: $quote-button-size / -2;
+	right: ($right-margin - $quote-button-size) / 2;
+	background-color: $light-color;
+	border-radius: $quote-button-size / 2;
+	visibility: hidden;
+}
+
+.quote-overlay {
+	@include fill;
+
+	visibility: hidden;
+}
+
+.shadow {
+	@include base;
+	@include padding;
+
+	top: 1000%;
+}
+
+.chat-table {
+	@include base;
+	@include center;
+
+	top: 0px;
+	width: $width + $right-margin;
+}
+
+.chat-input {
+	@include base;
+	@include center;
+	@include padding;
+
+	bottom: 0px;
+	border-top: $border;
+	background-color: transparent;
+	resize: none;
+}
+
+/* --- */
+
+.big, h1, .osid, .inputbox, .messagecontent, .shadowbox {
+	font-family: Helvetica, Arial;
+	font-size: 48pt;
+	font-weight: bold;
+	color: #657b83;
+}
+
+h2 {
+	font-family: Helvetica Neue;
+	font-size: 11pt;
+	font-style: normal;
+	font-weight: normal;
+	color: #333333;
+}
+
+body {
+	background-color: #fdf6e3;
+	width: 100%;
+	height: 100%;
+	margin: 0px;
+	overflow: hidden;
+}
+
+.container {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+}
+
+.sid {
+	position: absolute;
+	left: 38%;
+	top: 32%;
+}
+
+.osid {
+	position: absolute;
+	left: 38%;
+	top: 38%;
+	margin-top: 64pt;
+	width: 200px;
+	border: 0px;
+	background-color: transparent;
+	outline: none;
+	/* border-bottom: 1px solid #333333; */
+}
+
+.siddesc {
+	position: absolute;
+	left: 38%;
+	top: 38%;
+	margin-top: 20pt;
+	margin-left: -250px;
+}
+
+.osiddesc {
+	position: absolute;
+	left: 38%;
+	top: 38%;
+	margin-top: 82pt;
+	margin-left: -260px;
+}
+
+.inputcontainer, .inputbox, .shadowbox {
+	position: absolute;
+	margin: 0px;
+	border: 0px;
+	background-color: transparent;
+	outline: none;
+	padding: 0px;
+	display: block;
+	overflow: hidden;
+}
+
+.inputcontainer {
+	border-top: 1px solid #dddddd;
+	bottom: 0px;
+	left: 50%;
+	right: 0px;
+	width: 300px;
+	margin-left: -150px;
+}
+
+a {
+	padding: 0px;
+	margin :0px;
+	word-wrap: break-word;
+	white-space: pre-wrap;
+}
+
+.inputbox, .messagecontent, .shadowbox {
+	width: 300px;
+	font-size: 16px;
+	font-weight: normal;
+	padding-top: 5px;
+	padding-bottom: 5px;
+	line-height: 21px;
+	resize: none;
+	word-wrap: break-word;
+	white-space: pre-wrap;
+}
+
+#scrollcontainer {
+	position: absolute;
+	overflow: hidden;
+	width: 300px;
+	left: 50%;
+	top: 0px;
+	bottom: 200px;
+	margin: 0px;
+	padding: 0px;
+	margin-left: -150px;
+}
+
+#scrolldiv {
+	position: absolute;
+	overflow: scroll;
+	top: 0px;
+	left: 0px;
+	right: -16px;
+	bottom: -16px;
+	border: 0px;
+	padding: 0px;
+}
+
+#scrollcontent {
+	width: 100%;
+	overflow: hidden;
+}
+
+.messagecontent {
+	width: 100%;
+}
+
+#barcontainer {
+	position: absolute;
+	/* background-color: #bbbbbb; */
+	top: 0px;
+	bottom: 200px;
+	left: 50%;
+	margin-left: 160px;
+	width: 6px;
+}
+
+#barpoint1, #barpoint2 {
+	background-color: #999999;
+	position: absolute;
+	left: 50%;
+	margin-top: 0px;
+	margin-left: -3px;
+	width: 6px;
+	height: 6px;
+
+	-webkit-border-radius: 3px;
+	-moz-border-radius: 50%;
+
+	-moz-transition-property: width, height, margin-left, margin-top;
+	-moz-transition-duration: 200ms;
+	-moz-transition-timing-function: ease-in-out;
+
+	-webkit-transition-property: width, height, margin-left, margin-top;
+	-webkit-transition-duration: 200ms;
+	-webkit-transition-timing-function: ease-in-out;
+
+	/*			-moz-transition: -moz-transform 200ms ease-in-out;
+	-webkit-transition: all 200ms ease-in-out; */
+}
+
+#barpoint2 {
+	margin-top: -6px;
+}
+
+
