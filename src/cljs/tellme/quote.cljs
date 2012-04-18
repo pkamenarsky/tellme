@@ -51,13 +51,15 @@
 ; Quotables ----------------------------------------------------------------
 
 (defn- input-listener [{:keys [table shadow]} row input current-height event]
-  (dm/set-text! shadow (dm/value input))
+  (dm/set-text! shadow (if (= (.-length (dm/value input)) 0)
+                         "."
+                         (dm/value input)))
   ; FIXME: 23, 3
-  (let [height (.-offsetHeight shadow)]
+  (let [height (ui/property shadow :offsetHeight)]
     (when-not (= @current-height height)
       (reset! current-height height)
-      (table/resize-row table row (+ 23 height)) 
-      (ui/animate [input :style.height [(+ 23 height) :px]]))))
+      (table/resize-row table row (+ 20 height)) 
+      (ui/animate [input :style.height [(+ 20 height) :px]]))))
 
 (defn- slice-quotable [{:keys [table shadow] :as quote-view} row dcontent content]
   (dm/set-text! shadow content)
@@ -69,8 +71,9 @@
     (when slice
       ; animate quote element
       (set-content dcontent tquote)
+      (dm/set-text! shadow tquote)
 
-      (let [text-height (ui/property dcontent :offsetHeight)
+      (let [text-height (ui/property shadow :offsetHeight)
             input-row (table/add-row table (inc row))
             rest-row (table/add-row table (inc input-row))
 
@@ -82,7 +85,7 @@
 
         (table/resize-row table row text-height)
         (ui/animate [dcontent :style.marginTop [0 :px]]
-                    [dcontent :style.textIndex [0 :px]
+                    [dcontent :style.textIndent [0 :px]
                      :onend #(dm/set-text! dcontent tquote)])
 
         ; add input element
@@ -90,10 +93,12 @@
         (dme/listen! input :input (partial input-listener quote-view input-row input (atom 0)))
 
         ; FIXME: 31
-        (table/resize-row table input-row 41) 
+        (table/resize-row table input-row 38) 
         (table/set-row-contents table input-row input) 
 
-        (ui/animate [input :style.height [41 :px]]
+        (dm/set-styles! input {:height (px 0)
+                               :padding (px 0)})
+        (ui/animate [input :style.height [38 :px]]
                     [input :style.paddingTop [10 :px]]
                     [input :style.paddingBottom [10 :px]])
 
@@ -102,8 +107,9 @@
         ; add rest element row & animate
         (table/set-row-contents table rest-row drest)
         (set-content drest trest)
+        (dm/set-text! shadow trest) 
 
-        (let [rest-height (ui/property drest :offsetHeight)]
+        (let [rest-height (ui/property shadow :offsetHeight)]
 
           (dm/set-styles! drest {:textIndent (px xr)
                                  :top (px (- yr old-height))
@@ -115,7 +121,7 @@
                        :onend (fn []
                                 (dm/detach! drest)
                                 (add-quotable quote-view rest-row trest))]
-                      [drest :style.textIndend [0 :px]]))
+                      [drest :style.textIndent [0 :px]]))
         drest))))
 
 (defn- add-quotable [{:keys [table shadow rest-dcontent] :as quote-view} row content]
@@ -126,7 +132,7 @@
     (dm/set-text! shadow content) 
 
     (table/set-row-contents table row dcontent) 
-    (table/resize-row table row (ui/property shadow :offsetHeight))
+    (table/resize-row table row (ui/property shadow :offsetHeight) :animated false)
 
     ; if this is actually the rest of a new split (i.e. if row != 0, since row 0
     ; is always the original quote), reset the rest-dcontent atom, so that
@@ -145,9 +151,10 @@
 
 (defn create-quote [content width]
   (let [table (dm/add-class! (table/create-table) "quote-text")
-        shadow (view :div.shadow)
+        shadow (view :div.quote-shadow)
 
         quote-input (view :textarea.quote-input)
+        quote-size (atom 0)
         rest-dcontent (atom nil)
         
         view {:table table
@@ -167,16 +174,18 @@
     ; FIXME: 41px
     (table/resize-row
       table (table/set-row-contents
-              table (table/add-row table) quote-input) 41 :animated false)
+              table (table/add-row table) quote-input) 38 :animated false)
+    (dm/set-style! quote-input :height 38 "px")
 
     (js/setTimeout #(.select (dm/single-node quote-input)) 0) 
 
     ; we should put this is in a sm
     (dme/listen! quote-input :input (fn [event]
+                                      (input-listener view (dec (table/row-count table)) quote-input quote-size event)
                                       (when @rest-dcontent
                                         (if (zero? (.-length (dm/value quote-input)))
-                                          (dm/set-style @rest-dcontent :color "#999999")
-                                          (dm/set-style @rest-dcontent :color "#333333")))))
+                                          (dm/set-style! @rest-dcontent :color "#999999")
+                                          (dm/set-style! @rest-dcontent :color "#333333")))))
 
     table))
 

@@ -29,6 +29,7 @@
   (set-row-text [this index text])
   (set-row-contents [this index view])
 
+  (row-count [this])
   (row-top [this index])
   (scroll-top [this index])
   (scroll-to_ [this location offset onend])
@@ -42,14 +43,14 @@
   (content-node [this] content)
 
   (add-row [this at]
-     (let [element (view :div.table-row)
-           row {:element element
-                :height 0}]
+    (let [element (view :div.table-row)
+          row {:element element
+               :height 0}]
 
-       ; first child is the padding element so we need (inc at)
-       (dm/append! content element (inc at))
-       (swap! rows insert-at row at)
-       at)) 
+      ; first child is the padding element so we need (inc at)
+      (dm/insert! content element (inc at))
+      (swap! rows insert-at row at)
+      at)) 
 
   (add-row [this]
    (add-row this (count @rows)))
@@ -67,22 +68,21 @@
      (let [{:keys [element height]} (get @(.-rows this) index)
            newheight (+ (- @(.-evntl-message-height this) height) rowheight)]
 
+       ;(dm/log-debug (str "old: " height ", height: " rowheight, ", current: " @(.-message-height this) ", evntl: " @(.-evntl-message-height this)))
+
        (if animated
          (ui/animate [element :style.height [rowheight :px]]
-                     [this :message-height newheight :onend onend])
-         (do
-           (dm/set-style! element :height rowheight "px") 
-           (reset! (.-message-height this) newheight)
-
-           ; the calling code will most likely expect this to happen
-           ; on the next main loop cycle
-           (when onend
-             (js/setTimeout onend 0)))) 
+                     [this :message-height newheight :onend onend]) 
+         (ui/animate [element :style.height [rowheight :px] :duration 1]
+                     [this :message-height newheight :onend onend :duration 1])) 
 
        (reset! (.-evntl-message-height this) newheight)
        (swap! (.-rows this) assoc-in [index :height] rowheight)
 
        index)) 
+
+  (row-count [this]
+    (count @rows))
 
   (row-top [this index]
     (dm/attr (:element (@rows index)) :offsetTop))

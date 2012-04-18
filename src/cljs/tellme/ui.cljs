@@ -76,6 +76,8 @@
       :else
       (reset! (property content) (apply str value)))))
 
+(def parse-css (fnil js/parseFloat 0))
+
 (defn- tfunc [content property to]
   (let [pname (name property)] 
 
@@ -84,7 +86,7 @@
       ; animate style
       (starts-with pname "style.")
       (let [style (.substring pname (.-length "style."))]
-        (lerp #(aset (.-style (dm/single-node content)) style %) (dm/style content style) to)) 
+        (lerp #(aset (.-style (dm/single-node content)) style %) (parse-css (dm/style content style)) to)) 
 
       ; animate attribute
       (starts-with pname "attr.")
@@ -100,6 +102,7 @@
 
 (defn animate-property [content property to &
                         {:keys [duration onend] :or {duration 400}}]
+  ;(dm/log-debug (str "animate " (str (goog.getUid content) ":" (name property)) " to " (pr-str to)))
   (aobj (str (goog.getUid content) ":" (name property)) duration (tfunc content property to) onend))
 
 (defn animate-atom [a to & {:keys [duration onend] :or {duration 400}}]
