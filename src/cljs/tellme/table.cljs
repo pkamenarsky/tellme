@@ -21,18 +21,14 @@
 ; --------------------------------------------------------------------------
 
 (defprotocol ITable
-  (content-node [this])
-
   (add-row [this] [this at])
   (remove-row [this index])
-  (resize-row_ [this index rowheight animated onend])
   (row-contents [this index])
   (set-row-contents [this index view])
 
   (row-count [this])
   (row-top [this index])
   (scroll-top [this index])
-  (scroll-to_ [this location offset onend])
   (at? [this location]))
 
 (defrecord Table
@@ -40,8 +36,6 @@
    table-height content-height evntl-message-height message-height rows]
 
   ITable
-  (content-node [this] content)
-
   (add-row [this at]
     (let [element (view :div.table-row)
           row {:element element
@@ -64,23 +58,6 @@
 
       index))
 
-  (resize-row_ [this index rowheight animated onend]
-     (let [{:keys [element height]} (get @(.-rows this) index)
-           newheight (+ (- @(.-evntl-message-height this) height) rowheight)]
-
-       ;(dm/log-debug (str "old: " height ", height: " rowheight, ", current: " @(.-message-height this) ", evntl: " @(.-evntl-message-height this)))
-
-       (if animated
-         (ui/animate [element :style.height [rowheight :px]]
-                     [this :message-height newheight :onend onend]) 
-         (ui/animate [element :style.height [rowheight :px] :duration 1]
-                     [this :message-height newheight :onend onend :duration 1])) 
-
-       (reset! (.-evntl-message-height this) newheight)
-       (swap! (.-rows this) assoc-in [index :height] rowheight)
-
-       index)) 
-
   (row-count [this]
     (count @rows))
 
@@ -101,16 +78,6 @@
 
       index))
 
-  (scroll-to_ [this location offset onend]
-    ;(reset! (.-scroll-top this) (ui/property (.-scroll this) :scrollTop))
-    ;(ui/animate [this :scroll-top (+ offset (- @(.-content-height this) @(.-table-height this))) :onend onend])
-
-    ;(reset! (.-scroll-top this) (+ offset (- @(.-content-height this) @(.-table-height this))))
-    (ui/set-property! (.-scroll this) :scrollTop (+ offset (- @(.-content-height this) @(.-table-height this))))
-
-    (js/setTimeout #(when onend
-                     (onend)) 0))
-
   (at? [this location]
     (< (- (- @(.-content-height this) @(.-table-height this)) (ui/property scroll :scrollTop)) 4))
 
@@ -119,15 +86,39 @@
   (single-node [this] (dm/single-node root))
   
   ui/View
-  (resized [this] (reset! table-height (ui/property root :offsetHeight))))
+  (resized [this] (reset! table-height (ui/property root :offsetHeight)))
+  
+  ui/AnimableComposite
+  (animate-composite [this property to duration onend]
+    (cond
+      ; resize row
+      (number? property)
+      ; we force "to" to :px here
+      (let [[rowheight _] (ui/extract-scalar to)
+            {:keys [element height]} (get @(.-rows this) property)
+            newheight (+ (- @(.-evntl-message-height this) height) rowheight)]
 
-; Variadic API -------------------------------------------------------------
+        (ui/animate [element :style.height [rowheight :px] :duration duration]
+                    [(.-message-height this) newheight :duration duration :onend onend]) 
 
-(defn scroll-to [table location offset & {:keys [onend]}]
-  (scroll-to_ table location offset onend))
+        (reset! (.-evntl-message-height this) newheight) 
+        (swap! (.-rows this) assoc-in [property :height] rowheight)) 
 
-(defn resize-row [table index rowheight & {:keys [animated onend] :or {animated true}}]
-  (resize-row_ table index rowheight animated onend))
+      ; scroll
+      (= property :scroll)
+      (do
+        ;(reset! (.-scroll-top this) (ui/property (.-scroll this) :scrollTop))
+        ;(ui/animate [this :scroll-top (+ offset (- @(.-content-height this) @(.-table-height this))) :onend onend])
+
+        ;(reset! (.-scroll-top this) (+ offset (- @(.-content-height this) @(.-table-height this))))
+        (ui/set-property! (.-scroll this) :scrollTop (+ offset (- @(.-content-height this) @(.-table-height this))))
+
+        (js/setTimeout #(when onend
+                          (onend)) 0))
+
+      ; else forward to root
+      :else
+      (animate-composite root property to duration onend))))
 
 ; Constructor --------------------------------------------------------------
 

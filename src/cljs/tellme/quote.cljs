@@ -56,8 +56,8 @@
   (let [height (ui/property shadow :offsetHeight)]
     (when-not (= @current-height height)
       (reset! current-height height)
-      (table/resize-row table row (+ 20 height))
-      (ui/animate [input :style.height [(+ 20 height) :px]]))))
+      (ui/animate [input :style.height [(+ 20 height) :px]] 
+                  [table row (+ 20 height)]))))
 
 ; --------------------------------------------------------------------------
 
@@ -101,23 +101,23 @@
           (dm/set-styles! dcontent {:textIndent (px xq)
                                     :marginTop (px yq)}) 
 
-          (table/resize-row table row text-height)
           (ui/animate [dcontent :style.marginTop [0 :px]]
                       [dcontent :style.textIndent [0 :px]
-                       :onend #(dm/set-text! dcontent tquote)])
+                       :onend #(dm/set-text! dcontent tquote)]
+                      [table row text-height])
 
           ; add input element
           (dme/listen! input :input (partial input-listener this input-row input (atom 0)))
 
           ; FIXME: 31
-          (table/resize-row table input-row 38) 
           (table/set-row-contents table input-row input) 
-
           (dm/set-styles! input {:height (px 0)
                                  :padding (px 0)})
+
           (ui/animate [input :style.height [38 :px]]
                       [input :style.paddingTop [10 :px]]
-                      [input :style.paddingBottom [10 :px]])
+                      [input :style.paddingBottom [10 :px]]
+                      [table input-row [38 :px]])
 
           (.select (dm/single-node input))
 
@@ -137,8 +137,8 @@
                                    :top (px (- yr old-height))
                                    :position "relative"})
 
-            (table/resize-row table rest-row rest-height) 
-            (ui/animate [drest :style.top [0 :px]
+            (ui/animate [table rest-row rest-height]
+                        [drest :style.top [0 :px]
                          :onend (fn []
                                   (dm/detach! drest)
                                   (add-quotable this rest-row trest))]
@@ -157,7 +157,7 @@
       (dm/set-text! shadow content) 
 
       (table/set-row-contents table row dcontent) 
-      (table/resize-row table row (ui/property shadow :offsetHeight) :animated false)
+      (ui/animate [table row (ui/property shadow :offsetHeight) :duration 0])
 
       ; FIXME: test with selection with input element
       (dme/listen! dcontent
@@ -201,9 +201,8 @@
 
     ; add intial retort field
     ; FIXME: 38px
-    (table/resize-row
-      table (table/set-row-contents
-              table (table/add-row table) retort-input) 38 :animated false)
+    (ui/animate [table (table/set-row-contents
+                         table (table/add-row table) retort-input) [38 :px] :duration 0])
     (dm/set-style! retort-input :height 38 "px")
 
     (js/setTimeout #(.select (dm/single-node retort-input)) 0) 

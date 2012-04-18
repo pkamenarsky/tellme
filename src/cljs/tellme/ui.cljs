@@ -56,7 +56,7 @@
     unit
     (throw (Error. "Invalid css unit"))))
 
-(defn- extract [v]
+(defn extract-scalar [v]
   (if (vector? v)
     [(first v) (from-unit (second v))]
     [v nil]))
@@ -65,8 +65,7 @@
   (= (.lastIndexOf s ss 0) 0))
 
 (defn- lerp [f start end]
-  (dm/log-debug (str "lerp start " start " end " end))
-  (let [[e u] (extract end)]
+  (let [[e u] (extract-scalar end)]
     (if u
       (fn [t] (f (str (+ start (* t (- e start))) u)))
       (fn [t] (f (+ start (* t (- e start))))))))
