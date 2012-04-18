@@ -127,14 +127,11 @@
            (let [row (table/add-row table)
                  overlay (view :div.message-overlay)]
 
-             ;(dm/log-debug (str "starting slide: " text))
-
-             (table/resize-row table row height) 
-
              (dm/set-text! overlay text) 
              (dm/append! (dmc/sel "body") overlay) 
 
-             (ui/animate [overlay :style.bottom [31 :px] 
+             (ui/animate [table row [height :px]]
+                         [overlay :style.bottom [31 :px] 
                           :onend (fn []
                                    ;(dm/log-debug (str "slide done: " text))
                                    (set-message-at-row data row (assoc message :row row))
@@ -144,23 +141,22 @@
            ; else (if table/at? table bottom)
            (do 
              ;(dm/log-debug (str "starting scroll: " text))
-             (table/scroll-to table
-                            :bottom
-                            height
-                            ; after sliding, return to :ready and add the message
-                            ; we wanted to add in the first place (but had to scroll
-                            ; down before doing so)
-                            :onend (fn []
-                                     ;(dm/log-debug (str "scroll done: " text))
-                                     (reset! self (-> @self
-                                                    (fsm/send-message :go-to-ready)
-                                                    (fsm/send-message message))))))) 
+             (ui/animate [table :scroll-bottom [height :px]
+                       ; after sliding, return to :ready and add the message
+                       ; we wanted to add in the first place (but had to scroll
+                       ; down before doing so)
+                       :duration 0
+                       :onend (fn []
+                                ;(dm/log-debug (str "scroll done: " text))
+                                (reset! self (-> @self
+                                               (fsm/send-message :go-to-ready)
+                                               (fsm/send-message message))))]))) 
          ; lock sliding
          (fsm/next-state :locked)) 
 
        ; else (if slide)
        (let [row (table/add-row table)]
-         (table/resize-row table row height)
+         (ui/animate [table row [height :px]])
          (set-message-at-row data row (assoc message :row row))
          (fsm/ignore-msg)))))) 
 
@@ -227,5 +223,5 @@
     (swap! sm fsm/goto :ready)
     (reset! message "")))
  
-;(events/listen js/window evttype/LOAD main3)
+(events/listen js/window evttype/LOAD main3)
 

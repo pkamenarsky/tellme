@@ -105,8 +105,8 @@
         (swap! (.-rows this) assoc-in [property :height] rowheight)) 
 
       ; scroll
-      (= property :scroll)
-      (do
+      (= property :scroll-bottom)
+      (let [[offset _] (ui/extract-scalar to)]
         ;(reset! (.-scroll-top this) (ui/property (.-scroll this) :scrollTop))
         ;(ui/animate [this :scroll-top (+ offset (- @(.-content-height this) @(.-table-height this))) :onend onend])
 

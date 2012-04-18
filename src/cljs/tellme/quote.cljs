@@ -228,4 +228,4 @@
     
     (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (ui/resized qt)))))
 
-(events/listen js/window evttype/LOAD test-quote)
+;(events/listen js/window evttype/LOAD test-quote)
