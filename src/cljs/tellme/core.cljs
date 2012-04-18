@@ -188,7 +188,7 @@
         input-height (atom -1)]
     
     ; dependencies
-    (defreaction shadow-height (ui/animate-atom input-height shadow-height))
+    (defreaction shadow-height (ui/animate [input-height shadow-height]))
 
     ;(ui/bind input-height input :style.height "px")
     ;(ui/bind input-height table :style.bottom "px")

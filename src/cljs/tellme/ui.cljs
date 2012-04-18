@@ -2,10 +2,16 @@
   (:require [domina :as dm]
             [tellme.animation :as anm]))
 
-; --------------------------------------------------------------------------
+; Protocols ----------------------------------------------------------------
 
 (defprotocol View
   (resized [this] "Should be called whenever the view has been resized externally."))
+
+(defprotocol AnimableSelf
+  (animate-self [this to duration onend]))
+
+(defprotocol AnimableComposite
+  (animate-composite [this property to duration onend]))
 
 ; Animation ----------------------------------------------------------------
 
@@ -45,7 +51,7 @@
 
 (def unit-map {:px "px" :pct "%" :pt "pt"})
 
-(defn from-unit [u]
+(defn- from-unit [u]
   (if-let [unit (unit-map u)]
     unit
     (throw (Error. "Invalid css unit"))))
@@ -59,10 +65,45 @@
   (= (.lastIndexOf s ss 0) 0))
 
 (defn- lerp [f start end]
+  (dm/log-debug (str "lerp start " start " end " end))
   (let [[e u] (extract end)]
     (if u
       (fn [t] (f (str (+ start (* t (- e start))) u)))
       (fn [t] (f (+ start (* t (- e start))))))))
+
+; Elements -----------------------------------------------------------------
+
+(deftype Style
+  [content property]
+
+  AnimableSelf
+  (animate-self [this to duration onend]
+    (aobj (goog.getUid this) duration
+          (lerp #(aset (.-style (dm/single-node content)) property %) (js/parseFloat (or (dm/style content property) 0)) to)
+          onend)))
+
+(deftype Attribute
+  [content attribute]
+
+  AnimableSelf
+  (animate-self [this to duration onend]
+    (aobj (goog.getUid this) duration
+          (lerp #(aset (dm/single-node content) attribute %) (js/parseFloat (or (aget (dm/single-node content) attribute) 0)) to)
+          onend)))
+
+(extend-protocol AnimableSelf
+  Atom
+  (animate-self [this to duration onend]
+    (aobj (goog.getUid this) duration
+          (lerp #(reset! this %) @this to) onend)))
+
+(defn create-element [name]
+  (let [node (.createElement js/document name)]
+    (reify dm/DomContent
+      (single-node [_] node)
+      (nodes [_] [node]))))
+
+; API ----------------------------------------------------------------------
 
 (defn reflect [content property & value]
   (let [pname (name property)]
@@ -76,38 +117,32 @@
       :else
       (reset! (property content) (apply str value)))))
 
-(defn- tfunc [content property to]
-  (let [pname (name property)] 
-
-    ; regexps are not necessary here
-    (cond
-      ; animate style
-      (starts-with pname "style.")
-      (let [style (.substring pname (.-length "style."))]
-        (lerp #(aset (.-style (dm/single-node content)) style %) (js/parseFloat (or (dm/style content style) 0)) to))
-
-      ; animate attribute
-      (starts-with pname "attr.")
-      (let [attr (.substring pname (.-length "attr."))]
-        (lerp #(aset (dm/single-node content) attr %) (dm/attr content attr) to))
-      
-      :else
-      ; animate atom field
-      (let [field (property content)]
-        (lerp #(reset! field %) @field to)) 
-
-      :else nil)))
-
-(defn animate-property [content property to &
-                        {:keys [duration onend] :or {duration 400}}]
-  ;(dm/log-debug (str "animate " (str (goog.getUid content) ":" (name property)) " to " (pr-str to)))
-  (aobj (str (goog.getUid content) ":" (name property)) duration (tfunc content property to) onend))
-
-(defn animate-atom [a to & {:keys [duration onend] :or {duration 400}}]
-  (aobj (goog.getUid a) duration (lerp #(reset! a %) @a to)))
-
 (defn animate [& anms]
-  (doseq [a anms] (apply animate-property a)))
+  (doseq [a anms]
+    (if (odd? (count a))
+      (let [[content property to & {:keys [duration onend] :or {duration 400}}] a]
+
+        ; i don't like this, need to think of a better way
+        (if (and (satisfies? dm/DomContent content) (not (satisfies? AnimableComposite content)))
+          (let [pname (name property)] 
+            (cond
+              ; animate style
+              (starts-with pname "style.")
+              (animate-self (Style. content (.substring pname (.-length "style."))) to duration onend)
+
+              ; animate attribute
+              (starts-with pname "attr.")
+              (animate-self (Attribute. content (.substring pname (.-length "attr."))) to duration onend)
+
+              :else
+              ; animate AnimableSelf field
+              (animate-self (property content) to duration onend)))
+          ; else (if (and (satisfies? ...
+          (animate-composite content property to duration onend)))
+
+      ; if (odd? ...
+     (let [[property to & {:keys [duration onend] :or {duration 400}}] a]
+        (animate-self property to duration onend)))))
 
 (defn bind [dep content property & unit]
   (add-watch dep (str (goog.getUid dep) ":" (name property))
@@ -115,18 +150,8 @@
                (when (not= o n)
                  (apply reflect content property n unit)))))
 
-
 (defn property [content property]
   (aget (dm/single-node content) (name property)))
 
 (defn set-property! [content property value]
   (aset (dm/single-node content) (name property) value))
-
-; Elements -----------------------------------------------------------------
-
-(defn create-element [name]
-  (let [element (.createElement js/document name)]
-    (reify dm/DomContent
-      (single-node [this] element)
-      (nodes [this] [element]))))
-

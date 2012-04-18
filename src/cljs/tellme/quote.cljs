@@ -56,7 +56,7 @@
   (let [height (ui/property shadow :offsetHeight)]
     (when-not (= @current-height height)
       (reset! current-height height)
-      (table/resize-row table row (+ 20 height)) 
+      (table/resize-row table row (+ 20 height))
       (ui/animate [input :style.height [(+ 20 height) :px]]))))
 
 ; --------------------------------------------------------------------------
@@ -184,7 +184,7 @@
 ; Constructor --------------------------------------------------------------
 
 (defn create-quote [content width]
-  (let [table (dm/add-class! (table/create-table) "quote-text")
+  (let [table (table/create-table)
         shadow (or (dm/by-id "quote-shadow")
                    (let [div (view :div.quote-shadow)]
                      (dm/append! (dmc/sel "body")
@@ -200,7 +200,7 @@
     (add-quotable this (table/add-row table) content)
 
     ; add intial retort field
-    ; FIXME: 41px
+    ; FIXME: 38px
     (table/resize-row
       table (table/set-row-contents
               table (table/add-row table) retort-input) 38 :animated false)

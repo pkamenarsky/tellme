@@ -208,8 +208,6 @@ body {
 
 .retort-input {
 	@include base;
-	@include center;
-	@include padding;
 
 	background-color: transparent;
 	resize: none;
