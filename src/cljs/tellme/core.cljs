@@ -134,7 +134,7 @@
              (dm/set-text! overlay text) 
              (dm/append! (dmc/sel "body") overlay) 
 
-             (ui/animate [overlay :style.bottom 31 
+             (ui/animate [overlay :style.bottom [31 :px] 
                           :onend (fn []
                                    ;(dm/log-debug (str "slide done: " text))
                                    (set-message-at-row data row (assoc message :row row))
@@ -227,5 +227,5 @@
     (swap! sm fsm/goto :ready)
     (reset! message "")))
  
-(events/listen js/window evttype/LOAD main3)
+;(events/listen js/window evttype/LOAD main3)
 

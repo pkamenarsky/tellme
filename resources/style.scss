@@ -193,6 +193,28 @@ body {
 
 /* --- */
 
+.quote-text {
+	@include base;
+}
+
+.quote-marker {
+	@include base;
+}
+
+.quote-input {
+	@include base;
+	@include center;
+	@include padding;
+
+	background-color: transparent;
+	resize: none;
+	height: 41px;
+	padding-top: 10px;
+	padding-bottom: 10px;
+}
+
+/* --- */
+
 .big, h1, .osid, .inputbox, .messagecontent, .shadowbox {
 	font-family: Helvetica, Arial;
 	font-size: 48pt;
