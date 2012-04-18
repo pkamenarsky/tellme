@@ -118,7 +118,8 @@
 
       ; else forward to root
       :else
-      (animate-composite root property to duration onend))))
+      (animate-composite root property to duration onend))
+    this))
 
 ; Constructor --------------------------------------------------------------
 
@@ -220,8 +221,8 @@
       (fn []
         (loop [i 0]
           (let [index (add-row table)] 
-            (resize-row table index 30 :animated false) 
-            (set-row-text table index (str "adfdfsf" index)))
+            (ui/animate [table index 30 :duration 0]) 
+            (set-row-contents table index (dm/set-text! (view :div) "asdasd")))
           (when (< i 1)
             (recur (inc i)))))
       1000)))

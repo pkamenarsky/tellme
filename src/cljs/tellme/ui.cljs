@@ -79,7 +79,8 @@
   (animate-self [this to duration onend]
     (aobj (goog.getUid this) duration
           (lerp #(aset (.-style (dm/single-node content)) property %) (js/parseFloat (or (dm/style content property) 0)) to)
-          onend)))
+          onend)
+    this))
 
 (deftype Attribute
   [content attribute]
@@ -88,13 +89,15 @@
   (animate-self [this to duration onend]
     (aobj (goog.getUid this) duration
           (lerp #(aset (dm/single-node content) attribute %) (js/parseFloat (or (aget (dm/single-node content) attribute) 0)) to)
-          onend)))
+          onend)
+    this))
 
 (extend-protocol AnimableSelf
   Atom
   (animate-self [this to duration onend]
     (aobj (goog.getUid this) duration
-          (lerp #(reset! this %) @this to) onend)))
+          (lerp #(reset! this %) @this to) onend)
+    this))
 
 (defn create-element [name]
   (let [node (.createElement js/document name)]
@@ -141,7 +144,8 @@
 
       ; if (odd? ...
      (let [[property to & {:keys [duration onend] :or {duration 400}}] a]
-        (animate-self property to duration onend)))))
+        (animate-self property to duration onend))))
+  anms)
 
 (defn bind [dep content property & unit]
   (add-watch dep (str (goog.getUid dep) ":" (name property))

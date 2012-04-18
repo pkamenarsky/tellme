@@ -223,5 +223,5 @@
     (swap! sm fsm/goto :ready)
     (reset! message "")))
  
-(events/listen js/window evttype/LOAD main3)
+;(events/listen js/window evttype/LOAD main3)
 

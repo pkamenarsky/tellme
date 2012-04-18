@@ -48,16 +48,18 @@
   (dm/set-text! dcontent content) 
   (dm/set-html! dcontent (.replace (dm/html dcontent) (js/RegExp. " " "g") "&nbsp;")))
 
-(defn- input-listener [{:keys [table shadow]} row input current-height event]
+(defn- input-listener [{:keys [table shadow]} row input event]
   (dm/set-text! shadow (if (= (.-length (dm/value input)) 0)
                          "."
                          (dm/value input)))
   ; FIXME: 23, 3
-  (let [height (ui/property shadow :offsetHeight)]
-    (when-not (= @current-height height)
-      (reset! current-height height)
-      (ui/animate [input :style.height [(+ 20 height) :px]] 
-                  [table row (+ 20 height)]))))
+  (let [cheight (or (.-current-height input) 0) 
+        sheight (ui/property shadow :offsetHeight)]
+
+    (when-not (= cheight sheight)
+      (set! (.-current-height input) sheight)
+      (ui/animate [input :style.height [(+ 20 sheight) :px]] 
+                  [table row (+ 20 sheight)]))))
 
 ; --------------------------------------------------------------------------
 
@@ -107,7 +109,7 @@
                       [table row text-height])
 
           ; add input element
-          (dme/listen! input :input (partial input-listener this input-row input (atom 0)))
+          (dme/listen! input :input (partial input-listener this input-row input))
 
           ; FIXME: 31
           (table/set-row-contents table input-row input) 
@@ -163,7 +165,6 @@
       (dme/listen! dcontent
                    :mouseup
                    (fn [event]
-                     (dm/log-debug (pr-str (get-quotes this)))
                      (when (slice-quotable this row dcontent content)
                        (dme/remove-listeners! dcontent :mouseup))))
       
@@ -190,9 +191,7 @@
                      (dm/append! (dmc/sel "body")
                                  (dm/set-attr! div :id "quote-shadow"))
                      div)) 
-
         retort-input (view :textarea.retort-input)
-        quote-size (atom 0)
 
         this (Quote. table shadow retort-input)]
 
@@ -209,7 +208,7 @@
 
     ; we should put this is in a sm
     (dme/listen! retort-input :input (fn [event]
-                                      (input-listener this (dec (table/row-count table)) retort-input quote-size event)
+                                      (input-listener this (dec (table/row-count table)) retort-input event)
                                       (let [quote-above (table/row-contents table (- (table/row-count table) 2))]
                                         (if (zero? (.-length (dm/value retort-input)))
                                           (dm/add-class! quote-above "quote-text-inactive")
@@ -228,4 +227,4 @@
     
     (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (ui/resized qt)))))
 
-;(events/listen js/window evttype/LOAD test-quote)
+(events/listen js/window evttype/LOAD test-quote)
