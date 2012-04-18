@@ -76,8 +76,6 @@
       :else
       (reset! (property content) (apply str value)))))
 
-(def parse-css (fnil js/parseFloat 0))
-
 (defn- tfunc [content property to]
   (let [pname (name property)] 
 
@@ -86,7 +84,7 @@
       ; animate style
       (starts-with pname "style.")
       (let [style (.substring pname (.-length "style."))]
-        (lerp #(aset (.-style (dm/single-node content)) style %) (parse-css (dm/style content style)) to)) 
+        (lerp #(aset (.-style (dm/single-node content)) style %) (js/parseFloat (or (dm/style content style) 0)) to))
 
       ; animate attribute
       (starts-with pname "attr.")

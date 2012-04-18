@@ -16,18 +16,6 @@
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
   (:use-macros [tellme.base.fsm-macros :only [view defdep defreaction defsm set-styles set-style css]]))
 
-; --------------------------------------------------------------------------
-
-(deftype Quote
-  [table shadow rest-dcontent]
-
-  dm/DomContent
-  (single-node [this] (dm/single-node table))
-  (nodes [this] (dm/nodes table))
-  
-  ui/View
-  (resized [this] (ui/resized table)))
-
 ; Range utils --------------------------------------------------------------
 
 (def px #(str % "px"))
@@ -60,8 +48,6 @@
   (dm/set-text! dcontent content) 
   (dm/set-html! dcontent (.replace (dm/html dcontent) (js/RegExp. " " "g") "&nbsp;")))
 
-; Quotables ----------------------------------------------------------------
-
 (defn- input-listener [{:keys [table shadow]} row input current-height event]
   (dm/set-text! shadow (if (= (.-length (dm/value input)) 0)
                          "."
@@ -73,141 +59,174 @@
       (table/resize-row table row (+ 20 height)) 
       (ui/animate [input :style.height [(+ 20 height) :px]]))))
 
-(defn- slice-quotable [{:keys [table shadow] :as quote-view} row dcontent content]
-  (dm/set-text! shadow content)
+; --------------------------------------------------------------------------
 
-  (let [old-height (ui/property shadow :offsetHeight)
-        trange (.getRangeAt (js/getSelection js/window) 0)
-        [tquote trest [xq yq] [xr yr] :as slice] (slice-text content trange)]
+(defprotocol IQuote
+  (add-quotable [this row content])
+  (slice-quotable [this row dcontent content])
+  (get-quotes [this]))
 
-    (when slice
-      ; animate quote element
-      (set-content dcontent tquote)
-      (dm/set-text! shadow tquote)
+(defrecord Quote
+  [table shadow retort-input]
 
-      (let [text-height (ui/property shadow :offsetHeight)
-            input-row (table/add-row table (inc row))
-            rest-row (table/add-row table (inc input-row))
+  dm/DomContent
+  (single-node [this] (dm/single-node table))
+  (nodes [this] (dm/nodes table))
+  
+  ui/View
+  (resized [this] (ui/resized table))
+  
+  IQuote
+  (slice-quotable [this row dcontent content]
+    (dm/set-text! shadow content)
 
-            drest (view :div.quote-text)
-            input (view :textarea.quote-input)]
+    (let [old-height (ui/property shadow :offsetHeight)
+          trange (.getRangeAt (js/getSelection js/window) 0)
+          [tquote trest [xq yq] [xr yr] :as slice] (slice-text content trange)]
 
-        (dm/set-styles! dcontent {:textIndent (px xq)
-                                  :marginTop (px yq)}) 
+      (when slice
+        ; animate quote element
+        (set-content dcontent tquote)
+        (dm/set-text! shadow tquote)
 
-        (table/resize-row table row text-height)
-        (ui/animate [dcontent :style.marginTop [0 :px]]
-                    [dcontent :style.textIndent [0 :px]
-                     :onend #(dm/set-text! dcontent tquote)])
+        (dm/remove-class! dcontent "quote-text-inactive")
 
-        ; add input element
-        ; FIXME: 31
-        (dme/listen! input :input (partial input-listener quote-view input-row input (atom 0)))
+        (let [text-height (ui/property shadow :offsetHeight)
+              input-row (table/add-row table (inc row))
+              rest-row (table/add-row table (inc input-row))
 
-        ; FIXME: 31
-        (table/resize-row table input-row 38) 
-        (table/set-row-contents table input-row input) 
+              drest (view :div.quote-text)
+              input (view :textarea.retort-input)]
 
-        (dm/set-styles! input {:height (px 0)
-                               :padding (px 0)})
-        (ui/animate [input :style.height [38 :px]]
-                    [input :style.paddingTop [10 :px]]
-                    [input :style.paddingBottom [10 :px]])
+          (dm/set-styles! dcontent {:textIndent (px xq)
+                                    :marginTop (px yq)}) 
 
-        (.select (dm/single-node input))
+          (table/resize-row table row text-height)
+          (ui/animate [dcontent :style.marginTop [0 :px]]
+                      [dcontent :style.textIndent [0 :px]
+                       :onend #(dm/set-text! dcontent tquote)])
 
-        ; add rest element row & animate
-        (table/set-row-contents table rest-row drest)
-        (set-content drest trest)
-        (dm/set-text! shadow trest) 
+          ; add input element
+          (dme/listen! input :input (partial input-listener this input-row input (atom 0)))
 
-        (let [rest-height (ui/property shadow :offsetHeight)]
+          ; FIXME: 31
+          (table/resize-row table input-row 38) 
+          (table/set-row-contents table input-row input) 
 
-          (dm/set-styles! drest {:textIndent (px xr)
-                                 :top (px (- yr old-height))
-                                 :position "relative"
-                                 :color "#333333"})
+          (dm/set-styles! input {:height (px 0)
+                                 :padding (px 0)})
+          (ui/animate [input :style.height [38 :px]]
+                      [input :style.paddingTop [10 :px]]
+                      [input :style.paddingBottom [10 :px]])
 
-          (table/resize-row table rest-row rest-height) 
-          (ui/animate [drest :style.top [0 :px]
-                       :onend (fn []
-                                (dm/detach! drest)
-                                (add-quotable quote-view rest-row trest))]
-                      [drest :style.textIndent [0 :px]]))
-        drest))))
+          (.select (dm/single-node input))
 
-(defn- add-quotable [{:keys [table shadow rest-dcontent] :as quote-view} row content]
-  (let [dcontent (view :div.quote-text)]
+          ; add rest element row & animate
+          (table/set-row-contents table rest-row drest)
 
-    ; add quotable div to current row
-    (dm/set-text! dcontent content) 
-    (dm/set-text! shadow content) 
+          ; mark text as inactive only when last input is empty
+          (when (zero? (.-length (dm/value retort-input)))
+            (dm/add-class! drest "quote-text-inactive"))
 
-    (table/set-row-contents table row dcontent) 
-    (table/resize-row table row (ui/property shadow :offsetHeight) :animated false)
+          (set-content drest trest)
+          (dm/set-text! shadow trest) 
 
-    ; if this is actually the rest of a new split (i.e. if row != 0, since row 0
-    ; is always the original quote), reset the rest-dcontent atom, so that
-    ; it can be grayed out when the bottom most comment field is empty
-    (when-not (zero? row)
-      (reset! rest-dcontent dcontent))
-    
-    ; FIXME: test with selection with input element
-    (dme/listen! dcontent
-                 :mouseup
-                 (fn [event]
-                   (when (slice-quotable quote-view row dcontent content)
-                     (dme/remove-listeners! dcontent :mouseup))))))
+          (let [rest-height (ui/property shadow :offsetHeight)]
+
+            (dm/set-styles! drest {:textIndent (px xr)
+                                   :top (px (- yr old-height))
+                                   :position "relative"})
+
+            (table/resize-row table rest-row rest-height) 
+            (ui/animate [drest :style.top [0 :px]
+                         :onend (fn []
+                                  (dm/detach! drest)
+                                  (add-quotable this rest-row trest))]
+                        [drest :style.textIndent [0 :px]]))
+          drest))))
+
+  (add-quotable [this row content]
+    (let [dcontent (view :div.quote-text)]
+
+      ; mark text as inactive only when last input is empty
+      (when (zero? (.-length (dm/value retort-input)))
+        (dm/add-class! dcontent "quote-text-inactive"))
+
+      ; add quotable div to current row
+      (dm/set-text! dcontent content) 
+      (dm/set-text! shadow content) 
+
+      (table/set-row-contents table row dcontent) 
+      (table/resize-row table row (ui/property shadow :offsetHeight) :animated false)
+
+      ; FIXME: test with selection with input element
+      (dme/listen! dcontent
+                   :mouseup
+                   (fn [event]
+                     (dm/log-debug (pr-str (get-quotes this)))
+                     (when (slice-quotable this row dcontent content)
+                       (dme/remove-listeners! dcontent :mouseup))))
+      
+      dcontent))
+  
+  (get-quotes [this]
+    ; partition quotes and retorts into an array of [quote retort] pairs
+    (let [quotes (map (fn [[q a]] [(dm/text q) (dm/value a)])
+                      (partition 2 (map (partial table/row-contents table)
+                                        (range (table/row-count table)))))
+          [q a] (last quotes)]
+
+      ; if last retort is empty, don't return last quote either
+      (if (> (.-length a) 0)
+        quotes
+        (butlast quotes)))))
 
 ; Constructor --------------------------------------------------------------
 
 (defn create-quote [content width]
   (let [table (dm/add-class! (table/create-table) "quote-text")
-        shadow (view :div.quote-shadow)
+        shadow (or (dm/by-id "quote-shadow")
+                   (let [div (view :div.quote-shadow)]
+                     (dm/append! (dmc/sel "body")
+                                 (dm/set-attr! div :id "quote-shadow"))
+                     div)) 
 
-        quote-input (view :textarea.quote-input)
+        retort-input (view :textarea.retort-input)
         quote-size (atom 0)
-        rest-dcontent (atom nil)
-        
-        view {:table table
-              :shadow shadow
-              :rest-dcontent rest-dcontent}]
 
-    ; FIXME: need to detach this
-    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (ui/resized table)))
-
-    ; FIXME: need to detach this
-    (dm/append! (dmc/sel "body") shadow)
+        this (Quote. table shadow retort-input)]
 
     ; add initial quotable
-    (add-quotable view (table/add-row table) content)
+    (add-quotable this (table/add-row table) content)
 
-    ; add intial comment field
+    ; add intial retort field
     ; FIXME: 41px
     (table/resize-row
       table (table/set-row-contents
-              table (table/add-row table) quote-input) 38 :animated false)
-    (dm/set-style! quote-input :height 38 "px")
+              table (table/add-row table) retort-input) 38 :animated false)
+    (dm/set-style! retort-input :height 38 "px")
 
-    (js/setTimeout #(.select (dm/single-node quote-input)) 0) 
+    (js/setTimeout #(.select (dm/single-node retort-input)) 0) 
 
     ; we should put this is in a sm
-    (dme/listen! quote-input :input (fn [event]
-                                      (input-listener view (dec (table/row-count table)) quote-input quote-size event)
-                                      (when @rest-dcontent
-                                        (if (zero? (.-length (dm/value quote-input)))
-                                          (dm/set-style! @rest-dcontent :color "#999999")
-                                          (dm/set-style! @rest-dcontent :color "#333333")))))
+    (dme/listen! retort-input :input (fn [event]
+                                      (input-listener this (dec (table/row-count table)) retort-input quote-size event)
+                                      (let [quote-above (table/row-contents table (- (table/row-count table) 2))]
+                                        (if (zero? (.-length (dm/value retort-input)))
+                                          (dm/add-class! quote-above "quote-text-inactive")
+                                          (dm/remove-class! quote-above "quote-text-inactive")))))
 
-    table))
+    this))
 
 ; Tests --------------------------------------------------------------------
 (defn test-quote []
-  (let [table (dm/add-class! (create-quote "There's one major problem. This doesn't fit into the monadic interface. Monads are (a -> m b), they're based around functions only. There's no way to attach static information. You have only one choice, throw in some input, and see if it passes or fails."
+  (let [qt (dm/add-class! (create-quote "There's one major problem. This doesn't fit into the monadic interface. Monads are (a -> m b), they're based around functions only. There's no way to attach static information. You have only one choice, throw in some input, and see if it passes or fails."
                             300) "chat-table")]
 
-    (dm/set-style! table :bottom 200 "px")
-    (dm/append! (dmc/sel "body") table)
-    (ui/resized table)))
+    (dm/set-style! qt :bottom 200 "px")
+    (dm/append! (dmc/sel "body") qt)
+    (ui/resized qt)
+    
+    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (ui/resized qt)))))
 
 (events/listen js/window evttype/LOAD test-quote)

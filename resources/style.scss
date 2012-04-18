@@ -155,7 +155,7 @@ body {
 	margin-top: $quote-button-size / -2;
 	right: ($right-margin - $quote-button-size) / 2;
 	background-color: $light-color;
-	border-radius: $quote-button-size / 2;
+	@include border-radius($quote-button-size / 2);
 	visibility: hidden;
 }
 
@@ -195,13 +195,18 @@ body {
 
 .quote-text {
 	@include base;
+	@include transition(color 200ms ease-in-out);
+}
+
+.quote-text-inactive {
+	color: #999999;
 }
 
 .quote-marker {
 	@include base;
 }
 
-.quote-input {
+.retort-input {
 	@include base;
 	@include center;
 	@include padding;

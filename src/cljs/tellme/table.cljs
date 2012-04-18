@@ -26,7 +26,7 @@
   (add-row [this] [this at])
   (remove-row [this index])
   (resize-row_ [this index rowheight animated onend])
-  (set-row-text [this index text])
+  (row-contents [this index])
   (set-row-contents [this index view])
 
   (row-count [this])
@@ -90,9 +90,9 @@
   (scroll-top [this]
     (dm/attr scroll :scrollTop))
 
-  (set-row-text [this index text]
-    (dm/set-html! (:element (@rows index)) text)
-    index)
+  (row-contents [this index]
+    (let [{:keys [element]} (@rows index)]
+      (first (dm/children element))))
 
   (set-row-contents [this index view]
     (let [{:keys [element]} (@rows index)]
