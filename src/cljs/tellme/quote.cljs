@@ -16,6 +16,18 @@
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
   (:use-macros [tellme.base.fsm-macros :only [view defdep defreaction defsm set-styles set-style css]]))
 
+; --------------------------------------------------------------------------
+
+(deftype Quote
+  [table shadow rest-dcontent]
+
+  dm/DomContent
+  (single-node [this] (dm/single-node table))
+  (nodes [this] (dm/nodes table))
+  
+  ui/View
+  (resized [this] (ui/resized table)))
+
 ; Range utils --------------------------------------------------------------
 
 (def px #(str % "px"))
