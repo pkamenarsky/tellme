@@ -47,7 +47,7 @@
 (defn- aobj [tag duration f onend]
   (when (zero? (count @aobjs))
     (reset! atimer (js/setInterval runa 10)))
-  (swap! aobjs assoc tag [f (.getTime (js/Date.)) (* 0.3 duration) onend]))
+  (swap! aobjs assoc tag [f (.getTime (js/Date.)) (* 1 duration) onend]))
 
 (def unit-map {:px "px" :pct "%" :pt "pt"})
 

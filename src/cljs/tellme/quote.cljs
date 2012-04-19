@@ -29,27 +29,6 @@
 
       [x y])))
 
-(defn- adjust-char [c]
-  (if (= c " ") "&nbsp;" c))
-
-(defn- get-space-break [rng shadow marker content]
-  (dm/set-text! shadow content)
-  (loop [c (.-length content)
-         s 999999
-         r ""]
-    (if (>= c 0)
-      (do
-        (.setStart rng (.-firstChild (dm/single-node shadow)) c) 
-        (.setEnd rng (.-firstChild (dm/single-node shadow)) c) 
-        (let [[x _] (get-range-point rng marker)]
-          ;(dm/log-debug (str "x: " x ", s: " s))
-          (if (or (> x s)) 
-            (do
-              ;(dm/log-debug (str "replacing " (.charAt content c)))
-              (recur (- c 2) x (+ " " (adjust-char (.charAt content c)) r)))
-            (recur (dec c) x (+ (adjust-char (.charAt content c)) r)))))
-      r)))
-
 (defn- slice-text [shadow text srange]
   (let [marker (view :span.quote-marker)
         erange (.cloneRange srange)]
@@ -58,34 +37,16 @@
 
     (when (not (.-collapsed srange))
       (.collapse erange false)
-
-      (let [qt (.trim (.substring text (.-startOffset srange) (.-endOffset srange)))
-            rt (.trim (.substring text (.-endOffset srange)))]
-        [qt rt
-         (get-range-point srange marker)
-         (get-range-point erange marker)
-         (get-space-break erange shadow marker qt)
-         (get-space-break erange shadow marker rt)]))))
-
-(comment defn- adjust-break [content space]
-  (loop [i 0 r ""]
-    (if (< i (.-length content))
-      (if (= i space)
-        (recur (inc i) (+ r " "))
-        (if (= (.charAt content i) " ")
-          (recur (inc i) (+ r "&nbsp;"))
-          (recur (inc i) (+ r (.charAt content i))))) 
-      r)))
+      [(.trim (.substring text (.-startOffset srange) (.-endOffset srange)))
+       (.trim (.substring text (.-endOffset srange)))
+       (get-range-point srange marker)
+       (get-range-point erange marker)])))
 
 (defn- set-content [dcontent content]
-  ; FIXME: find character for webkit instead of "-"
-  ;(dm/set-html! dcontent content) 
-  ;(dm/log-debug content)
-
   (dm/set-text! dcontent content) 
   (let [html (.replace (dm/html dcontent) (js/RegExp. " " "g") "&nbsp;")
-        html2 (.replace html (js/RegExp. "-" "g") "&nbsp;")]
-    (dm/set-html! dcontent html2)))
+        html (.replace html (js/RegExp. "-" "g") "&nbsp;")]
+    (dm/set-html! dcontent html)))
 
 (defn- input-listener [{:keys [table shadow]} row input event]
   (dm/set-text! shadow (if (= (.-length (dm/value input)) 0)
@@ -101,6 +62,8 @@
                   [table row (+ 20 sheight)]))))
 
 ; --------------------------------------------------------------------------
+
+(def quote-ms 150)
 
 (defprotocol IQuote
   (add-quotable [this row content])
@@ -140,29 +103,17 @@
               rest-row (table/add-row table (inc input-row))
 
               drest (view :div.quote-text)
-              input (view :textarea.retort-input)
-              ; overlay
-              dcontent-overlay (view :div.quote-text)]
+              input (view :textarea.retort-input)]
 
-          (set-content dcontent-overlay tquote)
-          (table/set-row-contents table row dcontent-overlay)
-          (dm/set-styles! dcontent-overlay {:textIndent (px xq)
-                                            :marginTop (px yq)
-                                            :height (px old-height)}) 
-          (dm/set-styles! dcontent {:opacity -10
-                                    :textIndent (px xq)
+          (set-content dcontent tquote)
+          (dm/set-styles! dcontent {:textIndent (px xq)
                                     :height (px old-height)
                                     :marginTop (px yq)})
 
-          (ui/animate [dcontent-overlay :style.marginTop [0 :px]]
-                      [dcontent-overlay :style.textIndent [0 :px]
-                       ;:onend #(dm/set-text! dcontent tquote)
-                       :onend #(dm/detach! dcontent-overlay)
-                       ]
-                      [dcontent :style.textIndent [0 :px]]
-                      [dcontent :style.marginTop [0 :px]]
-                      [dcontent :style.opacity 1]
-                      [table row text-height])
+          (ui/animate [dcontent :style.textIndent [0 :px]
+                       :onend #(dm/set-text! dcontent tquote) :duration quote-ms]
+                      [dcontent :style.marginTop [0 :px] :duration quote-ms]
+                      [table row text-height :duration quote-ms])
 
           ; add input element
           (dme/listen! input :input (partial input-listener this input-row input))
@@ -172,10 +123,10 @@
           (dm/set-styles! input {:height (px 0)
                                  :padding (px 0)})
 
-          (ui/animate [input :style.height [38 :px]]
-                      [input :style.paddingTop [10 :px]]
-                      [input :style.paddingBottom [10 :px]]
-                      [table input-row [38 :px]])
+          (ui/animate [input :style.height [38 :px] :duration quote-ms]
+                      [input :style.paddingTop [10 :px] :duration quote-ms] 
+                      [input :style.paddingBottom [10 :px] :duration quote-ms] 
+                      [table input-row [38 :px] :duration quote-ms])
 
           (.select (dm/single-node input))
 
@@ -195,12 +146,12 @@
                                    :top (px (- yr old-height))
                                    :position "relative"})
 
-            (ui/animate [table rest-row rest-height]
-                        [drest :style.top [0 :px]
+            (ui/animate [table rest-row rest-height :duration quote-ms]
+                        [drest :style.top [0 :px] :duration quote-ms 
                          :onend (fn []
                                   (dm/detach! drest)
                                   (add-quotable this rest-row trest))]
-                        [drest :style.textIndent [0 :px]]))
+                        [drest :style.textIndent [0 :px] :duration quote-ms]))
           drest))))
 
   (add-quotable [this row content]
