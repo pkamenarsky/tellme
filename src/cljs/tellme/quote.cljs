@@ -83,8 +83,9 @@
   ;(dm/log-debug content)
 
   (dm/set-text! dcontent content) 
-  (let [html (.replace (dm/html dcontent) (js/RegExp. " " "g") "&nbsp;")]
-    (dm/set-html! dcontent html)))
+  (let [html (.replace (dm/html dcontent) (js/RegExp. " " "g") "&nbsp;")
+        html2 (.replace html (js/RegExp. "-" "g") "&nbsp;")]
+    (dm/set-html! dcontent html2)))
 
 (defn- input-listener [{:keys [table shadow]} row input event]
   (dm/set-text! shadow (if (= (.-length (dm/value input)) 0)
@@ -140,7 +141,6 @@
 
               drest (view :div.quote-text)
               input (view :textarea.retort-input)
-              
               ; overlay
               dcontent-overlay (view :div.quote-text)]
 
@@ -149,7 +149,7 @@
           (dm/set-styles! dcontent-overlay {:textIndent (px xq)
                                             :marginTop (px yq)
                                             :height (px old-height)}) 
-          (dm/set-styles! dcontent {:opacity -10 
+          (dm/set-styles! dcontent {:opacity -10
                                     :textIndent (px xq)
                                     :height (px old-height)
                                     :marginTop (px yq)})
