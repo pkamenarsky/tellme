@@ -29,16 +29,26 @@
 
       [x y])))
 
-(defn- get-space-break [r shadow marker content]
+(defn- adjust-char [c]
+  (if (= c " ") "&nbsp;" c))
+
+(defn- get-space-break [rng shadow marker content]
   (dm/set-text! shadow content)
-  (loop [c (.-length content)]
-    (.setStart r (.-firstChild (dm/single-node shadow)) c)
-    (.setEnd r (.-firstChild (dm/single-node shadow)) c)
-    (let [[x _] (get-range-point r marker)]
-      (dm/log-debug (str "x: " x))
-      (if (or (zero? x) (zero? c)) 
-        c
-        (recur (dec c))))))
+  (loop [c (.-length content)
+         s 999999
+         r ""]
+    (if (>= c 0)
+      (do
+        (.setStart rng (.-firstChild (dm/single-node shadow)) c) 
+        (.setEnd rng (.-firstChild (dm/single-node shadow)) c) 
+        (let [[x _] (get-range-point rng marker)]
+          ;(dm/log-debug (str "x: " x ", s: " s))
+          (if (or (> x s)) 
+            (do
+              ;(dm/log-debug (str "replacing " (.charAt content c)))
+              (recur (- c 2) x (+ " " (adjust-char (.charAt content c)) r)))
+            (recur (dec c) x (+ (adjust-char (.charAt content c)) r)))))
+      r)))
 
 (defn- slice-text [shadow text srange]
   (let [marker (view :span.quote-marker)
@@ -49,16 +59,32 @@
     (when (not (.-collapsed srange))
       (.collapse erange false)
 
-      [(.trim (.substring text (.-startOffset srange) (.-endOffset srange)))
-       (.trim (.substring text (.-endOffset srange)))
-       (get-range-point srange marker)
-       (get-range-point erange marker)
-       (get-space-break erange shadow marker text)])))
+      (let [qt (.trim (.substring text (.-startOffset srange) (.-endOffset srange)))
+            rt (.trim (.substring text (.-endOffset srange)))]
+        [qt rt
+         (get-range-point srange marker)
+         (get-range-point erange marker)
+         (get-space-break erange shadow marker qt)
+         (get-space-break erange shadow marker rt)]))))
+
+(comment defn- adjust-break [content space]
+  (loop [i 0 r ""]
+    (if (< i (.-length content))
+      (if (= i space)
+        (recur (inc i) (+ r " "))
+        (if (= (.charAt content i) " ")
+          (recur (inc i) (+ r "&nbsp;"))
+          (recur (inc i) (+ r (.charAt content i))))) 
+      r)))
 
 (defn- set-content [dcontent content]
   ; FIXME: find character for webkit instead of "-"
+  ;(dm/set-html! dcontent content) 
+  ;(dm/log-debug content)
+
   (dm/set-text! dcontent content) 
-  (dm/set-html! dcontent (.replace (dm/html dcontent) (js/RegExp. " " "g") "&nbsp;")))
+  (let [html (.replace (dm/html dcontent) (js/RegExp. " " "g") "&nbsp;")]
+    (dm/set-html! dcontent html)))
 
 (defn- input-listener [{:keys [table shadow]} row input event]
   (dm/set-text! shadow (if (= (.-length (dm/value input)) 0)
@@ -96,9 +122,9 @@
 
     (let [old-height (ui/property shadow :offsetHeight)
           trange (.getRangeAt (js/getSelection js/window) 0)
-          [tquote trest [xq yq] [xr yr] :as slice] (slice-text shadow content trange)]
+          [tquote trest [xq yq] [xr yr] s1 s2 :as slice] (slice-text shadow content trange)]
 
-      (dm/log-debug (pr-str slice))
+      ;(dm/log-debug (pr-str slice))
 
       (when slice
         ; animate quote element
