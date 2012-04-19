@@ -29,24 +29,29 @@
 
       [x y])))
 
-(defn- slice-text [shadow text srange]
-  (let [marker (view :span.quote-marker)
-        erange (.cloneRange srange)]
+(defn- slice-text [shadow dcontent text]
+  (let [srange (js/getSelection js/window)]
+    (when (and (> (.-rangeCount srange) 0)
+               (= (.-firstChild dcontent) (.-startContainer srange))
+               (= (.-firstChild dcontent) (.-endContainer srange)))
+      (let [marker (view :span.quote-marker)
+            srange (.getRangeAt (js/getSelection js/window) 0)
+            erange (.cloneRange srange)]
 
-    (dm/set-text! marker ".")
+        (dm/set-text! marker ".")
 
-    (when (not (.-collapsed srange))
-      (.collapse erange false)
-      [(.trim (.substring text (.-startOffset srange) (.-endOffset srange)))
-       (.trim (.substring text (.-endOffset srange)))
-       (get-range-point srange marker)
-       (get-range-point erange marker)])))
+        (when (not (.-collapsed srange))
+          (.collapse erange false)
+          [(.trim (.substring text (.-startOffset srange) (.-endOffset srange)))
+           (.trim (.substring text (.-endOffset srange)))
+           (get-range-point srange marker)
+           (get-range-point erange marker)])))))
 
 (defn- set-content [dcontent content]
   (dm/set-text! dcontent content) 
   (let [html (.replace (dm/html dcontent) (js/RegExp. " " "g") "&nbsp;")
         html (.replace html (js/RegExp. "-" "g") "&nbsp;")]
-    (dm/set-html! dcontent html)))
+    (set! (.-innerHTML (dm/single-node dcontent)) html)))
 
 (defn- input-listener [{:keys [table shadow]} row input event]
   (dm/set-text! shadow (if (= (.-length (dm/value input)) 0)
@@ -61,9 +66,23 @@
       (ui/animate [input :style.height [(+ 20 sheight) :px]] 
                   [table row (+ 20 sheight)]))))
 
+(defn- add-selection-listener [selection-timer dcontent f]
+  (dme/listen! dcontent
+               :mouseup
+               (fn [event]
+                 ; clear old timer, if any
+                 (when @selection-timer
+                   (js/clearTimeout @selection-timer)) 
+
+                 (reset! selection-timer
+                         (js/setTimeout
+                           #(do (reset! selection-timer nil) (f))
+                           quote-selection-timeout)))))
+
 ; --------------------------------------------------------------------------
 
 (def quote-ms 150)
+(def quote-selection-timeout 800)
 
 (defprotocol IQuote
   (add-quotable [this row content])
@@ -71,7 +90,7 @@
   (get-quotes [this]))
 
 (defrecord Quote
-  [table shadow retort-input]
+  [table shadow retort-input selection-timer]
 
   dm/DomContent
   (single-node [this] (dm/single-node table))
@@ -85,74 +104,79 @@
     (dm/set-text! shadow content)
 
     (let [old-height (ui/property shadow :offsetHeight)
-          trange (.getRangeAt (js/getSelection js/window) 0)
-          [tquote trest [xq yq] [xr yr] s1 s2 :as slice] (slice-text shadow content trange)]
-
-      ;(dm/log-debug (pr-str slice))
+          [tquote trest [xq yq] [xr yr] :as slice] (slice-text shadow dcontent content)]
 
       (when slice
         ; animate quote element
-        ;(set-content dcontent tquote)
         (dm/set-text! shadow tquote)
-        (dm/set-text! dcontent tquote)
 
-        (dm/remove-class! dcontent "quote-text-inactive")
+        (set-content dcontent tquote)
+        (dm/set-styles! dcontent {:textIndent (px xq)
+                                  :height (px old-height)
+                                  :marginTop (px yq)})
 
-        (let [text-height (ui/property shadow :offsetHeight)
-              input-row (table/add-row table (inc row))
-              rest-row (table/add-row table (inc input-row))
+        (ui/animate [dcontent :style.textIndent [0 :px]
+                     :onend #(dm/set-text! dcontent tquote) :duration quote-ms]
+                    [dcontent :style.marginTop [0 :px] :duration quote-ms]
+                    [table row (ui/property shadow :offsetHeight):duration quote-ms])
 
-              drest (view :div.quote-text)
-              input (view :textarea.retort-input)]
+        ; only add input element and rest text if we actually split the quote
+        (if (> (.-length trest) 0)
+          (let [input-row (table/add-row table (inc row))
+                rest-row (table/add-row table (inc input-row))
 
-          (set-content dcontent tquote)
-          (dm/set-styles! dcontent {:textIndent (px xq)
-                                    :height (px old-height)
-                                    :marginTop (px yq)})
+                drest (view :div.quote-text)
+                input (view :textarea.retort-input)]
 
-          (ui/animate [dcontent :style.textIndent [0 :px]
-                       :onend #(dm/set-text! dcontent tquote) :duration quote-ms]
-                      [dcontent :style.marginTop [0 :px] :duration quote-ms]
-                      [table row text-height :duration quote-ms])
+            (dm/remove-class! dcontent "quote-text-inactive")
+            (dme/remove-listeners! dcontent :mouseup)
 
-          ; add input element
-          (dme/listen! input :input (partial input-listener this input-row input))
+            ; add input element
+            (dme/listen! input :input (partial input-listener this input-row input)) 
 
-          ; FIXME: 31
-          (table/set-row-contents table input-row input) 
-          (dm/set-styles! input {:height (px 0)
-                                 :padding (px 0)})
+            ; FIXME: 31
+            (table/set-row-contents table input-row input) 
+            (dm/set-styles! input {:height (px 0)
+                                   :padding (px 0)}) 
 
-          (ui/animate [input :style.height [38 :px] :duration quote-ms]
-                      [input :style.paddingTop [10 :px] :duration quote-ms] 
-                      [input :style.paddingBottom [10 :px] :duration quote-ms] 
-                      [table input-row [38 :px] :duration quote-ms])
+            (ui/animate [input :style.height [38 :px] :duration quote-ms]
+                        [input :style.paddingTop [10 :px] :duration quote-ms] 
+                        [input :style.paddingBottom [10 :px] :duration quote-ms] 
+                        [table input-row [38 :px] :duration quote-ms]) 
 
-          (.select (dm/single-node input))
+            (.select (dm/single-node input)) 
 
-          ; add rest element row & animate
-          (table/set-row-contents table rest-row drest)
+            ; add rest element row & animate
+            (table/set-row-contents table rest-row drest) 
 
-          ; mark text as inactive only when last input is empty
-          (when (zero? (.-length (dm/value retort-input)))
-            (dm/add-class! drest "quote-text-inactive"))
+            ; mark text as inactive only when last input is empty
+            (when (zero? (.-length (dm/value retort-input)))
+              (dm/add-class! drest "quote-text-inactive")) 
 
-          (set-content drest trest)
-          (dm/set-text! shadow trest) 
+            (set-content drest trest) 
+            (dm/set-text! shadow trest) 
 
-          (let [rest-height (ui/property shadow :offsetHeight)]
+            (let [rest-height (ui/property shadow :offsetHeight)]
 
-            (dm/set-styles! drest {:textIndent (px xr)
-                                   :top (px (- yr old-height))
-                                   :position "relative"})
+              (dm/set-styles! drest {:textIndent (px xr)
+                                     :top (px (- yr old-height))
+                                     :position "relative"})
 
-            (ui/animate [table rest-row rest-height :duration quote-ms]
-                        [drest :style.top [0 :px] :duration quote-ms 
-                         :onend (fn []
-                                  (dm/detach! drest)
-                                  (add-quotable this rest-row trest))]
-                        [drest :style.textIndent [0 :px] :duration quote-ms]))
-          drest))))
+              (ui/animate [table rest-row rest-height :duration quote-ms]
+                          [drest :style.top [0 :px] :duration quote-ms 
+                           :onend (fn []
+                                    (dm/detach! drest)
+                                    (add-quotable this rest-row trest))]
+                          [drest :style.textIndent [0 :px] :duration quote-ms]))
+            
+            drest)
+
+          ; if we quoted till the end, rewire event listener with new selection,
+          ; but else do nothing
+          (do
+            (dme/remove-listeners! dcontent :mouseup)
+            (add-selection-listener selection-timer dcontent
+                                    (partial slice-quotable this row dcontent tquote)))))))
 
   (add-quotable [this row content]
     (let [dcontent (view :div.quote-text)]
@@ -169,12 +193,8 @@
       (ui/animate [table row (ui/property shadow :offsetHeight) :duration 0])
 
       ; FIXME: test with selection with input element
-      (dme/listen! dcontent
-                   :mouseup
-                   (fn [event]
-                     (when (slice-quotable this row dcontent content)
-                       (dme/remove-listeners! dcontent :mouseup))))
-      
+      (add-selection-listener selection-timer dcontent
+                              (partial slice-quotable this row dcontent content))
       dcontent))
   
   (get-quotes [this]
@@ -200,7 +220,7 @@
                      div)) 
         retort-input (view :textarea.retort-input)
 
-        this (Quote. table shadow retort-input)]
+        this (Quote. table shadow retort-input (atom nil))]
 
     ; add initial quotable
     (add-quotable this (table/add-row table) content)
