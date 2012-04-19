@@ -29,7 +29,18 @@
 
       [x y])))
 
-(defn- slice-text [text srange]
+(defn- get-space-break [r shadow marker content]
+  (dm/set-text! shadow content)
+  (loop [c (.-length content)]
+    (.setStart r (.-firstChild (dm/single-node shadow)) c)
+    (.setEnd r (.-firstChild (dm/single-node shadow)) c)
+    (let [[x _] (get-range-point r marker)]
+      (dm/log-debug (str "x: " x))
+      (if (or (zero? x) (zero? c)) 
+        c
+        (recur (dec c))))))
+
+(defn- slice-text [shadow text srange]
   (let [marker (view :span.quote-marker)
         erange (.cloneRange srange)]
 
@@ -41,7 +52,8 @@
       [(.trim (.substring text (.-startOffset srange) (.-endOffset srange)))
        (.trim (.substring text (.-endOffset srange)))
        (get-range-point srange marker)
-       (get-range-point erange marker)])))
+       (get-range-point erange marker)
+       (get-space-break erange shadow marker text)])))
 
 (defn- set-content [dcontent content]
   ; FIXME: find character for webkit instead of "-"
@@ -84,7 +96,9 @@
 
     (let [old-height (ui/property shadow :offsetHeight)
           trange (.getRangeAt (js/getSelection js/window) 0)
-          [tquote trest [xq yq] [xr yr] :as slice] (slice-text content trange)]
+          [tquote trest [xq yq] [xr yr] :as slice] (slice-text shadow content trange)]
+
+      (dm/log-debug (pr-str slice))
 
       (when slice
         ; animate quote element
