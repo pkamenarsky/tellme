@@ -128,8 +128,9 @@
 
       (when slice
         ; animate quote element
-        (set-content dcontent tquote)
+        ;(set-content dcontent tquote)
         (dm/set-text! shadow tquote)
+        (dm/set-text! dcontent tquote)
 
         (dm/remove-class! dcontent "quote-text-inactive")
 
@@ -138,14 +139,29 @@
               rest-row (table/add-row table (inc input-row))
 
               drest (view :div.quote-text)
-              input (view :textarea.retort-input)]
+              input (view :textarea.retort-input)
+              
+              ; overlay
+              dcontent-overlay (view :div.quote-text)]
 
-          (dm/set-styles! dcontent {:textIndent (px xq)
-                                    :marginTop (px yq)}) 
+          (set-content dcontent-overlay tquote)
+          (table/set-row-contents table row dcontent-overlay)
+          (dm/set-styles! dcontent-overlay {:textIndent (px xq)
+                                            :marginTop (px yq)
+                                            :height (px old-height)}) 
+          (dm/set-styles! dcontent {:opacity -10 
+                                    :textIndent (px xq)
+                                    :height (px old-height)
+                                    :marginTop (px yq)})
 
-          (ui/animate [dcontent :style.marginTop [0 :px]]
-                      [dcontent :style.textIndent [0 :px]
-                       :onend #(dm/set-text! dcontent tquote)]
+          (ui/animate [dcontent-overlay :style.marginTop [0 :px]]
+                      [dcontent-overlay :style.textIndent [0 :px]
+                       ;:onend #(dm/set-text! dcontent tquote)
+                       :onend #(dm/detach! dcontent-overlay)
+                       ]
+                      [dcontent :style.textIndent [0 :px]]
+                      [dcontent :style.marginTop [0 :px]]
+                      [dcontent :style.opacity 1]
                       [table row text-height])
 
           ; add input element

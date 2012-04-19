@@ -36,6 +36,14 @@ $quote-button-size: 15px;
 	height: 6px;
 	left: 0px;
 
+	-moz-transition-property: width, height, margin-left, margin-top;
+	-moz-transition-duration: 200ms;
+	-moz-transition-timing-function: ease-in-out;
+
+	-webkit-transition-property: width, height, margin-left, margin-top;
+	-webkit-transition-duration: 200ms;
+	-webkit-transition-timing-function: ease-in-out;
+
 	@include border-radius(3px);
 }
 

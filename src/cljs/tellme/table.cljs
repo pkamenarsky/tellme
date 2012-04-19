@@ -73,7 +73,7 @@
 
   (set-row-contents [this index view]
     (let [{:keys [element]} (@rows index)]
-      (dm/destroy-children! element)
+      ;(dm/destroy-children! element)
       (dm/append! element view)
 
       index))
