@@ -54,6 +54,7 @@
   (let [quotes (qt/get-quotes quotable)
         msg-container (view :div.message)
         row (table/add-row table)]
+    (dm/log-debug (str "quotes: " (pr-str quotes)))
     (loop [pair quotes
            height 0]
       (if pair
@@ -61,9 +62,8 @@
               qv (view :div.quote-row)
               rv (view :div.retort-row)
 
-              qh (text-height shadow qv)
-              ; FIXME: 20
-              rh (+ 20 (text-height shadow rv))]
+              qh (- (text-height shadow q) 10)
+              rh (- (text-height shadow r) 10)]
 
           (-> msg-container (dm/append! qv) (dm/append! rv))
 
@@ -72,7 +72,8 @@
           (dm/set-style! qv :height qh "px")
           (dm/set-style! rv :height rh "px")
 
-          (recur (next pair) (+ qh rh)))
+          ; FIXME: 20
+          (recur (next pair) (+ 20 height qh rh)))
         (do
           (table/set-row-contents table row msg-container)
 
@@ -86,27 +87,34 @@
         static-table (dm/clone table)
         client-height (.-clientHeight (.-body (dom/getDocument)))
         qt (dm/add-class! (qt/create-quote text (fn [qt]
-                                                  (dm/detach! qt)
-                                                  (dm/detach! static-table)
-                                                  (dm/append! main-container table)
-                                                  (add-quote sm qt)
                                                   (events/unlistenByKey @event-key) 
+
+                                                  (add-quote sm qt)
 
                                                   (dm/set-style! main-container :visibility "visible")
                                                   (dm/set-style! table :bottom (* client-height 0.3) "px")
                                                   (ui/resized table)
 
-                                                  (ui/animate [main-container :style.opacity 1 :duration 200
-                                                               :onend #(ui/animate [table :style.bottom [28 :px] :duration 200])]
+                                                  (ui/animate [table :scroll-bottom 0 :duration 0] 
+                                                              [main-container :style.opacity 1 :duration 200
+                                                               :onend #(do
+                                                                         (dm/detach! qt)
+                                                                         (ui/animate [table :style.bottom [28 :px] :duration 200]))]
                                                               [quote-overlay :style.opacity 0 :duration 200
                                                                :onend #(dm/set-style! quote-overlay :visibility "hidden")])))
                           "chat-table")
-        bottom (+ height (- (table/row-top table row) (table/scroll-top table)))]
+        bottom (+ height (- (table/row-top table row) (table/scroll-top table)))
+        scroll-top (table/scroll-top table)]
+
+    ; first hide button
+    (dm/set-style! (.-target event) :visibility "hidden")
 
     ; we append a static copy here so that we don't have to worry about
     ; any currently running animations
     (dm/detach! table)
     (dm/append! main-container static-table)
+
+    (ui/set-property! (first (dm/children static-table)) :scrollTop scroll-top)
 
     (dm/set-style! qt :bottom (- client-height (+ bottom 28)) "px")
     (dm/set-style! main-container :opacity 1)
@@ -115,7 +123,10 @@
 
     ; fade out main and show quote overlay
     (ui/animate [main-container :style.opacity 0 :duration 200
-                 :onend #(dm/set-style! main-container :visibility "hidden")]
+                 :onend #(do
+                           (dm/append! main-container table)
+                           (dm/detach! static-table)
+                           (dm/set-style! main-container :visibility "hidden"))]
                 [quote-overlay :style.opacity 1 :duration 200
                  :onend #(ui/animate [qt :style.bottom [(* client-height 0.3) :px] :duration 200])])
 
@@ -142,7 +153,7 @@
     ; events
     (dme/listen! container :mouseover show-quote-button)
     (dme/listen! container :mouseout hide-quote-button)
-    (dme/listen! quote-button :click (partial quote-message data message))))
+    (dme/listen! quote-button :click (comp (partial quote-message data message)))))
 
 ; FSM ----------------------------------------------------------------------
 

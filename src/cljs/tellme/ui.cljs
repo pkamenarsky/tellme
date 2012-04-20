@@ -82,8 +82,7 @@
               (fn [v] (aset (.-style (dm/single-node content)) property v)
                 (resized content))
               (fn [v] (aset (.-style (dm/single-node content)) property v)))]
-      (dm/log-debug (str "animating Style" property))
-      (aobj (goog.getUid this) duration
+      (aobj (str (goog.getUid this) ":" property) duration
             (lerp f (js/parseFloat (or (dm/style content property) 0)) to)
             onend)) 
     this))
@@ -93,7 +92,7 @@
 
   AnimableSelf
   (animate-self [this to duration onend]
-    (aobj (goog.getUid this) duration
+    (aobj (str (goog.getUid this) ":" attribute) duration
           (lerp #(aset (dm/single-node content) attribute %) (js/parseFloat (or (aget (dm/single-node content) attribute) 0)) to)
           onend)
     this))
@@ -125,31 +124,30 @@
       :else
       (reset! (property content) (apply str value)))))
 
+(defn animate-dom-content [content property to duration onend]
+  (let [pname (name property)] 
+    (cond
+      ; animate style
+      (starts-with pname "style.")
+      (animate-self (Style. content (.substring pname (.-length "style."))) to duration onend)
+
+      ; animate attribute
+      (starts-with pname "attr.")
+      (animate-self (Attribute. content (.substring pname (.-length "attr."))) to duration onend)
+
+      :else
+      ; animate AnimableSelf field
+      (animate-self (property content) to duration onend))))
+
 (defn animate [& anms]
   (doseq [a anms]
     (if (odd? (count a))
       (let [[content property to & {:keys [duration onend] :or {duration 400}}] a]
-
-        ; i don't like this, need to think of a better way
-        (if (and (satisfies? dm/DomContent content) (not (satisfies? AnimableComposite content)))
-          (let [pname (name property)] 
-            (cond
-              ; animate style
-              (starts-with pname "style.")
-              (animate-self (Style. content (.substring pname (.-length "style."))) to duration onend)
-
-              ; animate attribute
-              (starts-with pname "attr.")
-              (animate-self (Attribute. content (.substring pname (.-length "attr."))) to duration onend)
-
-              :else
-              ; animate AnimableSelf field
-              (animate-self (property content) to duration onend)))
-          ; else (if (and (satisfies? ...
-          (animate-composite content property to duration onend)))
-
+        (if (satisfies? AnimableComposite content)
+          (animate-composite content property to duration onend)
+          (animate-dom-content content property to duration onend)))
       ; if (odd? ...
-     (let [[property to & {:keys [duration onend] :or {duration 400}}] a]
+      (let [[property to & {:keys [duration onend] :or {duration 400}}] a]
         (animate-self property to duration onend))))
   anms)
 

@@ -91,9 +91,8 @@ $quote-button-size: 15px;
 
 /* --- */
 
-@mixin base {
+@mixin base-text {
 	color: $color;
-	position: absolute;
 	width: $width;
 	line-height: 18px;
 	font-family: Helvetica;
@@ -104,6 +103,11 @@ $quote-button-size: 15px;
 	word-wrap: break-word;
 	white-space: pre-wrap;
 	overflow: hidden;
+}
+
+@mixin base {
+	@include base-text;
+	position: absolute;
 }
 
 @mixin padding {
@@ -249,11 +253,13 @@ body {
 }
 
 .quote-row {
+	@include base-text;
 	width: 100%;
 	height: 0px;
 }
 
 .retort-row {
+	@include base-text;
 	width: 100%;
 	height: 0px;
 	padding-top: 10px;
