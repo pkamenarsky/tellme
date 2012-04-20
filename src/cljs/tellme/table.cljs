@@ -118,7 +118,7 @@
 
       ; else forward to root
       :else
-      (animate-composite root property to duration onend))
+      (ui/animate [root property to :duration duration :onend onend]))
     this))
 
 ; Constructor --------------------------------------------------------------

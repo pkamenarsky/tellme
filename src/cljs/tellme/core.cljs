@@ -40,18 +40,73 @@
 
 ; Utils --------------------------------------------------------------------
 
+(defn- text-height [shadow text]
+  (dm/set-text! shadow text)
+  (ui/property shadow :offsetHeight))
+
 (defn- show-quote-button [event]
   (dm/set-style! (.-quoteButton (.-currentTarget event)) :visibility "visible"))
 
 (defn- hide-quote-button [event]
   (dm/set-style! (.-quoteButton (.-currentTarget event)) :visibility "hidden"))
 
-(defn- quote-message [{:keys [main-container quote-overlay table]}
-                      {:keys [text row height]} event]
+(defn- add-quote [{:keys [table shadow]} quotable]
+  (let [quotes (qt/get-quotes quotable)
+        msg-container (view :div.message)
+        row (table/add-row table)]
+    (loop [pair quotes
+           height 0]
+      (if pair
+        (let [[q r] (first pair)
+              qv (view :div.quote-row)
+              rv (view :div.retort-row)
 
-  (let [qt (dm/add-class! (qt/create-quote text #(dm/log-debug (pr-str (qt/get-quotes %)))) "chat-table")
+              qh (text-height shadow qv)
+              ; FIXME: 20
+              rh (+ 20 (text-height shadow rv))]
+
+          (-> msg-container (dm/append! qv) (dm/append! rv))
+
+          (dm/set-text! qv q)
+          (dm/set-text! rv r)
+          (dm/set-style! qv :height qh "px")
+          (dm/set-style! rv :height rh "px")
+
+          (recur (next pair) (+ qh rh)))
+        (do
+          (table/set-row-contents table row msg-container)
+
+          (ui/animate [table row [height :px] :duration 0])
+          (dm/set-style! msg-container :height height "px"))))))
+
+(defn- quote-message [{:keys [main-container quote-overlay table] :as sm}
+                      {:keys [text row height self]} event]
+
+  (let [event-key (atom nil)
+        static-table (dm/clone table)
         client-height (.-clientHeight (.-body (dom/getDocument)))
+        qt (dm/add-class! (qt/create-quote text (fn [qt]
+                                                  (dm/detach! qt)
+                                                  (dm/detach! static-table)
+                                                  (dm/append! main-container table)
+                                                  (add-quote sm qt)
+                                                  (events/unlistenByKey @event-key) 
+
+                                                  (dm/set-style! main-container :visibility "visible")
+                                                  (dm/set-style! table :bottom (* client-height 0.3) "px")
+                                                  (ui/resized table)
+
+                                                  (ui/animate [main-container :style.opacity 1 :duration 200
+                                                               :onend #(ui/animate [table :style.bottom [28 :px] :duration 200])]
+                                                              [quote-overlay :style.opacity 0 :duration 200
+                                                               :onend #(dm/set-style! quote-overlay :visibility "hidden")])))
+                          "chat-table")
         bottom (+ height (- (table/row-top table row) (table/scroll-top table)))]
+
+    ; we append a static copy here so that we don't have to worry about
+    ; any currently running animations
+    (dm/detach! table)
+    (dm/append! main-container static-table)
 
     (dm/set-style! qt :bottom (- client-height (+ bottom 28)) "px")
     (dm/set-style! main-container :opacity 1)
@@ -59,16 +114,16 @@
                                    :opacity "0"}) 
 
     ; fade out main and show quote overlay
-    (ui/animate [main-container :style.opacity 0
+    (ui/animate [main-container :style.opacity 0 :duration 200
                  :onend #(dm/set-style! main-container :visibility "hidden")]
-                [quote-overlay :style.opacity 1
-                 :onend #(ui/animate [qt :style.bottom [(* client-height 0.3) :px]])])
+                [quote-overlay :style.opacity 1 :duration 200
+                 :onend #(ui/animate [qt :style.bottom [(* client-height 0.3) :px] :duration 200])])
 
     (dm/append! quote-overlay qt)
     (ui/resized qt)
     
-    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event]
-                                                               (ui/resized qt)))))
+    (reset! event-key (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event]
+                                                                                 (ui/resized qt))))))
 
 (defn set-message-at-row [{:keys [table] :as data} row
                           {:keys [text site height] :as message}]
@@ -97,7 +152,8 @@
     {:queue []
      :table nil
      :main-container nil
-     :quote-overlay nil}
+     :quote-overlay nil
+     :shadow nil}
 
     ; slide locked state, just queue up messages
     ([:locked message data]
@@ -109,13 +165,13 @@
      ; when going out of :locked state, send all queued messages to self
      (comp (fn [sm] (reduce (fn [a msg] (fsm/send-message a msg)) sm queue))
            (fsm/next-state :ready (assoc data :queue []))))
-    
+
     ([:ready :go-to-ready _]
      (fsm/ignore-msg))
 
     ; ready for displaying new messages
     ([:ready {:keys [slide text height self] :as message}
-      {:keys [table queue] :as data}]
+      {:keys [table queue main-container] :as data}]
 
      ;(dm/log-debug (str ":ready message: " text))
 
@@ -127,7 +183,7 @@
                  overlay (view :div.message-overlay)]
 
              (dm/set-text! overlay text) 
-             (dm/append! (dmc/sel "body") overlay) 
+             (dm/append! main-container overlay) 
 
              (ui/animate [table row [height :px]]
                          [overlay :style.bottom [31 :px] 
@@ -172,6 +228,7 @@
         body (view (dmc/sel "body") main-container quote-overlay)
 
         sm (atom (fsm/with-data base-sm {:queue []
+                                         :shadow shadow
                                          :table table
                                          :main-container main-container
                                          :quote-overlay quote-overlay})) 

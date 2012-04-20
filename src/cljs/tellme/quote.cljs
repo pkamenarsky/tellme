@@ -144,7 +144,7 @@
             (dme/remove-listeners! dcontent :mouseup)
 
             ; add input element
-            (dme/listen! (events/KeyHandler. (dm/single-node input)) :input (partial input-listener this input-row input)) 
+            (dme/listen! input :input (partial input-listener this input-row input)) 
             (add-finished-listener input callback this)
 
             ; FIXME: 31

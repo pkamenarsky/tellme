@@ -82,6 +82,7 @@
               (fn [v] (aset (.-style (dm/single-node content)) property v)
                 (resized content))
               (fn [v] (aset (.-style (dm/single-node content)) property v)))]
+      (dm/log-debug (str "animating Style" property))
       (aobj (goog.getUid this) duration
             (lerp f (js/parseFloat (or (dm/style content property) 0)) to)
             onend)) 
