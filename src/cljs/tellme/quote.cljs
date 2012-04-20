@@ -79,6 +79,9 @@
                            #(do (reset! selection-timer nil) (f))
                            quote-selection-timeout)))))
 
+(defn select-input [input]
+  (js/setTimeout #(.select (dm/single-node input)) 0))
+
 ; --------------------------------------------------------------------------
 
 (def quote-ms 150)
@@ -129,6 +132,7 @@
                 input (view :textarea.retort-input)]
 
             (dm/remove-class! dcontent "quote-text-inactive")
+            (dm/add-class! dcontent "quote-text-unselectable")
             (dme/remove-listeners! dcontent :mouseup)
 
             ; add input element
@@ -144,7 +148,7 @@
                         [input :style.paddingBottom [10 :px] :duration quote-ms] 
                         [table input-row [38 :px] :duration quote-ms]) 
 
-            (.select (dm/single-node input)) 
+            (select-input input)
 
             ; add rest element row & animate
             (table/set-row-contents table rest-row drest) 
@@ -176,7 +180,8 @@
           (do
             (dme/remove-listeners! dcontent :mouseup)
             (add-selection-listener selection-timer dcontent
-                                    (partial slice-quotable this row dcontent tquote)))))))
+                                    (partial slice-quotable this row dcontent tquote))
+            (select-input (table/row-contents table (inc row))))))))
 
   (add-quotable [this row content]
     (let [dcontent (view :div.quote-text)]
@@ -231,7 +236,7 @@
                          table (table/add-row table) retort-input) [38 :px] :duration 0])
     (dm/set-style! retort-input :height 38 "px")
 
-    (js/setTimeout #(.select (dm/single-node retort-input)) 0) 
+    (select-input retort-input)
 
     ; we should put this is in a sm
     (dme/listen! retort-input :input (fn [event]

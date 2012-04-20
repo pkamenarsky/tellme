@@ -124,6 +124,14 @@ $quote-button-size: 15px;
 	right: 0px;
 }
 
+@mixin unselectable {
+	-moz-user-select: -moz-none;
+	-khtml-user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+
 /* --- */
 
 body {
@@ -208,6 +216,10 @@ body {
 
 .quote-text-inactive {
 	color: #999999;
+}
+
+.quote-text-unselectable {
+	@include unselectable;
 }
 
 .quote-marker {
