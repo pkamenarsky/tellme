@@ -147,6 +147,18 @@ body {
 	width: 100%;
 }
 
+.main {
+	@include fill;
+	opacity: 1;
+}
+
+.quote-overlay {
+	@include fill;
+
+	visibility: hidden;
+	opacity: 0;
+}
+
 .message {
 	@include base;
 
@@ -172,12 +184,6 @@ body {
 	right: ($right-margin - $quote-button-size) / 2;
 	background-color: $light-color;
 	@include border-radius($quote-button-size / 2);
-	visibility: hidden;
-}
-
-.quote-overlay {
-	@include fill;
-
 	visibility: hidden;
 }
 

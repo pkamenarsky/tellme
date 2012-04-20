@@ -77,9 +77,14 @@
 
   AnimableSelf
   (animate-self [this to duration onend]
-    (aobj (goog.getUid this) duration
-          (lerp #(aset (.-style (dm/single-node content)) property %) (js/parseFloat (or (dm/style content property) 0)) to)
-          onend)
+    (let [f (if (satisfies? View content)
+              ; if this is a View, call resized on it every frame
+              (fn [v] (aset (.-style (dm/single-node content)) property v)
+                (resized content))
+              (fn [v] (aset (.-style (dm/single-node content)) property v)))]
+      (aobj (goog.getUid this) duration
+            (lerp f (js/parseFloat (or (dm/style content property) 0)) to)
+            onend)) 
     this))
 
 (deftype Attribute

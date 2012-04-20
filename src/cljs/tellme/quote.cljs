@@ -53,7 +53,7 @@
         html (.replace html (js/RegExp. "-" "g") "&nbsp;")]
     (set! (.-innerHTML (dm/single-node dcontent)) html)))
 
-(defn- input-listener [{:keys [table shadow]} row input event]
+(defn- input-listener [{:keys [callback table shadow]} row input event]
   (dm/set-text! shadow (if (= (.-length (dm/value input)) 0)
                          "."
                          (dm/value input)))
@@ -65,6 +65,14 @@
       (set! (.-current-height input) sheight)
       (ui/animate [input :style.height [(+ 20 sheight) :px]] 
                   [table row (+ 20 sheight)]))))
+
+(defn- add-finished-listener [input callback quotable]
+  (events/listen (events/KeyHandler. (dm/single-node input))
+                 "key"
+                 (fn [event]
+                   (when (= (.-keyCode event) keycodes/ENTER)
+                     (callback quotable)
+                     (.preventDefault event)))))
 
 (defn- add-selection-listener [selection-timer dcontent f]
   (dme/listen! dcontent
@@ -93,7 +101,7 @@
   (get-quotes [this]))
 
 (defrecord Quote
-  [table shadow retort-input selection-timer]
+  [callback table shadow retort-input selection-timer]
 
   dm/DomContent
   (single-node [this] (dm/single-node table))
@@ -136,7 +144,8 @@
             (dme/remove-listeners! dcontent :mouseup)
 
             ; add input element
-            (dme/listen! input :input (partial input-listener this input-row input)) 
+            (dme/listen! (events/KeyHandler. (dm/single-node input)) :input (partial input-listener this input-row input)) 
+            (add-finished-listener input callback this)
 
             ; FIXME: 31
             (table/set-row-contents table input-row input) 
@@ -216,7 +225,7 @@
 
 ; Constructor --------------------------------------------------------------
 
-(defn create-quote [content width]
+(defn create-quote [content callback]
   (let [table (table/create-table)
         shadow (or (dm/by-id "quote-shadow")
                    (let [div (view :div.quote-shadow)]
@@ -225,7 +234,7 @@
                      div)) 
         retort-input (view :textarea.retort-input)
 
-        this (Quote. table shadow retort-input (atom nil))]
+        this (Quote. callback table shadow retort-input (atom nil))]
 
     ; add initial quotable
     (add-quotable this (table/add-row table) content)
@@ -237,8 +246,8 @@
     (dm/set-style! retort-input :height 38 "px")
 
     (select-input retort-input)
+    (add-finished-listener retort-input callback this)
 
-    ; we should put this is in a sm
     (dme/listen! retort-input :input (fn [event]
                                       (input-listener this (dec (table/row-count table)) retort-input event)
                                       (let [quote-above (table/row-contents table (- (table/row-count table) 2))]
@@ -250,8 +259,7 @@
 
 ; Tests --------------------------------------------------------------------
 (defn test-quote []
-  (let [qt (dm/add-class! (create-quote "There's one major problem. This doesn't fit into the monadic interface. Monads are (a -> m b), they're based around functions only. There's no way to attach static information. You have only one choice, throw in some input, and see if it passes or fails."
-                            300) "chat-table")]
+  (let [qt (dm/add-class! (create-quote "There's one major problem. This doesn't fit into the monadic interface. Monads are (a -> m b), they're based around functions only. There's no way to attach static information. You have only one choice, throw in some input, and see if it passes or fails.") "chat-table")]
 
     (dm/set-style! qt :bottom 200 "px")
     (dm/append! (dmc/sel "body") qt)
@@ -259,4 +267,4 @@
     
     (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (ui/resized qt)))))
 
-(events/listen js/window evttype/LOAD test-quote)
+;(events/listen js/window evttype/LOAD test-quote)

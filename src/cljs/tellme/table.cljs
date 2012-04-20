@@ -62,10 +62,10 @@
     (count @rows))
 
   (row-top [this index]
-    (dm/attr (:element (@rows index)) :offsetTop))
+    (ui/property (:element (@rows index)) :offsetTop))
 
   (scroll-top [this]
-    (dm/attr scroll :scrollTop))
+    (ui/property scroll :scrollTop))
 
   (row-contents [this index]
     (let [{:keys [element]} (@rows index)]

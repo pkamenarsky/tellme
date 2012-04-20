@@ -49,27 +49,26 @@
 (defn- quote-message [{:keys [main-container quote-overlay table]}
                       {:keys [text row height]} event]
 
-  (let [qt (qt/create-quote text width base-css)
+  (let [qt (dm/add-class! (qt/create-quote text #(dm/log-debug (pr-str (qt/get-quotes %)))) "chat-table")
         client-height (.-clientHeight (.-body (dom/getDocument)))
         bottom (+ height (- (table/row-top table row) (table/scroll-top table)))]
 
-    ((comp (css {:top [0 :px]
-                 ; FIXME: 10
-                 :bottom [(- client-height (- bottom 10)) :px]}) center-css base-css) (table/element qt)) 
-
-    (set-styles quote-overlay {:visibility "visible"
-                               :opacity "0"}) 
+    (dm/set-style! qt :bottom (- client-height (+ bottom 28)) "px")
+    (dm/set-style! main-container :opacity 1)
+    (dm/set-styles! quote-overlay {:visibility "visible"
+                                   :opacity "0"}) 
 
     ; fade out main and show quote overlay
-    (anm/aobj :fade-out 200 (anm/lerpscalar main-container "opacity" 1 0)
-              #(set-style main-container :visibility "hidden")) 
-    (anm/aobj :fade-in 200 (anm/lerpscalar quote-overlay "opacity" 0 1)) 
+    (ui/animate [main-container :style.opacity 0
+                 :onend #(dm/set-style! main-container :visibility "hidden")]
+                [quote-overlay :style.opacity 1
+                 :onend #(ui/animate [qt :style.bottom [(* client-height 0.3) :px]])])
 
-    (dom/appendChild quote-overlay (table/element qt))
-    (table/table-resized qt)
+    (dm/append! quote-overlay qt)
+    (ui/resized qt)
     
     (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event]
-                                                               (table/table-resized qt)))))
+                                                               (ui/resized qt)))))
 
 (defn set-message-at-row [{:keys [table] :as data} row
                           {:keys [text site height] :as message}]
@@ -167,7 +166,7 @@
         shadow (view :div.shadow)
         input (view :textarea.chat-input)
 
-        main-container (view :div.fill table shadow input)
+        main-container (view :div.main table shadow input)
         quote-overlay (view :div.quote-overlay)
 
         body (view (dmc/sel "body") main-container quote-overlay)
@@ -223,5 +222,5 @@
     (swap! sm fsm/goto :ready)
     (reset! message "")))
  
-;(events/listen js/window evttype/LOAD main3)
+(events/listen js/window evttype/LOAD main3)
 
