@@ -63,7 +63,7 @@
               rv (view :div.retort-row)
 
               qh (- (text-height shadow q) 10)
-              rh (- (text-height shadow r) 10)]
+              rh (if (zero? (.-length rv)) 0 (- (text-height shadow r) 10))]
 
           (-> msg-container (dm/append! qv) (dm/append! rv))
 
@@ -73,7 +73,7 @@
           (dm/set-style! rv :height rh "px")
 
           ; FIXME: 20
-          (recur (next pair) (+ 20 height qh rh)))
+          (recur (next pair) (+ (if (zero? rh) 10 20) height qh rh)))
         (do
           (table/set-row-contents table row msg-container)
 

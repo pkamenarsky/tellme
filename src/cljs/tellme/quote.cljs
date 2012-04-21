@@ -213,15 +213,9 @@
   
   (get-quotes [this]
     ; partition quotes and retorts into an array of [quote retort] pairs
-    (let [quotes (map (fn [[q a]] [(dm/text q) (dm/value a)])
+    (map (fn [[q a]] [(dm/text q) (dm/value a)])
                       (partition 2 (map (partial table/row-contents table)
-                                        (range (table/row-count table)))))
-          [q a] (last quotes)]
-
-      ; if last retort is empty, don't return last quote either
-      (if (> (.-length a) 0)
-        quotes
-        (butlast quotes)))))
+                                        (range (table/row-count table)))))))
 
 ; Constructor --------------------------------------------------------------
 
