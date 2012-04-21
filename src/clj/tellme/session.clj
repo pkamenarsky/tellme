@@ -51,33 +51,24 @@
 ; Session ------------------------------------------------------------------
 
 (def sid-batch 10)
-(def sid-pool (atom {:cnt 0
-                     :sids '()}))
+(def sid-pool (ref {:cnt 0
+                    :sids '()}))
 
 (defn get-sid []
-  (let [{:keys [cnt sids] :as old} @sid-pool]
-
-    ; use compare-and-set! here for atomic read & write
-    (if (empty? sids)
-
-      ; generate more sids
-      (if (compare-and-set!
-            sid-pool
-            old
-            (-> old
-              (assoc :sids (range (inc cnt) (+ sid-batch cnt)))
-              (assoc :cnt (+ cnt sid-batch))))
-
-        ; return newest sid or recur till "transaction" succeeds
-        cnt
-        (recur))
-
-      ; get first sid
-      (if (compare-and-set! sid-pool old (update-in old [:sids] next))
-
-        ; return first free sid or recur till "transaction" succeeds
-        (first sids)
-        (recur)))))
+  (dosync
+    (let [{:keys [cnt sids]} @sid-pool]
+      (if (empty? sids)
+        (do 
+          ; generate more sids
+          (alter sid-pool
+                 (fn [old]
+                   (-> old
+                     (assoc :sids (range (inc cnt) (+ sid-batch cnt)))
+                     (update-in [:cnt] + sid-batch))))
+          cnt)
+        (do
+          (alter sid-pool update-in [:sids] next)
+          (first sids))))))
 
 (def uuid (atom 0))
 
@@ -87,7 +78,7 @@
 
 ; Backchannel --------------------------------------------------------------
 
-(def sessions (atom {}))
+(def sessions (ref {}))
 
 (defn prgoto [pt state]
   (swap! pt goto state))
@@ -145,8 +136,9 @@
      (next-state :dispatch))
     
     ([:end :in {:keys [sid uuid opt channel] :as olddata}]
-     (swap! sessions dissoc sid)
-     (swap! sid-pool update-in [:sids] conj sid)
+     (dosync
+       (alter sessions dissoc sid) 
+       (alter sid-pool update-in [:sids] conj sid)) 
 
      ; if backchannel is already closed this is a no op
      (lamina/enqueue-and-close channel (str {:command :end}))
@@ -167,7 +159,8 @@
                              :sid sid
                              :osid nil}))]
 
-    (swap! sessions assoc sid pt)
+    (dosync
+      (alter sessions assoc sid pt)) 
     
     ; start protocol fsm
     (prgoto pt :start)
