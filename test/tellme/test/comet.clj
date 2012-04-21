@@ -24,7 +24,7 @@
       (is (= :message (lamina/wait-for-message c 100)))
       (is (lamina/closed? c))))
 
-(deftest test-timeout
+(deftest test-reconnect-timeout
   (binding [*reconnect-timeout* 1000]
     (let [s1 (create-session)
           c (lamina/channel)]
@@ -35,4 +35,13 @@
       @(future
          (Thread/sleep 2000)
          (is (lamina/closed? c))))))
+
+(deftest test-disconnect-timeout
+  (binding [*reconnect-timeout* 1000
+            *disconnect-timeout* 1200]
+    (let [s1 (create-session)]
+
+      @(future
+         (Thread/sleep 2000)
+         (is (nil? (send-message s1 :whatever)))))))
 
