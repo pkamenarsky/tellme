@@ -1,7 +1,8 @@
 (ns tellme.session
-  (:use tellme.base.fsm
-        tellme.base.fsm-macros)
-  (:require [lamina.core :as lamina]
+  (:use [tellme.base.fsm]
+        [tellme.base.fsm-macros])
+  (:require [tellme.comet :as comet]
+            [lamina.core :as lamina]
             [aleph.http :as http]
             [aleph.http.utils :as utils]
             [net.cgrand.moustache :as moustache])
@@ -174,6 +175,31 @@
 ; Channel ------------------------------------------------------------------
 
 (defn channel [request]
+  (let [rchannel (lamina/channel)]
+    (try
+      ; FIXME: eval security
+      (let [{:keys [command uuid] :as command} (read-string (.readLine (:body request)))]
+
+        (if (= command :get-uuid)
+          (let [sid (get-sid)]
+            (lamina/enqueue-and-close rchannel (str {:ack :ok
+                                                     :sid sid
+                                                     :uuid (comet/create-session {:sid sid})}))) 
+          (if (and uuid (comet/data uuid))
+            (do
+              (prgoto (comet/data uuid) command)
+              (lamina/enqueue-and-close (str {:ack :ok})))
+            (lamina/enqueue-and-close (str {:ack :error :reason :session})))))
+
+      (catch java.lang.Exception e
+        (pexception e)
+        (lamina/enqueue-and-close rchannel (str {:ack :error :reason :invalid})))) 
+
+    {:status 200
+     :headers {"content-type" "text/plain"}
+     :body rchannel}))
+
+(comment defn channel [request]
   (let [rchannel (lamina/channel)]
     (try
       (let [line (read-string (.readLine (:body request)))

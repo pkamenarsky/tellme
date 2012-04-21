@@ -5,7 +5,7 @@
 
 (deftest test-session
   (binding [*reconnect-timeout* 100]
-    (let [s1 (create-session)
+    (let [s1 (create-session identity)
           c (lamina/channel)]
 
       (client-connected s1 c)
@@ -15,7 +15,7 @@
       (is (lamina/closed? c)))))
 
 (deftest test-msg-before-connection
-  (let [s1 (create-session)
+  (let [s1 (create-session identity)
           c (lamina/channel)]
 
       (send-message s1 :message)
@@ -26,7 +26,7 @@
 
 (deftest test-reconnect-timeout
   (binding [*reconnect-timeout* 100]
-    (let [s1 (create-session)
+    (let [s1 (create-session identity)
           c (lamina/channel)]
 
       (client-connected s1 c)
@@ -39,7 +39,7 @@
 (deftest test-disconnect-timeout
   (binding [*reconnect-timeout* 100
             *disconnect-timeout* 150]
-    (let [s1 (create-session)]
+    (let [s1 (create-session identity)]
 
       @(future
          (Thread/sleep 200)
@@ -48,7 +48,7 @@
 (deftest test-disconnect-timeout2
   (binding [*reconnect-timeout* 100
             *disconnect-timeout* 120]
-    (let [s1 (create-session)
+    (let [s1 (create-session identity)
           c (lamina/channel)]
 
       (client-connected s1 c)
@@ -60,7 +60,7 @@
 (deftest test-disconnect-timeout3
   (binding [*reconnect-timeout* 100
             *disconnect-timeout* 120]
-    (let [s1 (create-session)
+    (let [s1 (create-session identity)
           c (lamina/channel)]
 
       (client-connected s1 c)
