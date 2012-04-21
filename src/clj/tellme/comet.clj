@@ -9,7 +9,9 @@
 
 (defn- start-disconnect-timer [uuid]
   (locking uuid
-    (when-let [tm (:timeout (@sessions uuid))]
+    (when-let [tm (:disconnect-timeout (@sessions uuid))]
+      (if @tm
+        (.cancel @tm false)) 
       (reset! tm (timer/delay-invoke #(locking uuid
                                         (swap! sessions dissoc uuid)) *disconnect-timeout*)))))
 
@@ -36,13 +38,10 @@
       nil)))
 
 (defn client-connected [uuid cl-channel]
+  (start-disconnect-timer uuid)
+
   (locking uuid
     (if-let [{:keys [messages channel timeout disconnect-timeout]} (@sessions uuid)]
-
-      (do
-        (if @disconnect-timeout
-          (.cancel @disconnect-timeout false)) 
-
         (if-not (empty? @messages)
           (do
             (lamina/enqueue-and-close cl-channel (first @messages))
@@ -54,9 +53,8 @@
             (reset! channel cl-channel)
             (reset! timeout (timer/delay-invoke #(locking uuid
                                                    (lamina/close @channel)
-                                                   (reset! channel nil)
-                                                   (start-disconnect-timer uuid))
-                                                *reconnect-timeout*)))))
+                                                   (reset! channel nil))
+                                                *reconnect-timeout*))))
       ; if-let...
       nil)))
 
