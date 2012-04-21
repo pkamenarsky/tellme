@@ -87,9 +87,6 @@
                            #(do (reset! selection-timer nil) (f))
                            quote-selection-timeout)))))
 
-(defn select-input [input]
-  (js/setTimeout #(.select (dm/single-node input)) 0))
-
 ; --------------------------------------------------------------------------
 
 (def quote-ms 150)
@@ -157,7 +154,7 @@
                         [input :style.paddingBottom [10 :px] :duration quote-ms] 
                         [table input-row [38 :px] :duration quote-ms]) 
 
-            (select-input input)
+            (ui/select input)
 
             ; add rest element row & animate
             (table/set-row-contents table rest-row drest) 
@@ -190,7 +187,7 @@
             (dme/remove-listeners! dcontent :mouseup)
             (add-selection-listener selection-timer dcontent
                                     (partial slice-quotable this row dcontent tquote))
-            (select-input (table/row-contents table (inc row))))))))
+            (ui/select (table/row-contents table (inc row))))))))
 
   (add-quotable [this row content]
     (let [dcontent (view :div.quote-text)]
@@ -239,7 +236,7 @@
                          table (table/add-row table) retort-input) [38 :px] :duration 0])
     (dm/set-style! retort-input :height 38 "px")
 
-    (select-input retort-input)
+    (ui/select retort-input)
     (add-finished-listener retort-input callback this)
 
     (dme/listen! retort-input :input (fn [event]

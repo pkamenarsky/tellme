@@ -112,6 +112,9 @@
 
 ; API ----------------------------------------------------------------------
 
+(defn select [input]
+  (js/setTimeout #(.select (dm/single-node input)) 0))
+
 (defn reflect [content property & value]
   (let [pname (name property)]
     (cond

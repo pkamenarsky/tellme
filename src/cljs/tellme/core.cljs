@@ -80,7 +80,7 @@
           (ui/animate [table row [height :px] :duration 0])
           (dm/set-style! msg-container :height height "px"))))))
 
-(defn- quote-message [{:keys [main-container quote-overlay table] :as sm}
+(defn- quote-message [{:keys [input main-container quote-overlay table] :as sm}
                       {:keys [text row height self]} event]
 
   (let [event-key (atom nil)
@@ -89,6 +89,7 @@
         qt (dm/add-class! (qt/create-quote text (fn [qt]
                                                   (events/unlistenByKey @event-key) 
 
+                                                  (swap! self fsm/send-message :go-to-ready)
                                                   (add-quote sm qt)
 
                                                   (dm/set-style! main-container :visibility "visible")
@@ -99,12 +100,15 @@
                                                               [main-container :style.opacity 1 :duration 200
                                                                :onend #(do
                                                                          (dm/detach! qt)
+                                                                         (ui/select input)
                                                                          (ui/animate [table :style.bottom [28 :px] :duration 200]))]
                                                               [quote-overlay :style.opacity 0 :duration 200
                                                                :onend #(dm/set-style! quote-overlay :visibility "hidden")])))
                           "chat-table")
         bottom (+ height (- (table/row-top table row) (table/scroll-top table)))
         scroll-top (table/scroll-top table)]
+
+    (swap! self fsm/goto :locked)
 
     ; first hide button
     (dm/set-style! (.-target event) :visibility "hidden")
@@ -153,7 +157,7 @@
     ; events
     (dme/listen! container :mouseover show-quote-button)
     (dme/listen! container :mouseout hide-quote-button)
-    (dme/listen! quote-button :click (comp (partial quote-message data message)))))
+    (dme/listen! quote-button :click (partial quote-message data message))))
 
 ; FSM ----------------------------------------------------------------------
 
@@ -162,6 +166,7 @@
     ; fsm data
     {:queue []
      :table nil
+     :input nil
      :main-container nil
      :quote-overlay nil
      :shadow nil}
@@ -181,8 +186,8 @@
      (fsm/ignore-msg))
 
     ; ready for displaying new messages
-    ([:ready {:keys [slide text height self] :as message}
-      {:keys [table queue main-container] :as data}]
+    ([:ready {:keys [slide text self] :as message}
+      {:keys [shadow table queue main-container] :as data}]
 
      ;(dm/log-debug (str ":ready message: " text))
 
@@ -190,7 +195,8 @@
        ; received a new local message
        (do
          (if (table/at? table :bottom)
-           (let [row (table/add-row table)
+           (let [height (text-height shadow text)
+                 row (table/add-row table)
                  overlay (view :div.message-overlay)]
 
              (dm/set-text! overlay text) 
@@ -200,14 +206,15 @@
                          [overlay :style.bottom [31 :px] 
                           :onend (fn []
                                    ;(dm/log-debug (str "slide done: " text))
-                                   (set-message-at-row data row (assoc message :row row))
+                                   (set-message-at-row data row (into message {:row row
+                                                                               :height height}))
                                    (dm/detach! overlay)
                                    (swap! self fsm/send-message :go-to-ready))])) 
 
            ; else (if table/at? table bottom)
            (do 
              ;(dm/log-debug (str "starting scroll: " text))
-             (ui/animate [table :scroll-bottom [height :px]
+             (ui/animate [table :scroll-bottom [0 :px]
                        ; after sliding, return to :ready and add the message
                        ; we wanted to add in the first place (but had to scroll
                        ; down before doing so)
@@ -221,9 +228,11 @@
          (fsm/next-state :locked)) 
 
        ; else (if slide)
-       (let [row (table/add-row table)]
+       (let [height (text-height shadow text)
+             row (table/add-row table)]
          (ui/animate [table row [height :px]])
-         (set-message-at-row data row (assoc message :row row))
+         (set-message-at-row data row (into message {:row row
+                                                     :height height}))
          (fsm/ignore-msg)))))) 
 
 ; main ---------------------------------------------------------------------
@@ -240,6 +249,7 @@
 
         sm (atom (fsm/with-data base-sm {:queue []
                                          :shadow shadow
+                                         :input input
                                          :table table
                                          :main-container main-container
                                          :quote-overlay quote-overlay})) 
@@ -279,8 +289,7 @@
                        (when (> (.-length (dm/value input)) 0)
                          (swap! sm fsm/send-message {:self sm
                                                      :slide true
-                                                     :text (dm/value input)
-                                                     :height (ui/property shadow :offsetHeight)})
+                                                     :text (dm/value input)})
 
                          (dm/set-value! input "")
                          (reset! message "")) 
@@ -288,7 +297,12 @@
 
     ; init
     (swap! sm fsm/goto :ready)
-    (reset! message "")))
+    (reset! message "")
+    (ui/select input)
+    
+    ; test
+    ;(js/setInterval #(swap! sm fsm/send-message {:text "asdasd" :slide false :self sm}) 1000)
+    ))
  
 (events/listen js/window evttype/LOAD main3)
 
