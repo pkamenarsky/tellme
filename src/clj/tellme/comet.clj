@@ -5,84 +5,69 @@
 (def ^:dynamic *reconnect-timeout* 10000)
 (def ^:dynamic *disconnect-timeout* 30000)
 
-(def sessions (atom {}))
+(declare close-session)
 
-(defn- start-disconnect-timer [uuid]
-  (locking uuid
-    (when-let [tm (:disconnect-timeout (@sessions uuid))]
+(defn- start-disconnect-timer [channel]
+  (locking channel
+    (when-let [tm (:disconnect-timeout (meta channel))]
       (if @tm
         (.cancel @tm false)) 
-      (reset! tm (timer/delay-invoke #(locking uuid
-                                        (swap! sessions dissoc uuid)) *disconnect-timeout*)))))
+      (reset! tm (timer/delay-invoke #(locking channel
+                                        (close-session channel))
+                                     *disconnect-timeout*)))))
 
-(defn create-session
-  ([on-close data] 
-  (let [uuid (.toString (java.util.UUID/randomUUID))]
-    (swap! sessions assoc uuid {:uuid uuid
-                                :on-close on-close
-                                :messages (atom []) 
-                                :channel (atom nil)
-                                :timeout (atom nil)
-                                :data (atom data)
-                                :disconnect-timeout (atom nil)}) 
-    (start-disconnect-timer uuid)
-    uuid))
-  ([on-close] (create-session on-close nil)))
+(defn create-session []
+  (let [channel (with-meta (lamina/permanent-channel) {:cl-channel (atom nil)
+                                                       :timeout (atom nil)
+                                                       :data (atom data)
+                                                       :disconnect-timeout (atom nil)})]
+    (lamina/on-closed channel (partial close-session channel))
+    (start-disconnect-timer channel)
 
-(defn data [uuid]
-  @(:data (@sessions uuid)))
+    channel))
 
-(defn set-data [uuid data]
-  (locking uuid
-    (when (@sessions uuid)
-      (swap! sessions assoc-in [uuid :data] data))))
+(defn data [channel]
+  @(:data (meta channel)))
 
-(defn send-message [uuid message]
-  ; easier with a lock instead of going crazy with
-  ; lamina side effects inside a dosync block
-  (locking uuid
-    (if-let [{:keys [messages channel timeout]} (@sessions uuid)]
-      (if @channel
-        (do
-          (lamina/enqueue-and-close @channel message)
-          (reset! channel nil)) 
-        (swap! messages conj message))
-      nil)))
+(defn set-data [channel data]
+  (locking channel
+    (reset! (:data (meta channel)) data)))
 
-(defn close-session [uuid]
-  (locking uuid
-    (when-let [{:keys [on-close channel timeout disconnect-timeout]} (@sessions uuid)]
-      (if channel
-        (lamina/close @channel)) 
+(defn close-session [channel]
+  (locking channel
+    (let [{:keys [cl-channel timeout disconnect-timeout]} (meta channel)]
+      (if @cl-channel
+        (lamina/close @cl-channel)) 
+
+      (lamina/close channel)
 
       (.cancel @disconnect-timeout false) 
-      (.cancel @timeout false) 
+      (.cancel @timeout false))))
 
-      (try (on-close uuid)) 
+(defn client-connected [channel ch]
+  (start-disconnect-timer channel)
 
-      (swap! sessions dissoc uuid))))
+  (locking channel
+    (let [{:keys [cl-channel timeout disconnect-timeout]} (meta channel)
+          msg (lamina.core.channel/dequeue channel nil)
+          on-closed (partial close-session channel)]
+      (if msg
+        (lamina/enqueue-and-close ch msg)
+        (let [once (fn [msg]
+                     (lamina/cancel-callback ch on-closed)
+                     (lamina/enqueue-and-close ch msg))]
+          (if @timeout
+            (.cancel @timeout false))
 
-(defn client-connected [uuid cl-channel]
-  (start-disconnect-timer uuid)
+          (lamina/receive channel once)
+          (reset! timeout (timer/delay-invoke #(locking channel
+                                                 (lamina/cancel-callback ch on-closed)
+                                                 (lamina/close ch)
+                                                 (reset! cl-channel nil))
+                                              *reconnect-timeout*))
 
-  (locking uuid
-    (if-let [{:keys [messages on-close channel timeout disconnect-timeout]} (@sessions uuid)]
-        (if-not (empty? @messages)
-          (do
-            (lamina/enqueue-and-close cl-channel (first @messages))
-            (swap! messages next)
-            (reset! channel nil))
-          (do
-            (if @timeout
-              (.cancel @timeout false))
-
-            (reset! channel cl-channel)
-            (reset! timeout (timer/delay-invoke #(locking uuid
-                                                   (lamina/close @channel)
-                                                   (reset! channel nil))
-                                                *reconnect-timeout*))
-
-            (lamina/on-closed cl-channel (partial close-session uuid))))
+          (lamina/on-closed ch on-closed)))
       ; if-let...
-      nil)))
+      nil))
+  ch)
 

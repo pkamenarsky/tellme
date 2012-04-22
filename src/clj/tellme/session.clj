@@ -200,11 +200,14 @@
           (let [sid (get-sid)]
             (lamina/enqueue-and-close rchannel (str {:ack :ok
                                                      :sid sid
-                                                     :uuid (comet/create-session on-close {:sid sid})}))) 
-          (if (and uuid (comet/data uuid))
+                                                     :uuid (comet/create-session on-close (with-data protocol
+                                                                                                     {:channel (lamina/permanent-channel)
+                                                                                                      :sid sid
+                                                                                                      :osid nil}))}))) 
+          (if-let [{:keys [sid channel]} (comet/data uuid)]
             (do
               (prgoto (comet/data uuid) command)
-              (lamina/enqueue-and-close (str {:ack :ok})))
+              (lamina/siphon channel rchannel))
             (lamina/enqueue-and-close (str {:ack :error :reason :session})))))
 
       (catch java.lang.Exception e
