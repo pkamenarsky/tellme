@@ -30,7 +30,7 @@
   ([on-close] (create-session on-close nil)))
 
 (defn data [uuid]
-  (:data @(@sessions uuid)))
+  @(:data (@sessions uuid)))
 
 (defn set-data [uuid data]
   (locking uuid
@@ -58,8 +58,9 @@
       (.cancel @disconnect-timeout false) 
       (.cancel @timeout false) 
 
-      (swap! sessions dissoc uuid) 
-      (on-close uuid))))
+      (try (on-close uuid)) 
+
+      (swap! sessions dissoc uuid))))
 
 (defn client-connected [uuid cl-channel]
   (start-disconnect-timer uuid)

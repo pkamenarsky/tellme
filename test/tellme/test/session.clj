@@ -52,15 +52,15 @@
 
     (is (:uuid ack) ":uuid key present in backchannel request.")
     (is (:sid ack) ":sid key present in backchannel request.")
-    (lamina/close ch)
+    (lamina/close (hget "backchannel" (str {:uuid (:uuid ack)})))
 
-    (let [ch2 (hget "backchannel" (str {:command :get-uuid}))
+    (let [ch2 (hget "channel" (str {:command :get-uuid}))
           ack2 (read-string (first (lamina/lazy-channel-seq (c2s ch2))))]
 
       (is (:uuid ack2) ":uuid key present in 2nd backchannel request.")
       (is (not= (:uuid ack) (:uuid ack2)) "Differing uuids on subsequent requests.")
       (is (= (:sid ack) (:sid ack2)) "Matching sids after closing first backchannel.")
-      (lamina/close ch2))))
+      (lamina/close (hget "backchannel" (str {:uuid (:uuid ack2)}))))))
 
 (defn get-next [ch]
   (read-string (lamina/wait-for-message ch 200)))

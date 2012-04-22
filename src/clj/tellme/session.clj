@@ -152,6 +152,17 @@
      (next-state :end (dissoc olddata :opt)))))
 
 (defn backchannel [request]
+  (let [{:keys [uuid]} (read-string (.readLine (:body request)))
+        rchannel (lamina/channel)] 
+
+    (comet/client-connected uuid rchannel)
+
+    {:status 200
+     :headers {"content-type" "text/plain"
+               "transfer-encoding" "chunked"}
+     :body rchannel}))
+
+(comment defn backchannel [request]
   (let [sid (get-sid)
         channel (lamina/channel)
         pt (atom (with-data protocol
@@ -174,6 +185,11 @@
 
 ; Channel ------------------------------------------------------------------
 
+(defn- on-close [uuid]
+  (when-let [{:keys [sid]} (comet/data uuid)]
+    (dosync
+      (alter sid-pool update-in [:sids] conj sid))))
+
 (defn channel [request]
   (let [rchannel (lamina/channel)]
     (try
@@ -184,7 +200,7 @@
           (let [sid (get-sid)]
             (lamina/enqueue-and-close rchannel (str {:ack :ok
                                                      :sid sid
-                                                     :uuid (comet/create-session {:sid sid})}))) 
+                                                     :uuid (comet/create-session on-close {:sid sid})}))) 
           (if (and uuid (comet/data uuid))
             (do
               (prgoto (comet/data uuid) command)
