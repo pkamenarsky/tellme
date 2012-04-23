@@ -162,8 +162,9 @@
                             :message "Hi back!"})) 
 
     ; close connection
-    (let [ch (bc2)]
+    (let [ch (backchannel uuid2 sid2)]
       (println ch)
       (lamina/close (raw-backchannel uuid1 sid1)) 
+      (println ch ", closed: " (lamina/closed? ch))
       (is (= (get-next ch) {:command :end})))))
 

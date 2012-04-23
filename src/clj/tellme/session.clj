@@ -81,7 +81,7 @@
 
 (def sessions (ref {}))
 
-(defn- on-close [sid]
+(defn- remove-session [sid]
   (when (@sessions sid)
     (dosync
       (commute sessions dissoc sid) 
@@ -146,16 +146,12 @@
 
     ([:message {message :message} {:keys [channel opt]}]
      (comet/enqueue (:backchannel (fsm/data @opt)) (str {:command :message
-                                                     :message message}))
+                                                         :message message}))
      (lamina/enqueue channel (str {:ack :ok}))
      (fsm/next-state :dispatch))
     
-    ([:end :in {:keys [sid uuid opt channel backchannel] :as olddata}]
-     (println "ending")
-
-     ; if backchannel is already closed this is a no op
-     (comet/enqueue backchannel (str {:command :end}))
-     (comet/close backchannel)
+    ([:end :in {:keys [on-closed sid uuid opt channel backchannel] :as olddata}]
+     (println "ending sid: " sid ", uuid: " uuid)
 
      ; if connected to other client, disconnect him too
      (when opt
@@ -164,7 +160,13 @@
        (dosync (alter opt fsm/with-data (dissoc (fsm/data @opt) :opt)))
        (prgoto opt :end))
 
-     (on-close sid)
+     ; if backchannel is already closed this is a no op
+     (lamina/cancel-callback backchannel on-closed)
+
+     (comet/enqueue backchannel (str {:command :end}))
+     (comet/close backchannel)
+        
+     (remove-session sid)
      (fsm/next-state :end (dissoc olddata :opt)))))
 
 (defn backchannel [request]
@@ -175,7 +177,9 @@
           (comet/client-connected backchannel rchannel)))
 
       (catch java.lang.Exception e
-        (lamina/enqueue rchannel {:ack :error :reason :invalid})))
+        (lamina/enqueue rchannel (str {:ack :error :reason :invalid}))))
+    
+    (println "AFTER BC: " rchannel)
 
     {:status 200
      :headers {"content-type" "text/plain"
@@ -197,13 +201,17 @@
                 sid (get-sid)
                 backchannel (comet/create)
                 channel (lamina/channel)
+                session-ref (atom nil)
+                on-closed (fn [] (prgoto @session-ref :end))
                 session (ref (fsm/with-data protocol
                                             {:channel channel
                                              :backchannel backchannel
+                                             :on-closed on-closed
                                              :uuid uuid
                                              :sid sid
                                              :osid nil}))]
-            (lamina/on-closed backchannel (partial prgoto session :end))
+            (reset! session-ref session)
+            (lamina/on-closed backchannel on-closed)
             (dosync
               (commute sessions assoc sid session) 
               (lamina/receive channel (fn [msg]
