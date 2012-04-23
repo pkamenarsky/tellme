@@ -65,8 +65,8 @@
 (defn get-next [ch]
   (read-string (lamina/wait-for-message ch 200)))
 
-(defn raw-backchannel [uuid sid] (hget "backchannel" {:uuid uuid :sid sid}))
-(defn backchannel [uuid sid] (c2s (hget "backchannel" {:uuid uuid :sid sid})))
+(defn raw-backchannel [uuid sid] (hget "backchannel" (str {:uuid uuid :sid sid})))
+(defn backchannel [uuid sid] (c2s (hget "backchannel" (str {:uuid uuid :sid sid}))))
 
 (deftest test-session
 

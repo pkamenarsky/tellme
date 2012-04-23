@@ -8,69 +8,58 @@
 (declare close)
 
 (defn- start-disconnect-timer [channel]
-  (let [f (timer/delay-invoke #(close channel) *disconnect-timeout*)]
-    (dosync
-      (when-let [tm (ensure (:disconnect-timeout (meta channel)))]
-        (.cancel tm false) 
-        (ref-set (:disconnect-timeout (meta channel)) f)))))
+  (locking channel
+    (when-let [tm (:disconnect-timeout (meta channel))]
+      (if @tm
+        (.cancel @tm false)) 
+      (reset! tm (timer/delay-invoke #(locking channel
+                                        (close channel))
+                                     *disconnect-timeout*)))))
 
 (defn create []
-  (let [channel (with-meta (lamina/permanent-channel) {:cl-channel (ref nil)
-                                                       :timeout (ref nil)
-                                                       :data (ref nil)
-                                                       :disconnect-timeout (ref nil)})]
+  (let [channel (with-meta (lamina/permanent-channel) {:cl-channel (atom nil)
+                                                       :timeout (atom nil)
+                                                       :disconnect-timeout (atom nil)})]
     (lamina/on-closed channel (partial close channel))
     (start-disconnect-timer channel)
 
     channel))
 
 (defn close [channel]
-  (dosync
+  (locking channel
     (let [{:keys [cl-channel timeout disconnect-timeout]} (meta channel)]
-      (if (ensure cl-channel)
-        (lamina/close (ensure cl-channel))) 
+      (if @cl-channel
+        (lamina/close @cl-channel)) 
 
       (lamina/close channel)
 
       (.cancel @disconnect-timeout false) 
       (.cancel @timeout false))))
 
-(defn enqueue [channel message]
-  (lamina/enqueue message))
-
 (defn client-connected [channel ch]
   (start-disconnect-timer channel)
 
-  (let [io (atom nil)
-        on-closed (partial close channel)
-        need-timeout (dosync
-                       (let [{:keys [timeout disconnect-timeout]} (meta channel)
-                             msg (lamina.core.channel/dequeue channel nil)]
-                         (if msg
-                           (do
-                             (reset! io msg)
-                             false) 
-                           (do
-                             (lamina/receive channel
-                                             (fn [msg]
-                                               (lamina/cancel-callback ch on-closed) 
-                                               (lamina/enqueue-and-close ch msg)))
-                             (lamina/on-closed ch on-closed)
+  (locking channel
+    (let [{:keys [cl-channel timeout disconnect-timeout]} (meta channel)
+          msg (lamina.core.channel/dequeue channel nil)
+          on-closed (partial close channel)]
+      (if msg
+        (lamina/enqueue-and-close ch msg)
+        (let [once (fn [msg]
+                     (lamina/cancel-callback ch on-closed)
+                     (lamina/enqueue-and-close ch msg))]
+          (if @timeout
+            (.cancel @timeout false))
 
-                             true))))]
-    (when need-timeout
-      (let [{:keys [timeout cl-channel]} (meta channel)
-            f (timer/delay-invoke (fn []
-                                    (lamina/cancel-callback ch on-closed)
-                                    (lamina/close ch)
-                                    (ref-set cl-channel nil))
-                                  *reconnect-timeout*)]
-        (dosync
-          (if (ensure timeout)
-            (.cancel (ensure timeout) false))
-          (ref-set (:timeout (meta channel)) f))))
+          (lamina/receive channel once)
+          (reset! timeout (timer/delay-invoke #(locking channel
+                                                 (lamina/cancel-callback ch on-closed)
+                                                 (lamina/close ch)
+                                                 (reset! cl-channel nil))
+                                              *reconnect-timeout*))
 
-    (if @io
-      (lamina/enqueue-and-close ch @io))) 
+          (lamina/on-closed ch on-closed)))
+      ; if-let...
+      nil))
   ch)
 
