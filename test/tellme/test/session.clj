@@ -42,134 +42,124 @@
   "Just reads a line from addr and closes the channel."
   [addr body]
   (let [ch (hget addr body)
-        ack (read-string (first (lamina/lazy-channel-seq (c2s ch))))]
+        ack (read-string (lamina/wait-for-message (c2s ch) 200))]
     (lamina/close ch)
     ack))
 
 (deftest test-sids
   (let [ch (hget "channel" (str {:command :get-uuid}))
-        ack (read-string (first (lamina/lazy-channel-seq (c2s ch))))]
+        ack (read-string (lamina/wait-for-message (c2s ch) 200))]
 
     (is (:uuid ack) ":uuid key present in backchannel request.")
     (is (:sid ack) ":sid key present in backchannel request.")
-    (lamina/close (hget "backchannel" (str {:uuid (:uuid ack)})))
+    (lamina/close (hget "backchannel" (str {:uuid (:uuid ack) :sid (:sid ack)})))
 
     (let [ch2 (hget "channel" (str {:command :get-uuid}))
-          ack2 (read-string (first (lamina/lazy-channel-seq (c2s ch2))))]
+          ack2 (read-string (lamina/wait-for-message (c2s ch2) 200))]
 
       (is (:uuid ack2) ":uuid key present in 2nd backchannel request.")
       (is (not= (:uuid ack) (:uuid ack2)) "Differing uuids on subsequent requests.")
       (is (= (:sid ack) (:sid ack2)) "Matching sids after closing first backchannel.")
-      (lamina/close (hget "backchannel" (str {:uuid (:uuid ack2)}))))))
+      (lamina/close (hget "backchannel" (str {:uuid (:uuid ack2) :sid (:sid ack2)}))))))
 
 (defn get-next [ch]
   (read-string (lamina/wait-for-message ch 200)))
 
-(comment deftest test-session
-  (let [och (hget "backchannel")
-        och2 (hget "backchannel")
-        ch (c2s och)
-        ch2 (c2s och2)
-        sidack (get-next ch)
-        sidack2 (get-next ch2)]
+(defn raw-backchannel [uuid sid] (hget "backchannel" {:uuid uuid :sid sid}))
+(defn backchannel [uuid sid] (c2s (hget "backchannel" {:uuid uuid :sid sid})))
 
-    ; check input and session validation
-    (comment
-    (is (= (hget-string "channel" "")
-           {:ack :error :reason :invalid})) 
+(deftest test-session
 
-    (is (= (hget-string "channel" "{:uuid ")
-           {:ack :error :reason :invalid}))) 
+  ; check input and session validation
+  (is (= (hget-string "channel" "")
+         {:ack :error :reason :invalid})) 
+
+  (is (= (hget-string "channel" "{:uuid ")
+         {:ack :error :reason :invalid})) 
+
+  (let [{:keys [uuid1 sid1]} (hget-string "channel" (str {:command :get-uuid}))
+        {:keys [uuid2 sid2]} (hget-string "channel" (str {:command :get-uuid}))
+        bc1 (partial backchannel uuid1 sid1)
+        bc2 (partial backchannel uuid2 sid2)]
 
     (is (= (hget-string "channel" (str {:command :nop
-                                         :uuid (:uuid sidack)
-                                         :sid nil}))
+                                        :uuid uuid1
+                                        :sid nil}))
            {:ack :error :reason :session}))
 
     (is (= (hget-string "channel" (str {:command :nop
-                                         :uuid nil
-                                         :sid (:sid sidack)}))
+                                        :uuid nil
+                                        :sid sid1}))
            {:ack :error :reason :session}))
 
     (is (= (hget-string "channel" (str {:command :nop
-                                         :uuid (:uuid sidack)
-                                         :sid (:sid sidack)}))
-           {:ack :ok}))
-
-    (is (= (get-next ch) {:ack :error :reason :noauth}))
+                                        :uuid uuid2
+                                        :sid sid2}))
+           {:ack :error :reason :noauth}))
 
     ; auth
-    (hget-string "channel" (str {:command :nop
-                                 :uuid (:uuid sidack)
-                                 :sid (:sid sidack)}))
-    (is (= (get-next ch) {:ack :error :reason :noauth}))
+    (is (hget-string "channel" (str {:command :nop
+                                     :uuid uuid1
+                                     :sid sid1}))
+        {:ack :error :reason :noauth}) 
 
     ; fail auth
     (hget-string "channel" (str {:command :auth
-                                 :uuid (:uuid sidack)
-                                 :sid (:sid sidack)
-                                 :osid nil}))
+                                 :uuid uuid1
+                                 :sid sid1
+                                 :osid nil})) 
 
     (hget-string "channel" (str {:command :auth
-                                 :uuid (:uuid sidack)
-                                 :sid (:sid sidack)
-                                 :osid -1}))
+                                 :uuid uuid1
+                                 :sid sid1
+                                 :osid -1})) 
 
     ; now auth for real
     (hget-string "channel" (str {:command :auth
-                                 :uuid (:uuid sidack)
-                                 :sid (:sid sidack)
-                                 :osid (:sid sidack2)}))
+                                 :uuid uuid1
+                                 :sid sid1
+                                 :osid sid2})) 
 
     (hget-string "channel" (str {:command :auth
-                                 :uuid (:uuid sidack2)
-                                 :sid (:sid sidack2)
-                                 :osid (:sid sidack)}))
+                                 :uuid uuid2
+                                 :sid sid2
+                                 :osid sid1})) 
 
-    (is (= (get-next ch) {:ack :ok :message :begin}))
-    (is (= (get-next ch2) {:ack :ok :message :begin}))
+    (is (= (get-next (bc1)) {:ack :ok :message :begin})) 
+    (is (= (get-next (bc2)) {:ack :ok :message :begin})) 
 
     ; issue an invalid command
-    (hget-string "channel" (str {:command :auth
-                                 :uuid (:uuid sidack)
-                                 :sid (:sid sidack)
-                                 :osid (:sid sidack2)}))
-
-    (is (= (get-next ch) {:ack :error
-                          :reason :invalid
-                          :message {:command :auth
-                                    :uuid (:uuid sidack)
-                                    :sid (:sid sidack)
-                                    :osid (:sid sidack2)}}))
+    (is (= (hget-string "channel" (str {:command :auth
+                                        :uuid uuid1
+                                        :sid sid1
+                                        :osid sid2}))
+           {:ack :error
+            :reason :invalid
+            :message {:command :auth
+                      :uuid uuid1
+                      :sid sid1
+                      :osid sid2}})) 
 
     ; message
-    (hget-string "channel" (str {:command :message
+    (is (= (hget-string "channel" (str {:command :message
                                  :message "Hiii."
-                                 :uuid (:uuid sidack)
-                                 :sid (:sid sidack)}))
+                                 :uuid uuid1
+                                 :sid sid1}))
+           {:ack :ok})) 
 
-    (is (= (get-next ch2) {:command :message
-                           :message "Hiii."}))
-    (is (= (get-next ch) {:ack :ok}))
+    (is (= (get-next (bc2)) {:command :message
+                             :message "Hiii."})) 
 
-    (hget-string "channel" (str {:command :message
-                                 :message "Hi back!"
-                                 :uuid (:uuid sidack2)
-                                 :sid (:sid sidack2)}))
+    (is (= (hget-string "channel" (str {:command :message
+                                        :message "Hi back!"
+                                        :uuid uuid2
+                                        :sid sid2}))
+           {:ack :ok})) 
 
-    (is (= (get-next ch) {:command :message
-                          :message "Hi back!"}))
-    (is (= (get-next ch2) {:ack :ok}))
+    (is (= (get-next (bc1)) {:command :message
+                            :message "Hi back!"})) 
 
     ; close connection
-    (lamina/close och)
-    (is (= (get-next ch2) {:command :end}))
-
-    ; send message to closed connection
-    (hget-string "channel" (str {:command :message
-                                 :message "Hi back!"
-                                 :uuid (:uuid sidack2)
-                                 :sid (:sid sidack2)}))
-
-    (is (lamina/closed? ch2))))
+    (lamina/close (raw-backchannel uuid1 sid1)) 
+    (is (= (get-next (bc2)) {:command :end}))))
 
