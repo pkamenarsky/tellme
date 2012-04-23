@@ -81,19 +81,19 @@
 
 (def sessions (ref {}))
 
-(defn- on-close [uuid]
-  (when-let [{:keys [sid]} (fsm/data @(@sessions uuid))]
+(defn- on-close [sid]
+  (when (@sessions sid)
     (dosync
-      (commute sessions dissoc uuid) 
+      (commute sessions dissoc sid) 
       (commute sid-pool update-in [:sids] conj sid))))
 
 (defn prgoto [pt state]
   (dosync (alter pt fsm/goto state)))
 
 (defn check-sid [uuid sid]
-  (when (@sessions uuid)
-    (if (= sid (:sid (fsm/data @(@sessions uuid))))
-      (fsm/data @(@sessions uuid)))))
+  (when (@sessions sid)
+    (if (= uuid (:uuid (fsm/data @(@sessions sid))))
+      (fsm/data @(@sessions sid)))))
 
 ; protocol state machine
 (def protocol
@@ -151,17 +151,20 @@
      (fsm/next-state :dispatch))
     
     ([:end :in {:keys [sid uuid opt channel backchannel] :as olddata}]
-     (on-close uuid) 
+     (println "ending")
 
      ; if backchannel is already closed this is a no op
-     (comet/enqueue channel (str {:command :end}))
+     (comet/enqueue backchannel (str {:command :end}))
      (comet/close backchannel)
 
      ; if connected to other client, disconnect him too
      (when opt
+       (println "opt is here")
        ; remove reference to ourselves first
-       (dosync (ref-set opt (fsm/with-data @opt (dissoc (fsm/data @opt) :opt))))
+       (dosync (alter opt fsm/with-data (dissoc (fsm/data @opt) :opt)))
        (prgoto opt :end))
+
+     (on-close sid)
      (fsm/next-state :end (dissoc olddata :opt)))))
 
 (defn backchannel [request]
@@ -185,9 +188,9 @@
   (let [rchannel (lamina/channel)]
     (try
       ; FIXME: eval security
-      (when-let [{:keys [command uuid sid] :as command} (read-string (.readLine (:body request)))]
+      (when-let [{:keys [command uuid sid] :as cmd} (read-string (.readLine (:body request)))]
 
-        (println "channel: " command)
+        (println "channel: " cmd)
 
         (if (= command :get-uuid)
           (let [uuid (get-uuid)
@@ -200,21 +203,20 @@
                                              :uuid uuid
                                              :sid sid
                                              :osid nil}))]
-            (lamina/on-closed backchannel (partial on-close uuid))
+            (lamina/on-closed backchannel (partial prgoto session :end))
             (dosync
-              (commute sessions assoc uuid session) 
+              (commute sessions assoc sid session) 
               (lamina/receive channel (fn [msg]
                                         (lamina/enqueue-and-close rchannel msg))) 
-              (prgoto session :start)))) 
+              (prgoto session :start))) 
 
-        (dosync
-          (if-let [{:keys [channel]} (check-sid uuid sid)] 
-            (do
-              (println "going to: " command)
-              (prgoto (@sessions uuid) command) 
-              (lamina/receive channel (fn [msg]
-                                        (lamina/enqueue-and-close rchannel msg))))
-            (lamina/enqueue-and-close rchannel (str {:ack :error :reason :session})))))
+          (dosync
+            (if-let [{:keys [channel]} (check-sid uuid sid)] 
+              (do
+                (dosync (alter (@sessions sid) fsm/send-message cmd)) 
+                (lamina/receive channel (fn [msg]
+                                          (lamina/enqueue-and-close rchannel msg))))
+              (lamina/enqueue-and-close rchannel (str {:ack :error :reason :session}))))))
 
       (catch java.lang.Exception e
         (pexception e)

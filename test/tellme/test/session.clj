@@ -63,7 +63,9 @@
       (lamina/close (hget "backchannel" (str {:uuid (:uuid ack2) :sid (:sid ack2)}))))))
 
 (defn get-next [ch]
-  (read-string (lamina/wait-for-message ch 200)))
+  (let [m (lamina/wait-for-message ch 200)]
+    (println "M: " m)
+  (read-string m)))
 
 (defn raw-backchannel [uuid sid] (hget "backchannel" (str {:uuid uuid :sid sid})))
 (defn backchannel [uuid sid] (c2s (hget "backchannel" (str {:uuid uuid :sid sid}))))
@@ -77,8 +79,8 @@
   (is (= (hget-string "channel" "{:uuid ")
          {:ack :error :reason :invalid})) 
 
-  (let [{:keys [uuid1 sid1]} (hget-string "channel" (str {:command :get-uuid}))
-        {:keys [uuid2 sid2]} (hget-string "channel" (str {:command :get-uuid}))
+  (let [{sid1 :sid uuid1 :uuid} (hget-string "channel" (str {:command :get-uuid}))
+        {sid2 :sid uuid2 :uuid} (hget-string "channel" (str {:command :get-uuid}))
         bc1 (partial backchannel uuid1 sid1)
         bc2 (partial backchannel uuid2 sid2)]
 
@@ -160,6 +162,8 @@
                             :message "Hi back!"})) 
 
     ; close connection
-    (lamina/close (raw-backchannel uuid1 sid1)) 
-    (is (= (get-next (bc2)) {:command :end}))))
+    (let [ch (bc2)]
+      (println ch)
+      (lamina/close (raw-backchannel uuid1 sid1)) 
+      (is (= (get-next ch) {:command :end})))))
 
