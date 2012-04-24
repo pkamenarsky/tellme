@@ -64,7 +64,6 @@
 
 (defn get-next [ch]
   (let [m (lamina/wait-for-message ch 200)]
-    (println "M: " m)
   (read-string m)))
 
 (defn raw-backchannel [uuid sid] (hget "backchannel" (str {:uuid uuid :sid sid})))
@@ -163,8 +162,6 @@
 
     ; close connection
     (let [ch (backchannel uuid2 sid2)]
-      (println ch)
       (lamina/close (raw-backchannel uuid1 sid1)) 
-      (println ch ", closed: " (lamina/closed? ch))
       (is (= (get-next ch) {:command :end})))))
 

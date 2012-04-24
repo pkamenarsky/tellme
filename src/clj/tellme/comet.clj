@@ -36,7 +36,6 @@
       (lamina/cancel-callback channel on-closed)
       (lamina/close channel) 
 
-      (println "close!~" channel @cl-channel)
       (when @cl-channel 
         (lamina/cancel-callback @cl-channel @on-cl-closed)
         (lamina/close @cl-channel)) 
@@ -53,17 +52,14 @@
   (locking channel
     (let [{:keys [cl-channel on-cl-closed timeout disconnect-timeout]} (meta channel)
           msg (lamina.core.channel/dequeue channel nil)
-          on-closed (fn [] (println "INCLOSE") (close channel))]
+          on-closed (partial close channel)]
       (if msg
         (do
-          (println "message1: " msg)
           (lamina/enqueue-and-close ch msg)) 
         (let [once (fn [msg]
                      (when msg
-                       (println "message2: " msg ", closed: " (lamina/closed? ch))
                        (lamina/cancel-callback ch on-closed) 
-                       (lamina/enqueue-and-close ch msg)
-                       (println "ch: " ch ", closed: " (lamina/closed? ch))))]
+                       (lamina/enqueue-and-close ch msg)))]
           (if @timeout
             (.cancel @timeout false))
 

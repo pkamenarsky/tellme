@@ -151,11 +151,9 @@
      (fsm/next-state :dispatch))
     
     ([:end :in {:keys [on-closed sid uuid opt channel backchannel] :as olddata}]
-     (println "ending sid: " sid ", uuid: " uuid)
 
      ; if connected to other client, disconnect him too
      (when opt
-       (println "opt is here")
        ; remove reference to ourselves first
        (dosync (alter opt fsm/with-data (dissoc (fsm/data @opt) :opt)))
        (prgoto opt :end))
@@ -179,8 +177,6 @@
       (catch java.lang.Exception e
         (lamina/enqueue rchannel (str {:ack :error :reason :invalid}))))
     
-    (println "AFTER BC: " rchannel)
-
     {:status 200
      :headers {"content-type" "text/plain"
                "transfer-encoding" "chunked"}
@@ -193,8 +189,6 @@
     (try
       ; FIXME: eval security
       (when-let [{:keys [command uuid sid] :as cmd} (read-string (.readLine (:body request)))]
-
-        (println "channel: " cmd)
 
         (if (= command :get-uuid)
           (let [uuid (get-uuid)
