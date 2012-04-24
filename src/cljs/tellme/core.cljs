@@ -12,6 +12,7 @@
             [domina.events :as dme]
 
             [tellme.base.fsm :as fsm]
+            [tellme.comet :as comet]
             [tellme.ui :as ui]
             [tellme.table :as table]
             [tellme.quote :as qt])
@@ -54,7 +55,6 @@
   (let [quotes (qt/get-quotes quotable)
         msg-container (view :div.message)
         row (table/add-row table)]
-    (dm/log-debug (str "quotes: " (pr-str quotes)))
     (loop [pair quotes
            height 0]
       (if pair
@@ -303,6 +303,31 @@
     ; test
     ;(js/setInterval #(swap! sm fsm/send-message {:text "asdasd" :slide false :self sm}) 1000)
     ))
+
+(defn test-comet []
+  (comet/channel {:command :get-uuid}
+                 (fn [response]
+                   (let [{:keys [uuid sid]} response]
+                     (comet/channel {:command :get-uuid}
+                                    (fn [response]
+                                      (let [{uuid2 :uuid sid2 :sid} response]
+                                        (dm/log-debug (str uuid2 ", " sid2))
+                                        
+                                        (comet/channel {:command :auth
+                                                        :uuid uuid
+                                                        :sid sid
+                                                        :osid sid2} identity)
+
+                                        (comet/channel {:command :auth
+                                                        :uuid uuid2
+                                                        :sid sid2
+                                                        :osid sid} identity)
+
+                                        (comet/backchannel {:sid sid :uuid uuid} (fn [msg] (dm/log-debug msg)) nil)
+                                        (comet/backchannel {:sid sid2 :uuid uuid2} (fn [msg] (dm/log-debug msg)) nil)
+                                        )))
+                     (dm/log-debug (str uuid ", " sid))))))
  
-(events/listen js/window evttype/LOAD main3)
+;(events/listen js/window evttype/LOAD main3)
+(events/listen js/window evttype/LOAD test-comet)
 

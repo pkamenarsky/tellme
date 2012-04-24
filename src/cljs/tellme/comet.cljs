@@ -7,11 +7,12 @@
 (defn- parse-form [form]
   (try
     (reader/read-string form)
+    ; FIXME: this is not catching?
     (catch e _
       {:ack :error :reason :parse})))
 
 (defn xhr-send [url content f ferr]
-  (goog.net.XhrIo/send (str *remote-root* "/" url)
+  (goog.net.XhrIo/send (str *remote-root* "/" url "?__rand__=" (.getTime (js/Date.)))
                        (fn [e]
                          (if (.isSuccess (.-target e))
                            (let [parsed (parse-form (.getResponseText (.-target e)))]
@@ -23,7 +24,7 @@
                        content))
 
 (defn channel [content f]
-  (xhr-send "channel" content f nil))
+  (xhr-send "channel" (pr-str content) f nil))
 
-(defn backchannel [f ferr]
-  (xhr-send "backchannel" "" (fn [text] (f text) (backchannel f)) ferr))
+(defn backchannel [content f ferr]
+  (xhr-send "backchannel" (pr-str content) (fn [text] (f text) (backchannel f)) ferr))

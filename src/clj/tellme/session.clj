@@ -71,17 +71,19 @@
           (alter sid-pool update-in [:sids] next)
           (first sids))))))
 
-(def uuid (atom 0))
+;(def uuid (atom 0))
 
 (defn get-uuid []
-  ;(.toString (java.util.UUID/randomUUID))
-  (str (swap! uuid inc)))
+  (.toString (java.util.UUID/randomUUID))
+  ;(str (swap! uuid inc))
+  )
 
 ; Backchannel --------------------------------------------------------------
 
 (def sessions (ref {}))
 
 (defn- remove-session [sid]
+  (println "remove-session: " sid)
   (when (@sessions sid)
     (dosync
       (commute sessions dissoc sid) 
@@ -110,9 +112,12 @@
      (if (= command :auth)
        (let [opt (@sessions osid)]
 
+         (println "auth: " osid)
+
          ; we allow sid == osid here just for forever alone guys
          (if (and opt (= sid (:osid (fsm/data @opt)))) 
            (do
+             (println "auth ok")
              (lamina/enqueue channel (str {:ack :ok}))
              (prgoto opt :auth-ok)
              (fsm/next-state :auth-ok (assoc olddata :osid osid)))
@@ -137,8 +142,8 @@
 
     ([:error msg {:keys [channel]}]
      (lamina/enqueue channel (str {:ack :error
-                                             :reason :invalid
-                                             :message (:message msg)}))
+                                   :reason :invalid
+                                   :message (:message msg)}))
      ; if this didn't come frome dispatch, goto :end
      (if (= (:last-state msg) :dispatch)
        (fsm/next-state :dispatch)
@@ -176,6 +181,7 @@
           (lamina/enqueue-and-close rchannel (str {:ack :error :reason :session}))))
 
       (catch java.lang.Exception e
+        (pexception e)
         (lamina/enqueue-and-close rchannel (str {:ack :error :reason :invalid}))))
     
     {:status 200
@@ -205,6 +211,7 @@
                                              :uuid uuid
                                              :sid sid
                                              :osid nil}))]
+            (println "uuid: " uuid ", sid: " sid)
             (reset! session-ref session)
             (lamina/on-closed backchannel on-closed)
             (dosync
