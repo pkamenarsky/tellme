@@ -69,7 +69,7 @@
 (defn raw-backchannel [uuid sid] (hget "backchannel" (str {:uuid uuid :sid sid})))
 (defn backchannel [uuid sid] (c2s (hget "backchannel" (str {:uuid uuid :sid sid}))))
 
-(deftest test-session
+(defn test-converstaion []
 
   ; check input and session validation
   (is (= (hget-string "channel" "")
@@ -165,3 +165,5 @@
       (lamina/close (raw-backchannel uuid1 sid1)) 
       (is (= (get-next ch) {:command :end})))))
 
+(deftest stress-test
+  (dotimes [i 5] (test-converstaion)))
