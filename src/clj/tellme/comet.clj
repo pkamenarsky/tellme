@@ -73,6 +73,7 @@
                          (lamina/cancel-callback ch on-closed) 
                          (lamina/enqueue-and-close ch msg))))]
           (lamina/receive channel once)
+          (println "setting timeout")
           (reset! timeout (timer/delay-invoke #(locking channel
                                                  (println "TIMEOUT")
                                                  (lamina/cancel-callback ch on-closed)
