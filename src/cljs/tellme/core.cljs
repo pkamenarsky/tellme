@@ -19,26 +19,6 @@
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
   (:use-macros [tellme.base.fsm-macros :only [view defdep defreaction defsm set-style set-styles css]]))
 
-(defn animate [element style callback]
-  (set! (.-msTransition (.-style element)) "all 400ms ease-in-out") 
-  (set! (.-webkitTransition (.-style element)) "all 400ms ease-in-out") 
-  (set! (.-MozTransition (.-style element)) "all 400ms ease-in-out") 
-  (set! (.-oTransition (.-style element)) "all 400ms ease-in-out") 
-  (set! (.-top (.-style element)) style)
-
-  (when callback
-    (.addEventListener element "webkitTransitionEnd" callback true)
-    (.addEventListener element "transitionend" callback true)
-    (.addEventListener element "msTransitionEnd" callback true)
-    (.addEventListener element "oTransitionEnd" callback true)))
-
-(defn begin []
-  (let [auth (dom/getElement "auth")
-        comm (dom/getElement "comm")]
-
-    (animate auth "-100%" #(dom/removeNode auth))
-    (animate comm "0%" nil)))
-
 ; Utils --------------------------------------------------------------------
 
 (defn- text-height [shadow text]
@@ -237,6 +217,26 @@
 
 ; main ---------------------------------------------------------------------
 
+(defn begin []
+  (let [number1 (view :div.number1)
+        number2 (view :div.number2)
+
+        left-column (view :div.left-column)
+        right-column (view :div.right-column
+                           (view :div.label1)
+                           (view :div.label2)
+                           (view :div.divider)
+                           number1
+                           number2)
+
+        _ (view (dmc/sel "body") left-column right-column)]
+
+    (dm/set-text! number1 "4729")
+    (dm/set-text! number2 "8543")
+
+    (dm/log-debug "done")
+    ))
+
 (defn main3 []
   (let [table (dm/add-class! (table/create-table) "chat-table") 
         shadow (view :div.shadow)
@@ -328,6 +328,7 @@
                                         )))
                      (dm/log-debug (str uuid ", " sid))))))
  
+(events/listen js/window evttype/LOAD begin)
 ;(events/listen js/window evttype/LOAD main3)
-(events/listen js/window evttype/LOAD test-comet)
+;(events/listen js/window evttype/LOAD test-comet)
 
