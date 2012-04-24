@@ -171,11 +171,12 @@
   (let [rchannel (lamina/channel)]
     (try
       (let [{:keys [uuid sid]} (read-string (.readLine (:body request)))] 
-        (when-let [{backchannel :backchannel} (check-sid uuid sid)]
-          (comet/client-connected backchannel rchannel)))
+        (if-let [{backchannel :backchannel} (check-sid uuid sid)]
+          (comet/client-connected backchannel rchannel)
+          (lamina/enqueue-and-close rchannel (str {:ack :error :reason :session}))))
 
       (catch java.lang.Exception e
-        (lamina/enqueue rchannel (str {:ack :error :reason :invalid}))))
+        (lamina/enqueue-and-close rchannel (str {:ack :error :reason :invalid}))))
     
     {:status 200
      :headers {"content-type" "text/plain"
@@ -225,7 +226,8 @@
         (lamina/enqueue-and-close rchannel (str {:ack :error :reason :invalid})))) 
 
     {:status 200
-     :headers {"content-type" "text/plain"}
+     :headers {"content-type" "text/plain"
+               "cache-control" "no-cache, no-store"}
      :body rchannel}))
 
 ; Routing ------------------------------------------------------------------
@@ -234,8 +236,10 @@
   (http/wrap-ring-handler
     (moustache/app
       [""] {:get "Hello."}
-      ["channel"] {:get channel}
-      ["backchannel"] {:get backchannel})))
+      ["channel"] {:get channel
+                   :post channel}
+      ["backchannel"] {:get backchannel
+                       :post backchannel})))
 
 (comment defn request-handler [ch request]
          (condp = (:uri request)
