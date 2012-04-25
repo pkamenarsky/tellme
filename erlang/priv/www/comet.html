@@ -1,0 +1,57 @@
+<html>
+
+<head>
+<script type='text/javascript'>
+
+var log = '';
+var load_count = 0;
+
+var session_id;
+
+function comet_callback(arg) {
+	
+	if (arg.length > 0) {
+		log += arg + '<br>';
+		document.getElementById('console').innerHTML = log;
+	}
+
+	load_json('get?id=' + session_id, comet_callback);
+}
+
+function error() {
+}
+
+function load_json(action, callback) {
+	var	req = new XMLHttpRequest();
+	var	delim = action.indexOf('?') == -1 ? '?' : '&';
+
+	req.open('GET', action + delim + 'req=' + load_count, true);
+	req.onreadystatechange = function(event) {
+
+		if (req.readyState == 4) {
+			if (req.status == 200)
+				callback(req.responseText);
+			else
+				error();
+		}
+	};
+	req.send(null);
+
+	load_count++;
+}
+
+load_json('session', function(id) {
+		session_id = id;
+		load_json('get?id=' + session_id, comet_callback);
+		});
+
+</script>	
+</head>
+
+<body>
+<div id = 'console'>
+</div>
+
+</body>
+</html>
+
