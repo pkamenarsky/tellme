@@ -32,15 +32,15 @@ handle_call({auth, Uuid, Sid, OSid}, _From, State) ->
 	case dict:find(Sid, State) of
 
 		% try to find a Sid, Uuid match
-		{ok, {Uuid, _, false, Data}} -> case dict:find(OSid, State) of
+		{ok, {Uuid, _, false, Queue}} -> case dict:find(OSid, State) of
 
 				% look for an osid record
-				{ok, {OUuid, Sid, false, OData}} ->
+				{ok, {OUuid, Sid, false, OQueue}} ->
 					% if osid record has our sid, authenticate
-					{reply, ok, dict:store(OSid, {OUuid, Sid, true, OData}, dict:store(Sid, {Uuid, OSid, true, Data}, State))};
+					{reply, ok, dict:store(OSid, {OUuid, Sid, true, OQueue}, dict:store(Sid, {Uuid, OSid, true, Queue}, State))};
 
 				% no osid record or already authenticated
-				_ -> {reply, {error, invalid_osid}, dict:store(Sid, {Uuid, OSid, false, Data}, State)}
+				_ -> {reply, {error, invalid_osid}, dict:store(Sid, {Uuid, OSid, false, Queue}, State)}
 			end;
 
 		% incorrect Sid, Uuid or already authenticated
@@ -49,30 +49,31 @@ handle_call({auth, Uuid, Sid, OSid}, _From, State) ->
 		error -> {reply, {error, invalid_sid}, State}
 	end.
 
-handle_cast({message, Pid, Uuid, Sid, Message}, State) ->
+handle_cast({message, Uuid, Sid, Message}, State) ->
 	case dict:find(Sid, State) of
-
-		% find sid with matching uuid
+		% find sid with matching uuid, then corresponding osid
 		{ok, {Uuid, OSid, true, _}} -> case dict:find(OSid, State) of
-
-				% in case there's already an open connection, just send off the message
-				{ok, {OUuid, Sid, true, {OPid, _, OTRef}}} ->
-					OPid ! Message,
-					{noreply, dict:store(OSid, {OUuid, Sid, true, {none, [], OTRef}}, State)};
-
-				% else queue up in internal message queue
-				{ok, {OUuid, Sid, true, {none, OMessages, OTRef}}} ->
-					{noreply, dict:store(OSid, {OUuid, Sid, true, {none, [Message | OMessages], OTRef}}, State)};
-
-				% ignore
+				{ok, {OUuid, Sid, true, Queue}} -> comet_queue:send_message(Queue, Message);
 				_ -> {noreply, State}
 			end;
 		_ -> {noreply, State}
 	end;
 
+handle_cast({subscribe, Pid, Uuid, Sid}, State) ->
+	case dict:find(Sid, State) of
+		{ok, {Uuid, _, _, Queue}} -> comet_queue:subscribe(Sid, Pid), {noreply, State};
+		_ -> {noreply, State}
+	end;
+
+handle_cast({unsubscribe, Pid, Uuid, Sid}, State) ->
+	case dict:find(Sid, State) of
+		{ok, {Uuid, _, _, Queue}} -> comet_queue:unsubscribe(Sid, Pid), {noreply, State};
+		_ -> {noreply, State}
+	end;
+
 handle_cast({new, Uuid, Sid}, State) ->
-	% uuid, osid, authenticated, {messages, tref}
-				{noreply, dict:store(Sid, {Uuid, none, false, {}}, State)};
+	% uuid, osid, authenticated, queue
+				{noreply, dict:store(Sid, {Uuid, none, false, comet_queue:start(Sid)}, State)};
 
 handle_cast({release, Uuid, Sid}, State) ->
 	% TODO
