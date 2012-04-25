@@ -172,12 +172,12 @@
 (defn animate [& anms]
   (doseq [a anms]
     (if (odd? (count a))
-      (let [[content property to & {:keys [duration onend] :or {duration 400}}] a]
+      (let [[content property to & {:keys [duration onend] :or {duration 200}}] a]
         (if (satisfies? AnimableComposite content)
           (animate-composite content property to duration onend)
           (animate-dom-content content property to duration onend)))
       ; if (odd? ...
-      (let [[property to & {:keys [duration onend] :or {duration 400}}] a]
+      (let [[property to & {:keys [duration onend] :or {duration 200}}] a]
         (animate-self property to duration onend))))
   anms)
 

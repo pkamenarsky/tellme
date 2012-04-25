@@ -31,6 +31,22 @@
 (defn- hide-quote-button [event]
   (dm/set-style! (.-quoteButton (.-currentTarget event)) :visibility "hidden"))
 
+; Constants ----------------------------------------------------------------
+
+(def help-text "What is this?!<br><br>
+               In order to start an ad-hoc conversation with some&shy;body, give them the number presented to you; they should do the same. When you both type in your partner’s unique number, your private con&shy;versation will start.<br>
+               &nbsp;&nbsp;Quoting something has never been easier; just click on the quote button next to the message you want to cite, select some text and see what hap&shy;pens.<br><br>
+
+               Find out more on the github page.")
+
+(def help-width 280)
+(def help-margin 80)
+(def min-help-width (+ help-width (* help-margin 2)))
+
+(def bottom-padding 50)
+
+; Quotes -------------------------------------------------------------------
+
 (defn- add-quote [{:keys [table shadow]} quotable]
   (let [quotes (qt/get-quotes quotable)
         msg-container (view :div.message)
@@ -77,12 +93,12 @@
                                                   (ui/resized table)
 
                                                   (ui/animate [table :scroll-bottom 0 :duration 0] 
-                                                              [main-container :style.opacity 1 :duration 200
+                                                              [main-container :style.opacity 1
                                                                :onend #(do
                                                                          (dm/detach! qt)
                                                                          (ui/select input)
-                                                                         (ui/animate [table :style.bottom [28 :px] :duration 200]))]
-                                                              [quote-overlay :style.opacity 0 :duration 200
+                                                                         (ui/animate [table :style.bottom [(+ 31 bottom-padding) :px]]))]
+                                                              [quote-overlay :style.opacity 0
                                                                :onend #(dm/set-style! quote-overlay :visibility "hidden")])))
                           "chat-table")
         bottom (+ height (- (table/row-top table row) (table/scroll-top table)))
@@ -106,13 +122,13 @@
                                    :opacity "0"}) 
 
     ; fade out main and show quote overlay
-    (ui/animate [main-container :style.opacity 0 :duration 200
+    (ui/animate [main-container :style.opacity 0
                  :onend #(do
                            (dm/append! main-container table)
                            (dm/detach! static-table)
                            (dm/set-style! main-container :visibility "hidden"))]
-                [quote-overlay :style.opacity 1 :duration 200
-                 :onend #(ui/animate [qt :style.bottom [(* client-height 0.3) :px] :duration 200])])
+                [quote-overlay :style.opacity 1
+                 :onend #(ui/animate [qt :style.bottom [(* client-height 0.3) :px]])])
 
     (dm/append! quote-overlay qt)
     (ui/resized qt)
@@ -181,9 +197,10 @@
 
              (dm/set-text! overlay text) 
              (dm/append! main-container overlay) 
+             (dm/set-style! overlay :bottom bottom-padding "px")
 
              (ui/animate [table row [height :px]]
-                         [overlay :style.bottom [31 :px] 
+                         [overlay :style.bottom [(+ 31 bottom-padding) :px] 
                           :onend (fn []
                                    ;(dm/log-debug (str "slide done: " text))
                                    (set-message-at-row data row (into message {:row row
@@ -217,19 +234,9 @@
 
 ; main ---------------------------------------------------------------------
 
-(def help-text "telll.me?!<br><br>
-               In order to start an ad-hoc conversation with some&shy;body, give them the number presented to you; they should do the same. Whenever you both have typed in your partner’s unique number, your private con&shy;versation will start.<br>
-               &nbsp;&nbsp;Quoting something has never been easier; just click on the quote button next to the message you want to cite, select some text and see what happens.<br><br>
-
-               Find out more on the github page.")
-
-(def help-width 280)
-(def help-margin 80)
-(def min-help-width (+ help-width (* help-margin 2)))
-
 (defn begin []
   (let [number1 (view :div.number1)
-        number2 (view :div.number2)
+        number2 (view :input.number2)
 
         button-background (view :div.button-background)
         button-text (view :div.button-text)
@@ -244,12 +251,16 @@
         right-column (view :div.right-column label1 label2
                            (view :div.divider) number1 number2)
 
-        _ (view (dmc/sel "body") left-column right-column)]
+        main-container (view :div.main)
+        quote-overlay (view :div.quote-overlay)
+
+        _ (view (dmc/sel "body") left-column right-column main-container quote-overlay)]
 
     (dm/set-style! button-text :right 18 "px")
     (dm/set-style! button-container :right 22 "px")
     (dm/set-style! button-container :opacity 1)
     (dm/set-style! left-column :width 100 "px")
+    (dm/set-style! main-container :top 100 "%")
 
     (dme/listen! button-container :click (fn [e] 
                                            (let [left (ui/property right-column :offsetLeft)
@@ -258,14 +269,16 @@
                                              (dm/set-style! right-column :left left "px") 
                                              (dm/set-style! help :right 100 "px") 
                                              (ui/animate 
-                                               [right-column :style.left [new-left :px] :duration 200]
-                                               [left-column :style.width [new-left :px] :duration 200]
-                                               [help :style.right [margin :px] :duration 200]
-                                               [button-container :style.right [(- (/ margin 2) 11) :px] :duration 200]
+                                               [right-column :style.left [new-left :px]]
+                                               [left-column :style.width [new-left :px]]
+                                               [help :style.right [margin :px]]
+                                               [button-container :style.right [(- (/ margin 2) 11) :px]]
                                                [button-background :transform.rotate [180 :deg] :duration 300]
                                                [button-container :style.opacity 0 :duration 500
-                                                :onend (fn [] (dm/set-style! button-container :visibility "hidden"))]
-                                               [button-text :style.right [6 :px] :duration 200]))))
+                                                :onend (fn []
+                                                         (ui/select number2)
+                                                         (dm/set-style! button-container :visibility "hidden"))]
+                                               [button-text :style.right [6 :px]]))))
 
     (dm/set-text! label1 "tell’em")
     (dm/set-text! label2 "tell me")
@@ -273,17 +286,24 @@
     (dm/set-html! help help-text)
 
     (dm/set-text! number1 "4729")
-    (dm/set-text! number2 "8543")
-
+    (dm/set-attr! number2 :maxlength 4)
+    
+    (ui/select number2)
+    (events/listen (events/KeyHandler. (dm/single-node number2)) "key"
+                   (fn [event]
+                     (when (= (.-keyCode event) keycodes/ENTER)
+                       (ui/animate [left-column :style.top [-100 :pct]]
+                                   [right-column :style.top [-100 :pct]]
+                                   [main-container :style.top [0 :pct]])
+                       (main3 main-container quote-overlay))))
     ))
 
-(defn main3 []
+(defn main3 [main-container quote-overlay]
   (let [table (dm/add-class! (table/create-table) "chat-table") 
         shadow (view :div.shadow)
         input (view :textarea.chat-input)
 
-        main-container (view :div.main table shadow input)
-        quote-overlay (view :div.quote-overlay)
+        main-container (view main-container table shadow input)
 
         body (view (dmc/sel "body") main-container quote-overlay)
 
@@ -309,7 +329,7 @@
 
     (defreaction input-height
                  (dm/set-style! input :height input-height "px")
-                 (dm/set-style! table :bottom input-height "px")
+                 (dm/set-style! table :bottom (+ bottom-padding input-height) "px")
                  (ui/resized table))
 
     ; dom
