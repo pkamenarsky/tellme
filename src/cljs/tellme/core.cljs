@@ -225,7 +225,7 @@
 
 (def help-width 280)
 (def help-margin 80)
-(def min-help-width (+ help-width (* help-margin 3)))
+(def min-help-width (+ help-width (* help-margin 2)))
 
 (defn begin []
   (let [number1 (view :div.number1)
@@ -248,6 +248,7 @@
 
     (dm/set-style! button-text :right 18 "px")
     (dm/set-style! button-container :right 22 "px")
+    (dm/set-style! button-container :opacity 1)
     (dm/set-style! left-column :width 100 "px")
 
     (dme/listen! button-container :click (fn [e] 
@@ -262,6 +263,8 @@
                                                [help :style.right [margin :px] :duration 200]
                                                [button-container :style.right [(- (/ margin 2) 11) :px] :duration 200]
                                                [button-background :transform.rotate [180 :deg] :duration 300]
+                                               [button-container :style.opacity 0 :duration 500
+                                                :onend (fn [] (dm/set-style! button-container :visibility "hidden"))]
                                                [button-text :style.right [6 :px] :duration 200]))))
 
     (dm/set-text! label1 "tell’em")
