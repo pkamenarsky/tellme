@@ -217,24 +217,61 @@
 
 ; main ---------------------------------------------------------------------
 
+(def help-text "telll.me?!<br><br>
+               In order to start an ad-hoc conversation with some&shy;body, give them the number presented to you; they should do the same. Whenever you both have typed in your partner’s unique number, your private con&shy;versation will start.<br>
+               &nbsp;&nbsp;Quoting something has never been easier; just click on the quote button next to the message you want to cite, select some text and see what happens.<br><br>
+
+               Find out more on the github page.")
+
+(def help-width 280)
+(def help-margin 80)
+(def min-help-width (+ help-width (* help-margin 3)))
+
 (defn begin []
   (let [number1 (view :div.number1)
         number2 (view :div.number2)
 
-        left-column (view :div.left-column)
-        right-column (view :div.right-column
-                           (view :div.label1)
-                           (view :div.label2)
-                           (view :div.divider)
-                           number1
-                           number2)
+        button-background (view :div.button-background)
+        button-text (view :div.button-text)
+        button-container (view :div.button-container button-background button-text)
+
+        help (view :div.help)
+
+        label1 (view :div.label1)
+        label2 (view :div.label2)
+
+        left-column (view :div.left-column button-container help)
+        right-column (view :div.right-column label1 label2
+                           (view :div.divider) number1 number2)
 
         _ (view (dmc/sel "body") left-column right-column)]
+
+    (dm/set-style! button-text :right 18 "px")
+    (dm/set-style! button-container :right 22 "px")
+    (dm/set-style! left-column :width 100 "px")
+
+    (dme/listen! button-container :click (fn [e] 
+                                           (let [left (ui/property right-column :offsetLeft)
+                                                 new-left (Math/max left min-help-width)
+                                                 margin (/ (- new-left help-width) 2)]
+                                             (dm/set-style! right-column :left left "px") 
+                                             (dm/set-style! help :right 100 "px") 
+                                             (ui/animate 
+                                               [right-column :style.left [new-left :px] :duration 200]
+                                               [left-column :style.width [new-left :px] :duration 200]
+                                               [help :style.right [margin :px] :duration 200]
+                                               [button-container :style.right [(- (/ margin 2) 11) :px] :duration 200]
+                                               [button-background :transform.rotate [180 :deg] :duration 300]
+                                               [button-text :style.right [6 :px] :duration 200]))))
+
+    (dm/set-text! label1 "tell’em")
+    (dm/set-text! label2 "tell me")
+
+    (dm/set-html! help help-text)
 
     (dm/set-text! number1 "4729")
     (dm/set-text! number2 "8543")
 
-    (dm/log-debug "done")
     ))
 
 (defn main3 []

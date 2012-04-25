@@ -268,19 +268,30 @@ body {
 
 /* --- */
 
-@mixin label {
-}
-
-@mixin number {
+@mixin base-label {
 	font-size: 48px;
-	font-family: "HelveticaNeueMedium", "HelveticaNeue-Medium", "Helvetica Neue Medium", "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif; font-weight:500; font-stretch:normal;
-	color: #666666;
+	line-height: 48px;
 
 	position: absolute;
 	top: 50%;
-	left: 0px;
+}
 
-	line-height: 48px;
+@mixin label {
+	@include base-label;
+
+	font-family: "HelveticaNeue", "Helvetica Neue", "HelveticaNeueRoman", "HelveticaNeue-Roman", "Helvetica Neue Roman", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif; font-weight:400; font-stretch:normal;
+	// font-family: Arial;
+	color: #b3b3b3;
+}
+
+@mixin number {
+	@include base-label;
+
+	font-family: "HelveticaNeueMedium", "HelveticaNeue-Medium", "Helvetica Neue Medium", "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif; font-weight:500; font-stretch:normal;
+	// font-family: Arial;
+	color: #666666;
+
+	left: 162px;
 }
 
 body {
@@ -293,16 +304,16 @@ body {
 
 .left-column {
 	position: absolute;
-	background-color: #aaaaaa;
+	// background-color: #aaaaaa;
 	top: 0px;
 	bottom: 0px;
 	left: 0px;
-	width: 500px;
+	width: 100px;
 }
 
 .right-column {
 	position: absolute;
-	left: 500px;
+	left: 33%;
 	top: 0px;
 	bottom: 0px;
 	right: 0px;
@@ -317,6 +328,16 @@ body {
 	right: 0px;
 }
 
+.label1 {
+	@include label;
+	margin-top: -58px;
+}
+
+.label2 {
+	@include label;
+	margin-top: 8px;
+}
+
 .number1 {
 	@include number;
 	margin-top: -58px;
@@ -325,4 +346,48 @@ body {
 .number2 {
 	@include number;
 	margin-top: 8px;
+}
+
+.button-container {
+	cursor: pointer;
+	position: absolute;
+	width: 50px;
+	height: 50px;
+	top: 50%;
+	margin-top: -25px;
+	right: 22px;
+}
+
+.button-background {
+	background-image: url(help.png);
+	position: absolute;
+	width: 36px;
+	height: 24px;
+	top: 50%;
+	margin-top: -11px;
+	right: 0px;
+}
+
+.button-text {
+	background-image: url(help-text.png);
+	position: absolute;
+	width: 12px;
+	height: 20px;
+	top: 50%;
+	margin-top: -9px;
+	right: 18px;
+}
+
+.help {
+	@include label;
+
+	font-size: 12px;
+	line-height: 15px;
+
+	top: 50%;
+	right: 100px;
+	width: 280px;
+
+	text-align: justify;
+	margin-top: -68px;
 }
