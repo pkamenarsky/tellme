@@ -1,0 +1,51 @@
+<html>
+
+<head>
+<script type='text/javascript'>
+
+var url_index = window.location.search.indexOf('url=');
+var url = '10.11.0.102';
+
+if (url_index != -1)
+	url = window.location.search.substring(url_index + 4);
+
+var log = '';
+var load_count = 0;
+
+function comet_callback(arg) {
+	
+	if (arg.length > 0) {
+		log += arg + '<br>';
+		document.getElementById('console').innerHTML = log;
+	}
+	
+	load_script(url);
+}
+
+function load_script(url, callback) {
+	var head = document.getElementsByTagName('head')[0];
+	var script = document.getElementById('comet_script');
+	
+	if (script != null)
+		head.removeChild(script);
+
+	script = document.createElement('script');
+	script.id = 'comet_script';
+	script.type = 'text/javascript';
+	script.src = 'http://' + url + ':8080/chat?count=' + load_count;
+	head.appendChild(script);
+	
+	load_count++;
+}
+
+load_script(url);
+
+</script>	
+</head>
+
+<body>
+<div id = 'console'>
+</div>
+
+</body>
+</html>
