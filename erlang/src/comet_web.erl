@@ -6,8 +6,6 @@
 -module(comet_web).
 -author("Mochi Media <dev@mochimedia.com>").
 
--include("incident.hrl").
-
 -export([start/1, stop/0, loop/2]).
 
 
@@ -15,7 +13,6 @@
 
 start(Options) ->
 	% Session manager
-	comet_session:start(),
 	comet_sid:start(),
 
     {DocRoot, Options1} = get_option(docroot, Options),
@@ -35,30 +32,15 @@ loop(Req, DocRoot) ->
 				Callback = proplists:get_value("callback", Parameters),
 
 				case Path of
-					"open_session" ->
-						SessionId = comet_session:open_session(),
-						Incidents = incident_store:keyvalues(),
-
-						Req:ok({"text/plain", "ok"}); 
-
-					"close_session" ->
-						SessionId = to_integer(proplists:get_value("sid", Parameters, 0)),
-						comet_session:unsubscribe(SessionId),
-						comet_session:close_session(SessionId);
 					"backchannel" ->
-						SessionId = to_integer(proplists:get_value("sid", Parameters, 0)),
-						comet_session:subscribe(SessionId, self()),
-
 						receive
 							{messages, Messages} ->
 								Req:ok({"text/plain", jsonp_wrap(Callback, "ok")})
 						after 10000 ->
-								comet_session:unsubscribe(SessionId),
 								Req:ok({"text/plain", jsonp_wrap(Callback, "nothing")})
 						end;
 					_ ->
 						Req:serve_file(Path, DocRoot)
-						% Req:respond({501, [], []})
 				end;
 			'POST' ->
 				case Path of
