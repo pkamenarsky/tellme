@@ -1,7 +1,7 @@
 -module(comet_queue).
 -behaviour(gen_server).
 
--export([start/1, stop/1, send_message/2, subscribe/2, unsubscribe/2, state/1]).
+-export([start/1, stop/1, send_message/2, subscribe/2, unsubscribe/1, state/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% External API
@@ -18,8 +18,8 @@ send_message(Name, Message) ->
 subscribe(Name, Pid) ->
 	gen_server:cast({global, Name}, {subscribe, Pid}).
 
-unsubscribe(Name, Pid) ->
-	gen_server:cast({global, Name}, {unsubscribe, Pid}).
+unsubscribe(Name) ->
+	gen_server:cast({global, Name}, unsubscribe).
 
 state(Name) ->
 	gen_server:call({global, Name}, state).
@@ -54,8 +54,7 @@ handle_cast({subscribe, Pid}, State) ->
 
 handle_cast(unsubscribe, State) ->
 	case State of
-		{none, Messages, TRef} -> {noreply, {none, Messages, TRef}};
-		{Pid, Messages, TRef} -> Pid ! {error, close}, {noreply, {none, Messages, TRef}}
+		{_, Messages, TRef} -> {noreply, {none, Messages, TRef}}
 	end;
 
 handle_cast(stop, State) ->
@@ -87,6 +86,26 @@ subscribe_test() ->
 	end,
 
 	comet_queue:send_message(self(), message),
+	receive
+		message -> ?assertEqual(1, 1)
+	after 10 -> ?assertEqual("No message received", "")
+	end,
+
+	comet_queue:stop(self()).
+
+unsubscribe_test() ->
+	comet_queue:start(self()),
+	comet_queue:subscribe(self(), self()),
+	comet_queue:unsubscribe(self()),
+
+	comet_queue:send_message(self(), message),
+	receive
+		_ -> ?assertEqual("Unknown message received", 0)
+	after 10 -> ?assertEqual(1, 1)
+	end,
+
+	comet_queue:send_message(self(), message),
+	comet_queue:subscribe(self(), self()),
 	receive
 		message -> ?assertEqual(1, 1)
 	after 10 -> ?assertEqual("No message received", "")
@@ -148,7 +167,7 @@ messages_test() ->
 	comet_queue:subscribe(self(), self()),
 
 	receive
-		message -> ?assertEqual("Unknown message received", 0)
+		_ -> ?assertEqual("Unknown message received", 0)
 	after 10 -> ?assertEqual(1, 1)
 	end,
 
