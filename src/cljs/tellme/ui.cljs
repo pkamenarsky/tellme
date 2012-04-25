@@ -49,7 +49,7 @@
     (reset! atimer (js/setInterval runa 10)))
   (swap! aobjs assoc tag [f (.getTime (js/Date.)) (* 1 duration) onend]))
 
-(def unit-map {:px "px" :pct "%" :pt "pt"})
+(def unit-map {:px "px" :pct "%" :pt "pt" :deg "deg" :rad "rad"})
 
 (defn- from-unit [u]
   (if-let [unit (unit-map u)]
@@ -97,6 +97,29 @@
           onend)
     this))
 
+(defn- parse-deg [deg]
+  (if deg
+    (js/parseFloat (.substring deg 0 (.indexOf deg "deg")))
+    0))
+
+(deftype Transform
+  [content attribute]
+
+  AnimableSelf
+  (animate-self [this to duration onend]
+    (cond
+      (starts-with attribute "rotate")
+      (aobj (str (goog.getUid this) ":transform.rotate") duration
+            (lerp #(do
+                     (set! (.-__anim_rotateValue (dm/single-node content)) %)
+                     (set! (.-webkitTransform (.-style (dm/single-node content))) (str "rotate(" % ")"))
+                     (set! (.-MozTransform (.-style (dm/single-node content))) (str "rotate(" % ")"))
+                     (set! (.-msTransform (.-style (dm/single-node content))) (str "rotate(" % ")")))
+                  (parse-deg (.-__anim_rotateValue (dm/single-node content))) to)
+            onend))
+    
+    this))
+
 (extend-protocol AnimableSelf
   Atom
   (animate-self [this to duration onend]
@@ -133,6 +156,10 @@
       ; animate style
       (starts-with pname "style.")
       (animate-self (Style. content (.substring pname (.-length "style."))) to duration onend)
+
+      ; animate transform
+      (starts-with pname "transform.")
+      (animate-self (Transform. content (.substring pname (.-length "transform."))) to duration onend)
 
       ; animate attribute
       (starts-with pname "attr.")

@@ -69,6 +69,53 @@
 (defn raw-backchannel [uuid sid] (hget "backchannel" (str {:uuid uuid :sid sid})))
 (defn backchannel [uuid sid] (c2s (hget "backchannel" (str {:uuid uuid :sid sid}))))
 
+(deftest look
+  ; check input and session validation
+  (is (= (hget-string "channel" "")
+         {:ack :error :reason :invalid})) 
+
+  (is (= (hget-string "channel" "{:uuid ")
+         {:ack :error :reason :invalid})) 
+
+  (let [{sid1 :sid uuid1 :uuid} (hget-string "channel" (str {:command :get-uuid}))
+        {sid2 :sid uuid2 :uuid} (hget-string "channel" (str {:command :get-uuid}))
+        bc1 (partial backchannel uuid1 sid1)
+        bc2 (partial backchannel uuid2 sid2)]
+
+    (is (= (hget-string "channel" (str {:command :nop
+                                        :uuid uuid1
+                                        :sid nil}))
+           {:ack :error :reason :session}))
+
+    (is (= (hget-string "channel" (str {:command :nop
+                                        :uuid nil
+                                        :sid sid1}))
+           {:ack :error :reason :session}))
+
+    (is (= (hget-string "channel" (str {:command :nop
+                                        :uuid uuid2
+                                        :sid sid2}))
+           {:ack :error :reason :noauth}))
+
+    ; auth
+    (is (hget-string "channel" (str {:command :nop
+                                     :uuid uuid1
+                                     :sid sid1}))
+        {:ack :error :reason :noauth}) 
+
+    ; fail auth
+    (hget-string "channel" (str {:command :auth
+                                 :uuid uuid1
+                                 :sid sid1
+                                 :osid nil})) 
+
+    (hget-string "channel" (str {:command :auth
+                                 :uuid uuid1
+                                 :sid sid1
+                                 :osid -1})) 
+
+    ))
+
 (defn test-converstaion []
 
   ; check input and session validation
@@ -166,4 +213,4 @@
       (is (= (get-next ch) {:command :end})))))
 
 (deftest stress-test
-  (dotimes [i 5] (test-converstaion)))
+  (dotimes [i 1] (test-converstaion)))

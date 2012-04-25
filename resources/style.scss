@@ -268,176 +268,126 @@ body {
 
 /* --- */
 
-.big, h1, .osid, .inputbox, .messagecontent, .shadowbox {
-	font-family: Helvetica, Arial;
-	font-size: 48pt;
-	font-weight: bold;
-	color: #657b83;
+@mixin base-label {
+	font-size: 48px;
+	line-height: 48px;
+
+	position: absolute;
+	top: 50%;
 }
 
-h2 {
-	font-family: Helvetica Neue;
-	font-size: 11pt;
-	font-style: normal;
-	font-weight: normal;
-	color: #333333;
+@mixin label {
+	@include base-label;
+
+	font-family: "HelveticaNeue", "Helvetica Neue", "HelveticaNeueRoman", "HelveticaNeue-Roman", "Helvetica Neue Roman", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif; font-weight:400; font-stretch:normal;
+	// font-family: Arial;
+	color: #b3b3b3;
+}
+
+@mixin number {
+	@include base-label;
+
+	font-family: "HelveticaNeueMedium", "HelveticaNeue-Medium", "Helvetica Neue Medium", "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif; font-weight:500; font-stretch:normal;
+	// font-family: Arial;
+	color: #666666;
+
+	left: 162px;
 }
 
 body {
-	background-color: #fdf6e3;
 	width: 100%;
 	height: 100%;
-	margin: 0px;
-	overflow: hidden;
-}
-
-.container {
-	position: absolute;
-	width: 100%;
-	height: 100%;
-}
-
-.sid {
-	position: absolute;
-	left: 38%;
-	top: 32%;
-}
-
-.osid {
-	position: absolute;
-	left: 38%;
-	top: 38%;
-	margin-top: 64pt;
-	width: 200px;
-	border: 0px;
-	background-color: transparent;
-	outline: none;
-	/* border-bottom: 1px solid #333333; */
-}
-
-.siddesc {
-	position: absolute;
-	left: 38%;
-	top: 38%;
-	margin-top: 20pt;
-	margin-left: -250px;
-}
-
-.osiddesc {
-	position: absolute;
-	left: 38%;
-	top: 38%;
-	margin-top: 82pt;
-	margin-left: -260px;
-}
-
-.inputcontainer, .inputbox, .shadowbox {
-	position: absolute;
-	margin: 0px;
-	border: 0px;
-	background-color: transparent;
-	outline: none;
 	padding: 0px;
-	display: block;
+	margin: 0px;
 	overflow: hidden;
 }
 
-.inputcontainer {
-	border-top: 1px solid #dddddd;
+.left-column {
+	position: absolute;
+	// background-color: #aaaaaa;
+	top: 0px;
 	bottom: 0px;
-	left: 50%;
-	right: 0px;
-	width: 300px;
-	margin-left: -150px;
-}
-
-a {
-	padding: 0px;
-	margin :0px;
-	word-wrap: break-word;
-	white-space: pre-wrap;
-}
-
-.inputbox, .messagecontent, .shadowbox {
-	width: 300px;
-	font-size: 16px;
-	font-weight: normal;
-	padding-top: 5px;
-	padding-bottom: 5px;
-	line-height: 21px;
-	resize: none;
-	word-wrap: break-word;
-	white-space: pre-wrap;
-}
-
-#scrollcontainer {
-	position: absolute;
-	overflow: hidden;
-	width: 300px;
-	left: 50%;
-	top: 0px;
-	bottom: 200px;
-	margin: 0px;
-	padding: 0px;
-	margin-left: -150px;
-}
-
-#scrolldiv {
-	position: absolute;
-	overflow: scroll;
-	top: 0px;
 	left: 0px;
-	right: -16px;
-	bottom: -16px;
-	border: 0px;
-	padding: 0px;
+	width: 100px;
 }
 
-#scrollcontent {
-	width: 100%;
-	overflow: hidden;
-}
-
-.messagecontent {
-	width: 100%;
-}
-
-#barcontainer {
+.right-column {
 	position: absolute;
-	/* background-color: #bbbbbb; */
+	left: 33%;
 	top: 0px;
-	bottom: 200px;
-	left: 50%;
-	margin-left: 160px;
-	width: 6px;
+	bottom: 0px;
+	right: 0px;
 }
 
-#barpoint1, #barpoint2 {
-	background-color: #999999;
+.divider {
 	position: absolute;
-	left: 50%;
-	margin-top: 0px;
-	margin-left: -3px;
-	width: 6px;
-	height: 6px;
-
-	-webkit-border-radius: 3px;
-	-moz-border-radius: 50%;
-
-	-moz-transition-property: width, height, margin-left, margin-top;
-	-moz-transition-duration: 200ms;
-	-moz-transition-timing-function: ease-in-out;
-
-	-webkit-transition-property: width, height, margin-left, margin-top;
-	-webkit-transition-duration: 200ms;
-	-webkit-transition-timing-function: ease-in-out;
-
-	/*			-moz-transition: -moz-transform 200ms ease-in-out;
-	-webkit-transition: all 200ms ease-in-out; */
+	background-color: #cccccc;
+	top: 50%;
+	height: 1px;
+	left: 0px;
+	right: 0px;
 }
 
-#barpoint2 {
-	margin-top: -6px;
+.label1 {
+	@include label;
+	margin-top: -58px;
 }
 
+.label2 {
+	@include label;
+	margin-top: 8px;
+}
 
+.number1 {
+	@include number;
+	margin-top: -58px;
+}
+
+.number2 {
+	@include number;
+	margin-top: 8px;
+}
+
+.button-container {
+	cursor: pointer;
+	position: absolute;
+	width: 50px;
+	height: 50px;
+	top: 50%;
+	margin-top: -25px;
+	right: 22px;
+}
+
+.button-background {
+	background-image: url(help.png);
+	position: absolute;
+	width: 36px;
+	height: 24px;
+	top: 50%;
+	margin-top: -11px;
+	right: 0px;
+}
+
+.button-text {
+	background-image: url(help-text.png);
+	position: absolute;
+	width: 12px;
+	height: 20px;
+	top: 50%;
+	margin-top: -9px;
+	right: 18px;
+}
+
+.help {
+	@include label;
+
+	font-size: 12px;
+	line-height: 15px;
+
+	top: 50%;
+	right: 100px;
+	width: 280px;
+
+	text-align: justify;
+	margin-top: -68px;
+}

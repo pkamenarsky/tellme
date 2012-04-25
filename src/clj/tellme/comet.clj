@@ -38,13 +38,15 @@
 
       (when @cl-channel 
         (lamina/cancel-callback @cl-channel @on-cl-closed)
-        (lamina/close @cl-channel)) 
+        (lamina/enqueue-and-close @cl-channel (str {:command :end}))) 
       (when @disconnect-timeout (.cancel @disconnect-timeout false)) 
       (when @timeout (.cancel @timeout false)))))
 
 (defn enqueue [channel msg]
+  (println "BC ENQUEUE: " msg)
   (locking channel
-    (lamina/enqueue channel msg)))
+    (lamina/enqueue channel msg))
+  channel)
 
 (defn client-connected [channel ch]
   (start-disconnect-timer channel)
@@ -53,19 +55,29 @@
     (let [{:keys [cl-channel on-cl-closed timeout disconnect-timeout]} (meta channel)
           msg (lamina.core.channel/dequeue channel nil)
           on-closed (partial close channel)]
-      (if msg
-        (do
-          (lamina/enqueue-and-close ch msg)) 
-        (let [once (fn [msg]
-                     (when msg
-                       (lamina/cancel-callback ch on-closed) 
-                       (lamina/enqueue-and-close ch msg)))]
-          (if @timeout
-            (.cancel @timeout false))
 
+      (when @timeout
+        (.cancel @timeout false)
+        (reset! timeout nil))
+
+      (if msg
+        (lamina/enqueue-and-close ch msg)
+        (let [once (fn [msg]
+                     (locking channel
+                       (when msg
+
+                         (when @timeout
+                           (.cancel @timeout false)
+                           (reset! timeout nil))
+
+                         (lamina/cancel-callback ch on-closed) 
+                         (lamina/enqueue-and-close ch msg))))]
           (lamina/receive channel once)
+          (println "setting timeout")
           (reset! timeout (timer/delay-invoke #(locking channel
+                                                 (println "TIMEOUT")
                                                  (lamina/cancel-callback ch on-closed)
+                                                 (lamina/enqueue ch (str {:ack :reconnect}))
                                                  (lamina/close ch)
                                                  (reset! cl-channel nil))
                                               *reconnect-timeout*))
@@ -74,5 +86,5 @@
           (reset! on-cl-closed on-closed)
 
           (lamina/on-closed ch on-closed)))))
-  ch)
+  channel)
 

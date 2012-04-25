@@ -1,6 +1,8 @@
 (ns tellme.comet
   (:require [goog.net.XhrIo :as xhr]
-            [cljs.reader :as reader]))
+            [cljs.reader :as reader]
+            
+            [domina :as dm]))
 
 (def ^:dynamic *remote-root* "http://localhost:8080")
 
@@ -12,8 +14,11 @@
       {:ack :error :reason :parse})))
 
 (defn xhr-send [url content f ferr]
+  (dm/log-debug (str "XHR: " content))
   (goog.net.XhrIo/send (str *remote-root* "/" url "?__rand__=" (.getTime (js/Date.)))
                        (fn [e]
+                         (if (.isSuccess (.-target e))
+                           (dm/log-debug (str "RECEIVED: " (.getResponseText (.-target e)))))
                          (if (.isSuccess (.-target e))
                            (let [parsed (parse-form (.getResponseText (.-target e)))]
                              (if (not= (:ack parsed) :error)
@@ -27,4 +32,4 @@
   (xhr-send "channel" (pr-str content) f nil))
 
 (defn backchannel [content f ferr]
-  (xhr-send "backchannel" (pr-str content) (fn [text] (f text) (backchannel f)) ferr))
+  (xhr-send "backchannel" (pr-str content) (fn [text] (f text) (backchannel content f)) ferr))

@@ -97,6 +97,10 @@
     (if (= uuid (:uuid (fsm/data @(@sessions sid))))
       (fsm/data @(@sessions sid)))))
 
+(defn enqueue [channel msg]
+  (lamina/enqueue channel msg)
+  channel)
+
 ; protocol state machine
 (def protocol
   (defsm
@@ -105,7 +109,7 @@
 
     ; on start, immediately send uuid to client
     ([:start :in {:keys [uuid sid channel]}]
-     (lamina/enqueue channel (str {:uuid uuid :sid sid}))
+     (send-off channel enqueue (str {:uuid uuid :sid sid}))
      (fsm/next-state :auth))
 
     ([:auth {:keys [command osid]} {:keys [uuid sid channel] :as olddata}]
@@ -118,18 +122,18 @@
          (if (and opt (= sid (:osid (fsm/data @opt)))) 
            (do
              (println "auth ok")
-             (lamina/enqueue channel (str {:ack :ok}))
+             (send-off channel enqueue (str {:ack :ok}))
              (prgoto opt :auth-ok)
              (fsm/next-state :auth-ok (assoc olddata :osid osid)))
            (do
-             (lamina/enqueue channel (str {:ack :ok}))
+             (send-off channel enqueue (str {:ack :ok}))
              (fsm/next-state :auth (assoc olddata :osid osid)))))
        (do
-         (lamina/enqueue channel (str {:ack :error :reason :noauth}))
+         (send-off channel enqueue (str {:ack :error :reason :noauth}))
          (fsm/ignore-msg))))
 
     ([:auth-ok :in {:keys [channel backchannel osid] :as data}]
-     (comet/enqueue backchannel (str {:ack :ok :message :begin}))
+     (send-off backchannel comet/enqueue (str {:ack :ok :message :begin}))
      ; cache fsm of other client for convenience
      (fsm/next-state :dispatch (assoc data :opt (@sessions osid))))
 
@@ -141,7 +145,7 @@
                                     :last-state :dispatch})))
 
     ([:error msg {:keys [channel]}]
-     (lamina/enqueue channel (str {:ack :error
+     (send-off channel enqueue (str {:ack :error
                                    :reason :invalid
                                    :message (:message msg)}))
      ; if this didn't come frome dispatch, goto :end
@@ -150,9 +154,9 @@
        (fsm/next-state :end)))
 
     ([:message {message :message} {:keys [channel opt]}]
-     (comet/enqueue (:backchannel (fsm/data @opt)) (str {:command :message
-                                                         :message message}))
-     (lamina/enqueue channel (str {:ack :ok}))
+     (send-off (:backchannel (fsm/data @opt)) comet/enqueue (str {:command :message
+                                                                  :message message}))
+     (send-off channel enqueue (str {:ack :ok}))
      (fsm/next-state :dispatch))
     
     ([:end :in {:keys [on-closed sid uuid opt channel backchannel] :as olddata}]
@@ -164,20 +168,21 @@
        (prgoto opt :end))
 
      ; if backchannel is already closed this is a no op
-     (lamina/cancel-callback backchannel on-closed)
+     (lamina/cancel-callback @backchannel on-closed)
 
-     (comet/enqueue backchannel (str {:command :end}))
-     (comet/close backchannel)
+     (send-off backchannel comet/close)
         
      (remove-session sid)
      (fsm/next-state :end (dissoc olddata :opt)))))
 
 (defn backchannel [request]
-  (let [rchannel (lamina/channel)]
+  (let [rchannel (lamina/channel)
+        form (.readLine (:body request))]
+    (println "BACKCHANNEL FORM: " form)
     (try
-      (let [{:keys [uuid sid]} (read-string (.readLine (:body request)))] 
+      (let [{:keys [uuid sid]} (read-string form)] 
         (if-let [{backchannel :backchannel} (check-sid uuid sid)]
-          (comet/client-connected backchannel rchannel)
+          (comet/client-connected @backchannel rchannel)
           (lamina/enqueue-and-close rchannel (str {:ack :error :reason :session}))))
 
       (catch java.lang.Exception e
@@ -192,7 +197,10 @@
 ; Channel ------------------------------------------------------------------
 
 (defn channel [request]
-  (let [rchannel (lamina/channel)]
+  (let [rchannel (lamina/channel)
+        ;form (.readLine (:body request))
+        ]
+    ;(println "CHANNEL FORM: " form)
     (try
       ; FIXME: eval security
       (when-let [{:keys [command uuid sid] :as cmd} (read-string (.readLine (:body request)))]
@@ -200,8 +208,8 @@
         (if (= command :get-uuid)
           (let [uuid (get-uuid)
                 sid (get-sid)
-                backchannel (comet/create)
-                channel (lamina/channel)
+                backchannel (agent (comet/create))
+                channel (agent (lamina/channel))
                 session-ref (atom nil)
                 on-closed (fn [] (prgoto @session-ref :end))
                 session (ref (fsm/with-data protocol
@@ -213,20 +221,21 @@
                                              :osid nil}))]
             (println "uuid: " uuid ", sid: " sid)
             (reset! session-ref session)
-            (lamina/on-closed backchannel on-closed)
+            (lamina/on-closed @backchannel on-closed)
             (dosync
               (commute sessions assoc sid session) 
-              (lamina/receive channel (fn [msg]
-                                        (lamina/enqueue-and-close rchannel msg))) 
+              (lamina/receive @channel (fn [msg]
+                                         (lamina/enqueue-and-close rchannel msg))) 
               (prgoto session :start))) 
 
-          (dosync
-            (if-let [{:keys [channel]} (check-sid uuid sid)] 
-              (do
-                (dosync (alter (@sessions sid) fsm/send-message cmd)) 
-                (lamina/receive channel (fn [msg]
-                                          (lamina/enqueue-and-close rchannel msg))))
-              (lamina/enqueue-and-close rchannel (str {:ack :error :reason :session}))))))
+
+          (if-let [{:keys [channel]} (check-sid uuid sid)] 
+            (dosync
+              (println "CHANNEL: " channel)
+              (alter (@sessions sid) fsm/send-message cmd) 
+              (lamina/receive @channel (fn [msg]
+                                         (lamina/enqueue-and-close rchannel msg))))
+            (lamina/enqueue-and-close rchannel (str {:ack :error :reason :session})))))
 
       (catch java.lang.Exception e
         (pexception e)
