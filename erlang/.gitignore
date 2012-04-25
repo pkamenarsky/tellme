@@ -1,0 +1,9 @@
+.*.swp
+*.orig
+.DS_Store
+nohup.out
+deps
+ebin
+.eunit
+TEST-*.xml
+
