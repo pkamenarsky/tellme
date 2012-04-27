@@ -16,7 +16,7 @@ new() ->
 	gen_server:call(?MODULE, new).
 
 release(Uuid, Sid) ->
-	gen_server:cast(?MODULE, {release, Uuid, Sid}).
+	gen_server:cast(?MODULE, {{release, stop_queues}, Uuid, Sid}).
 
 auth(Uuid, Sid, OSid) ->
 	gen_server:call(?MODULE, {auth, Uuid, Sid, OSid}).
@@ -28,14 +28,14 @@ send_message(Pid, Uuid, Sid, Message) ->
 init([]) ->
 	{ok, dict:new()}.
 
-hex_uuid() -> os:cmd("uuidgen").
-
 handle_call(new, _From, State) ->
 	Uuid = hex_uuid(),
 	Sid = comet_sid:get_sid(),
 
 	DisconnectF = fun() ->
-			1 = 1
+			% since this is going to be called from within comet_queue:handle_info
+			% when a timeout happens, we don't wanna send a stop message from there (deadlocks?)
+			gen_server:cast(?MODULE, {{release, dont_stop_queues}, Uuid, Sid})
 	end,
 
 	{reply, {ok, Uuid, Sid}, dict:store(Sid, {Uuid, none, false, comet_queue:start(Sid, DisconnectF)}, State)};
@@ -83,9 +83,20 @@ handle_cast({unsubscribe, Pid, Uuid, Sid}, State) ->
 		_ -> {noreply, State}
 	end;
 
-handle_cast({release, Uuid, Sid}, State) ->
-	% TODO
-	{noreply, State};
+handle_cast({{release, stop_queues}, Uuid, Sid}, State) ->
+	case osid_for_sid(Uuid, Sid, State) of
+		{Sid, Queue, none, none} -> comet_queue:stop(Sid), {noreply, dict:erase(Sid)};
+		{Sid, Queue, OSid, OQueue} ->
+			comet_queue:stop(Sid),
+			comet_queue:stop(OSid),
+			{noreply, dict:erase(Sid, dict:erase(OSid))}
+	end;
+
+handle_cast({{release, dont_stop_queues}, Uuid, Sid}, State) ->
+	case osid_for_sid(Uuid, Sid, State) of
+		{Sid, Queue, none, none} -> {noreply, dict:erase(Sid)};
+		{Sid, Queue, OSid, OQueue} -> {noreply, dict:erase(Sid, dict:erase(OSid))}
+	end;
 
 handle_cast(stop, State) ->
 	{stop, normal, State}.
@@ -98,6 +109,18 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVersion, State, _Extra) ->
 	{ok, State}.
+
+%% Internal API
+hex_uuid() -> os:cmd("uuidgen").
+
+osid_for_sid(Uuid, Sid, State) ->
+	case dict:find(Sid, State) of
+		{ok, {Uuid, none, _, Queue}} -> {Sid, Queue, none, none};
+		{ok, {Uuid, OSid, _, Queue}} -> case dict:find(OSid, State) of
+				{ok, {OUuid, Sid, _, OQueue}} -> {Sid, Queue, OSid, OQueue};
+				_ -> {Sid, Queue, none, none}
+			end
+	end.
 
 %%
 %% Tests
