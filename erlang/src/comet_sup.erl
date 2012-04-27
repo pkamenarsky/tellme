@@ -42,8 +42,11 @@ upgrade() ->
 %% @doc supervisor callback.
 init([]) ->
     Web = web_specs(comet_web, 8080),
-    Processes = [Web],
+	CometSid = comet_sid_specs(),
+
+    Processes = [Web, CometSid],
     Strategy = {one_for_one, 10, 10},
+
     {ok,
      {Strategy, lists:flatten(Processes)}}.
 
@@ -54,3 +57,8 @@ web_specs(Mod, Port) ->
     {Mod,
      {Mod, start, [WebConfig]},
      permanent, 5000, worker, dynamic}.
+
+comet_sid_specs() ->
+	{comet_sid,
+		{comet_sid, start, []},
+		permanent, brutal_kill, worker, [comet_sid]}.

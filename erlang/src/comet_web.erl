@@ -12,9 +12,6 @@
 %% External API
 
 start(Options) ->
-	% Session manager
-	comet_sid:start(),
-
     {DocRoot, Options1} = get_option(docroot, Options),
     Loop = fun(Req) -> ?MODULE:loop(Req, DocRoot) end,
 

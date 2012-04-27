@@ -1,7 +1,7 @@
 -module(comet_auth).
 -behaviour(gen_server).
 
--export([start/0, stop/0, new/2, auth/3]).
+-export([start/0, stop/0, new/0, auth/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% External API
@@ -12,8 +12,8 @@ start() ->
 stop() ->
 	gen_server:cast(?MODULE, stop).
 
-new(Uuid, Sid) ->
-	gen_server:cast(?MODULE, {new, Uuid, Sid}).
+new() ->
+	gen_server:call(?MODULE, new).
 
 release(Uuid, Sid) ->
 	gen_server:cast(?MODULE, {release, Uuid, Sid}).
@@ -27,6 +27,18 @@ send_message(Pid, Uuid, Sid, Message) ->
 %% Implementation
 init([]) ->
 	{ok, dict:new()}.
+
+hex_uuid() -> os:cmd("uuidgen").
+
+handle_call(new, _From, State) ->
+	Uuid = hex_uuid(),
+	Sid = comet_sid:get_sid(),
+
+	DisconnectF = fun() ->
+			1 = 1
+	end,
+
+	{reply, {ok, Uuid, Sid}, dict:store(Sid, {Uuid, none, false, comet_queue:start(Sid, DisconnectF)}, State)};
 
 handle_call({auth, Uuid, Sid, OSid}, _From, State) ->
 	case dict:find(Sid, State) of
@@ -71,10 +83,6 @@ handle_cast({unsubscribe, Pid, Uuid, Sid}, State) ->
 		_ -> {noreply, State}
 	end;
 
-handle_cast({new, Uuid, Sid}, State) ->
-	% uuid, osid, authenticated, queue
-				{noreply, dict:store(Sid, {Uuid, none, false, comet_queue:start(Sid)}, State)};
-
 handle_cast({release, Uuid, Sid}, State) ->
 	% TODO
 	{noreply, State};
@@ -99,10 +107,15 @@ code_change(_OldVersion, State, _Extra) ->
 
 auth_test() ->
 	comet_auth:start(),
-	comet_auth:new(3, 3),
-	comet_auth:new(4, 4),
+	comet_sid:start(),
 
-	?assertMatch({error, invalid_osid}, comet_auth:auth(3, 3, 4)),
-	?assertMatch(ok, comet_auth:auth(4, 4, 3)).
+	{ok, Uuid1, Sid1} = comet_auth:new(),
+	{ok, Uuid2, Sid2} = comet_auth:new(),
+
+	?assertMatch({error, invalid_osid}, comet_auth:auth(Uuid1, Sid1, Sid2)),
+	?assertMatch(ok, comet_auth:auth(Uuid2, Sid2, Sid1)),
+
+	comet_sid:stop(),
+	comet_auth:stop().
 
 -endif.

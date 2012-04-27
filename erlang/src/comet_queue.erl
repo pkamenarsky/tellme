@@ -50,8 +50,8 @@ handle_call(_, _From, State) ->
 
 handle_cast({send_message, Message}, State) ->
 	case State of
-		{none, Messages, DisconnectF} -> {noreply, {none, [Message | Messages], DisconnectF}};
-		{Pid, _, DisconnectF} -> Pid ! Message, {noreply, {none, [], DisconnectF}}
+		{none, Messages, DisconnectF} -> {noreply, {none, [Message | Messages], DisconnectF}, ?DISCONNECT_INTERVAL};
+		{Pid, _, DisconnectF} -> Pid ! Message, {noreply, {none, [], DisconnectF}, ?DISCONNECT_INTERVAL}
 	end;
 
 handle_cast({subscribe, Pid}, State) ->
