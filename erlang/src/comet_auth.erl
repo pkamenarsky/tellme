@@ -1,13 +1,12 @@
 -module(comet_auth).
 -behaviour(gen_server).
 
--export([start/0, stop/0, new/0, auth/3]).
+-export([start/0, stop/0, new/0, auth/3, subscribe/3, unsubscribe/2, send_message/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% External API
 start() ->
-	{ok, Pid} = gen_server:start({local, ?MODULE}, ?MODULE, [], []),
-	Pid.
+	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
 stop() ->
 	gen_server:cast(?MODULE, stop).
@@ -21,8 +20,14 @@ release(Uuid, Sid) ->
 auth(Uuid, Sid, OSid) ->
 	gen_server:call(?MODULE, {auth, Uuid, Sid, OSid}).
 
-send_message(Pid, Uuid, Sid, Message) ->
-	gen_server:cast(?MODULE, {message, Pid, Uuid, Sid, Message}).
+subscribe(Pid, Uuid, Sid) ->
+	gen_server:cast(?MODULE, {subscribe, Pid, Uuid, Sid}).
+
+unsubscribe(Uuid, Sid) ->
+	gen_server:cast(?MODULE, {unsubscribe, Uuid, Sid}).
+
+send_message(Uuid, Sid, Message) ->
+	gen_server:cast(?MODULE, {send_message, Uuid, Sid, Message}).
 
 %% Implementation
 init([]) ->
@@ -38,7 +43,10 @@ handle_call(new, _From, State) ->
 			gen_server:cast(?MODULE, {{release, dont_stop_queues}, Uuid, Sid})
 	end,
 
-	{reply, {ok, Uuid, Sid}, dict:store(Sid, {Uuid, none, false, comet_queue:start(Sid, DisconnectF)}, State)};
+	Queue = Sid,
+	comet_queue:start(Queue, DisconnectF),
+
+	{reply, {ok, Uuid, Sid}, dict:store(Sid, {Uuid, none, false, Queue}, State)};
 
 handle_call({auth, Uuid, Sid, OSid}, _From, State) ->
 	case dict:find(Sid, State) of
@@ -61,11 +69,11 @@ handle_call({auth, Uuid, Sid, OSid}, _From, State) ->
 		error -> {reply, {error, invalid_sid}, State}
 	end.
 
-handle_cast({message, Uuid, Sid, Message}, State) ->
+handle_cast({send_message, Uuid, Sid, Message}, State) ->
 	case dict:find(Sid, State) of
 		% find sid with matching uuid, then corresponding osid
 		{ok, {Uuid, OSid, true, _}} -> case dict:find(OSid, State) of
-				{ok, {OUuid, Sid, true, Queue}} -> comet_queue:send_message(Queue, Message);
+				{ok, {OUuid, Sid, true, OQueue}} -> comet_queue:send_message(OQueue, Message), {noreply, State};
 				_ -> {noreply, State}
 			end;
 		_ -> {noreply, State}
@@ -73,29 +81,31 @@ handle_cast({message, Uuid, Sid, Message}, State) ->
 
 handle_cast({subscribe, Pid, Uuid, Sid}, State) ->
 	case dict:find(Sid, State) of
-		{ok, {Uuid, _, _, Queue}} -> comet_queue:subscribe(Sid, Pid), {noreply, State};
+		{ok, {Uuid, _, _, Queue}} -> comet_queue:subscribe(Queue, Pid), {noreply, State};
 		_ -> {noreply, State}
 	end;
 
-handle_cast({unsubscribe, Pid, Uuid, Sid}, State) ->
+handle_cast({unsubscribe, Uuid, Sid}, State) ->
 	case dict:find(Sid, State) of
-		{ok, {Uuid, _, _, Queue}} -> comet_queue:unsubscribe(Sid, Pid), {noreply, State};
+		{ok, {Uuid, _, _, Queue}} -> comet_queue:unsubscribe(Queue), {noreply, State};
 		_ -> {noreply, State}
 	end;
 
 handle_cast({{release, stop_queues}, Uuid, Sid}, State) ->
 	case osid_for_sid(Uuid, Sid, State) of
-		{Sid, Queue, none, none} -> comet_queue:stop(Sid), {noreply, dict:erase(Sid)};
+		{Sid, Queue, none, none} -> comet_queue:stop(Queue), {noreply, dict:erase(Sid, State)};
 		{Sid, Queue, OSid, OQueue} ->
-			comet_queue:stop(Sid),
-			comet_queue:stop(OSid),
-			{noreply, dict:erase(Sid, dict:erase(OSid))}
+			comet_queue:stop(Queue),
+			comet_queue:stop(OQueue),
+			{noreply, dict:erase(Sid, dict:erase(OSid, State))};
+		_ -> {noreply, State}
 	end;
 
 handle_cast({{release, dont_stop_queues}, Uuid, Sid}, State) ->
 	case osid_for_sid(Uuid, Sid, State) of
-		{Sid, Queue, none, none} -> {noreply, dict:erase(Sid)};
-		{Sid, Queue, OSid, OQueue} -> {noreply, dict:erase(Sid, dict:erase(OSid))}
+		{Sid, Queue, none, none} -> {noreply, dict:erase(Sid, State)};
+		{Sid, Queue, OSid, OQueue} -> {noreply, dict:erase(Sid, dict:erase(OSid, State))};
+		_ -> {noreply, State}
 	end;
 
 handle_cast(stop, State) ->
@@ -119,7 +129,8 @@ osid_for_sid(Uuid, Sid, State) ->
 		{ok, {Uuid, OSid, _, Queue}} -> case dict:find(OSid, State) of
 				{ok, {OUuid, Sid, _, OQueue}} -> {Sid, Queue, OSid, OQueue};
 				_ -> {Sid, Queue, none, none}
-			end
+			end;
+		_ -> {none, none, none, none}
 	end.
 
 %%
@@ -137,6 +148,63 @@ auth_test() ->
 
 	?assertMatch({error, invalid_osid}, comet_auth:auth(Uuid1, Sid1, Sid2)),
 	?assertMatch(ok, comet_auth:auth(Uuid2, Sid2, Sid1)),
+
+	comet_queue:stop(Sid1),
+	comet_queue:stop(Sid2),
+
+	comet_sid:stop(),
+	comet_auth:stop().
+
+timeout_test() ->
+	{ok, Pid} = comet_auth:start(),
+	comet_sid:start(),
+
+	{ok, Uuid1, Sid1} = comet_auth:new(),
+	{ok, Uuid2, Sid2} = comet_auth:new(),
+
+	?assertMatch({error, invalid_osid}, comet_auth:auth(Uuid1, Sid1, Sid2)),
+	?assertMatch(ok, comet_auth:auth(Uuid2, Sid2, Sid1)),
+
+	timer:sleep(50),
+	comet_auth:subscribe(self(), Uuid2, Sid2),
+	timer:sleep(80),
+
+	{status, Pid, _, [_, _, _, _, [_, _, {data, [{_, State}]}]]} = sys:get_status(Pid),
+
+	case dict:find(Sid1, State) of
+		{ok, _} -> ?assertMatch("Sid not purged after timeout", "");
+		_ -> ?assertEqual(1, 1)
+	end,
+
+	case dict:find(Sid2, State) of
+		{ok, _} -> ?assertMatch("Sid not purged after timeout", "");
+		_ -> ?assertEqual(1, 1)
+	end,
+
+	comet_sid:stop(),
+	comet_auth:stop().
+
+message_test() ->
+	{ok, Pid} = comet_auth:start(),
+	comet_sid:start(),
+
+	{ok, Uuid1, Sid1} = comet_auth:new(),
+	{ok, Uuid2, Sid2} = comet_auth:new(),
+
+	?assertMatch({error, invalid_osid}, comet_auth:auth(Uuid1, Sid1, Sid2)),
+	?assertMatch(ok, comet_auth:auth(Uuid2, Sid2, Sid1)),
+
+	comet_auth:subscribe(self(), Uuid2, Sid2),
+	comet_auth:send_message(Uuid1, Sid1, some_message),
+
+	receive
+		some_message -> ?assertEqual(1, 1)
+	after 50 ->
+			?assertMatch("Message not received", "")
+	end,
+
+	comet_queue:stop(Sid1),
+	comet_queue:stop(Sid2),
 
 	comet_sid:stop(),
 	comet_auth:stop().
