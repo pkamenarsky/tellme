@@ -4,16 +4,20 @@
 -export([start/1, start/2, stop/1, send_message/2, subscribe/2, unsubscribe/1, state/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+-ifdef(TEST).
+-define(DISCONNECT_INTERVAL, 100).
+-else.
 -define(DISCONNECT_INTERVAL, 30000).
+-endif.
 
 %% External API
 start(Name) ->
-	{ok, _} = gen_server:start_link({global, Name}, ?MODULE, [], []),
-	{global, Name}.
+	{ok, Pid} = gen_server:start_link({global, Name}, ?MODULE, [], []),
+	{ok, Pid}.
 
 start(Name, DisconnectF) ->
-	{ok, _} = gen_server:start_link({global, Name}, ?MODULE, [DisconnectF], []),
-	{global, Name}.
+	{ok, Pid} = gen_server:start_link({global, Name}, ?MODULE, [DisconnectF], []),
+	{ok, Pid}.
 
 stop(Name) ->
 	gen_server:cast({global, Name}, stop).
@@ -35,7 +39,7 @@ init(F) ->
 	% pid, messages, tref
 	case F of
 		[DisconnectF] -> {ok, {none, [], DisconnectF}, ?DISCONNECT_INTERVAL};
-		[] -> {ok, {none, [], nonw}, ?DISCONNECT_INTERVAL}
+		[] -> {ok, {none, [], none}, ?DISCONNECT_INTERVAL}
 	end.
 
 handle_call(state, _From, State) ->
@@ -71,8 +75,8 @@ handle_cast(stop, State) ->
 
 handle_info(timeout, State) ->
 	case State of
-		{_, _, _, none} -> {stop, normal, State};
-		{_, _, _, DisconnectF} -> DisconnectF(), {stop, normal, State}
+		{_, _, none} -> {stop, normal, State};
+		{_, _, DisconnectF} -> DisconnectF(), {stop, normal, State}
 	end.
 
 terminate(_Reason, _State) ->
@@ -182,6 +186,57 @@ messages_test() ->
 		_ -> ?assertEqual("Unknown message received", 0)
 	after 10 -> ?assertEqual(1, 1)
 	end,
+
+	comet_queue:stop(self()).
+
+timeout_test() ->
+	{ok, Pid} = comet_queue:start(self()),
+
+	{status, Pid, _, [_, _, _, _, [_, _, {data, [{_, State}]}]]} = sys:get_status(Pid),
+	?assertMatch({none, [], none},State),
+	
+	% wait for timeout
+	timer:sleep(200),
+
+	?assertExit({noproc, {sys, get_status, [Pid]}}, sys:get_status(Pid)),
+
+	comet_queue:stop(self()).
+
+timeout_after_subscribe_test() ->
+	{ok, Pid} = comet_queue:start(self()),
+
+	comet_queue:send_message(self(), message),
+
+	{status, Pid, _, [_, _, _, _, [_, _, {data, [{_, State}]}]]} = sys:get_status(Pid),
+	?assertMatch({none, [message], none},State),
+
+	comet_queue:subscribe(self(), self()),
+	
+	% wait for timeout
+	timer:sleep(200),
+
+	?assertExit({noproc, {sys, get_status, [Pid]}}, sys:get_status(Pid)),
+
+	comet_queue:stop(self()).
+
+disconnectF_test() ->
+	Self = self(),
+	{ok, Pid} = comet_queue:start(self(), fun() ->
+			Self ! disconnect
+			end),
+
+	{status, Pid, _, [_, _, _, _, [_, _, {data, [{_, State}]}]]} = sys:get_status(Pid),
+	
+	% wait for timeout
+	timer:sleep(200),
+
+	receive
+		disconnect -> ?assertEqual(1, 1)
+	after 100 ->
+			?assertEqual("disconnectF wasn't called", "")
+	end,
+
+	?assertExit({noproc, {sys, get_status, [Pid]}}, sys:get_status(Pid)),
 
 	comet_queue:stop(self()).
 
