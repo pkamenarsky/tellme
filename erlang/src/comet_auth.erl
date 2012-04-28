@@ -34,7 +34,7 @@ init([]) ->
 	{ok, dict:new()}.
 
 handle_call(new, _From, State) ->
-	Uuid = uuid:to_string(uuid:uuid4()),
+	Uuid = list_to_binary(uuid:to_string(uuid:uuid4())),
 	Sid = comet_sid:get_sid(),
 
 	DisconnectF = fun() ->
@@ -70,25 +70,21 @@ handle_call({auth, Uuid, Sid, OSid}, _From, State) ->
 	end.
 
 handle_cast({send_message, Uuid, Sid, Message}, State) ->
-	case dict:find(Sid, State) of
-		% find sid with matching uuid, then corresponding osid
-		{ok, {Uuid, OSid, true, _}} -> case dict:find(OSid, State) of
-				{ok, {_OUuid, Sid, true, OQueue}} -> comet_queue:send_message(OQueue, Message), {noreply, State};
-				_ -> {noreply, State}
-			end;
-		_ -> {noreply, State}
+	case osid_for_sid(Uuid, Sid, State) of
+		{_, _, none, none} -> {noreply, State};
+		{_Sid, _Queue, _Osid, OQueue} -> comet_queue:send_message(OQueue, Message), {noreply, State}
 	end;
 
 handle_cast({subscribe, Pid, Uuid, Sid}, State) ->
-	case dict:find(Sid, State) of
-		{ok, {Uuid, _, _, Queue}} -> comet_queue:subscribe(Queue, Pid), {noreply, State};
-		_ -> {noreply, State}
+	case osid_for_sid(Uuid, Sid, State) of
+		{_, _, none, none} -> Pid ! {error, noauth}, {noreply, State};
+		{Sid, Queue, _Osid, _OQueue} -> comet_queue:subscribe(Queue, Pid), {noreply, State}
 	end;
 
 handle_cast({unsubscribe, Uuid, Sid}, State) ->
-	case dict:find(Sid, State) of
-		{ok, {Uuid, _, _, Queue}} -> comet_queue:unsubscribe(Queue), {noreply, State};
-		_ -> {noreply, State}
+	case osid_for_sid(Uuid, Sid, State) of
+		{_, _, none, none} -> {noreply, State};
+		{Sid, Queue, _Osid, _OQueue} -> comet_queue:unsubscribe(Queue), {noreply, State}
 	end;
 
 handle_cast({{release, stop_queues}, Uuid, Sid}, State) ->

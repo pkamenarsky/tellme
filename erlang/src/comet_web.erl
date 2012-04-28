@@ -59,23 +59,23 @@ loop(Req, DocRoot) ->
 
 							{[{<<"uuid">>, Uuid}, {<<"sid">>, Sid}]} ->
 								comet_auth:subscribe(self(), Uuid, Sid),
+
 								case wait_for_data(Req) of
+									% from socket
 									{error, socket_closed} ->
-										comet_auth:release(Uuid, Sid);
+										comet_auth:release(Uuid, Sid),
+										Req:cleanup();
 									{error, timeout} ->
 										comet_auth:unsubscribe(Uuid, Sid),
 										Req:ok({"text/plain", jiffy:encode({[{command, reconnect}]})});
+
+									% from comet_auth
+									{error, noauth} ->
+										Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, noauth}]})});
 									{ok, Message} ->
 										Req:ok({"text/plain", jiffy:encode({[{command, message}, {message, Message}]})})
 								end;
 
-							%	receive
-							%		Message ->
-							%			Req:ok({"text/plain", jiffy:encode({[{command, message}, {message, Message}]})})
-							%	after ?COMET_TIMEOUT ->
-							%			comet_auth:unsubscribe(Uuid, Sid),
-							%			Req:ok({"text/plain", jiffy:encode({[{command, reconnect}]})})
-							%	end;
 							_ -> Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, invalid}]})})
 						end;
 					% path catch all
@@ -95,10 +95,27 @@ loop(Req, DocRoot) ->
 					{type, Type}, {what, What},
 					{trace, erlang:get_stacktrace()}],
 			error_logger:error_report(Report),
-			Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, request}]})})
+			Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, internal}]})})
 	end.
 
 %% Internal API
+
+hib_receive(Req, Uuid, Sid, TRef) ->
+	case wait_for_data(Req) of
+		% from socket
+		{error, socket_closed} ->
+			comet_auth:release(Uuid, Sid),
+			Req:cleanup();
+		{error, timeout} ->
+			comet_auth:unsubscribe(Uuid, Sid),
+			Req:ok({"text/plain", jiffy:encode({[{command, reconnect}]})});
+
+		% from comet_auth
+		{error, noauth} ->
+			Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, noauth}]})});
+		{ok, Message} ->
+			Req:ok({"text/plain", jiffy:encode({[{command, message}, {message, Message}]})})
+	end.
 
 % as per https://groups.google.com/forum/?fromgroups#!topic/mochiweb/O5K3RsYiyXw
 wait_for_data(Req) ->
@@ -107,9 +124,10 @@ wait_for_data(Req) ->
 
 	receive
 		{tcp_closed, Socket} -> {error, socket_closed};
+		{error, Error} -> {error, Error};
+		timeout -> {error, timeout};
 		Message -> {ok, Message}
-	after
-		?COMET_TIMEOUT -> {error, timeout}
+	after ?COMET_TIMEOUT -> {error, timeout}
 	end.
 
 get_option(Option, Options) ->
@@ -152,6 +170,14 @@ auth_test() ->
 
 	{[{<<"ack">>, <<"error">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid1}, {sid, Sid1}, {osid, Sid2}]),
 	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid2}, {sid, Sid2}, {osid, Sid1}]),
+
+	ibrowse:stop().
+
+backchannel_noauth_test() ->
+	ibrowse:start(),
+
+	{[{<<"uuid">>, Uuid1}, {<<"sid">>, Sid1}]} = get_body("channel", [{command, <<"get-uuid">>}]),
+	{[{<<"ack">>, <<"error">>}, {<<"reason">>, <<"noauth">>}]} = get_body("backchannel", [{uuid, Uuid1}, {sid, Sid1}]),
 
 	ibrowse:stop().
 

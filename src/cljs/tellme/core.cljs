@@ -367,10 +367,15 @@
 (defn test-comet []
   (comet/channel {:command :get-uuid}
                  (fn [response]
+                   (dm/log-debug (str "RPN: " (pr-str response))))))
+
+(defn test-comet2 []
+  (comet/channel {:command :get-uuid}
+                 (fn [response]
                    (let [{:keys [uuid sid]} response]
                      (comet/channel {:command :get-uuid}
                                     (fn [response]
-                                      (let [{uuid2 :uuid sid2 :sid} response]
+                                      (let [{uuid2 "uuid" sid2 "sid"} response]
                                         (dm/log-debug (str uuid2 ", " sid2))
                                         
                                         (comet/channel {:command :auth
@@ -383,12 +388,12 @@
                                                         :sid sid2
                                                         :osid sid} identity)
 
-                                        (comet/backchannel {:sid sid :uuid uuid} (fn [msg] (dm/log-debug msg)) nil)
-                                        (comet/backchannel {:sid sid2 :uuid uuid2} (fn [msg] (dm/log-debug msg)) nil)
+                                        (comet/backchannel {:uuid uuid :sid sid} (fn [msg] (dm/log-debug msg)) nil)
+                                        (comet/backchannel {:uuid uuid2 :sid sid2} (fn [msg] (dm/log-debug msg)) nil)
                                         )))
                      (dm/log-debug (str uuid ", " sid))))))
  
-(events/listen js/window evttype/LOAD begin)
+;(events/listen js/window evttype/LOAD begin)
 ;(events/listen js/window evttype/LOAD main3)
-;(events/listen js/window evttype/LOAD test-comet)
+(events/listen js/window evttype/LOAD test-comet2)
 
