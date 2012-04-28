@@ -43,8 +43,9 @@ upgrade() ->
 init([]) ->
     Web = web_specs(comet_web, 8080),
 	CometSid = comet_sid_specs(),
+	CometAuth = comet_auth_specs(),
 
-    Processes = [Web, CometSid],
+    Processes = [Web, CometSid, CometAuth],
     Strategy = {one_for_one, 10, 10},
 
     {ok,
@@ -62,3 +63,9 @@ comet_sid_specs() ->
 	{comet_sid,
 		{comet_sid, start, []},
 		permanent, brutal_kill, worker, [comet_sid]}.
+
+comet_auth_specs() ->
+	{comet_auth,
+		{comet_auth, start, []},
+		permanent, 5000, worker, [comet_auth]}.
+

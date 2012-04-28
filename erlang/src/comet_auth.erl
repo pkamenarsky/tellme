@@ -92,19 +92,23 @@ handle_cast({unsubscribe, Uuid, Sid}, State) ->
 	end;
 
 handle_cast({{release, stop_queues}, Uuid, Sid}, State) ->
+	error_logger:info_msg("Releasing sid/stop: ~p~n", [Sid]),
+
 	case osid_for_sid(Uuid, Sid, State) of
-		{Sid, Queue, none, none} -> comet_queue:stop(Queue), {noreply, dict:erase(Sid, State)};
+		{Sid, Queue, none, none} -> comet_queue:stop(Queue), {noreply, release_sid(Sid, Queue, State)};
 		{Sid, Queue, OSid, OQueue} ->
 			comet_queue:stop(Queue),
 			comet_queue:stop(OQueue),
-			{noreply, dict:erase(Sid, dict:erase(OSid, State))};
+			{noreply, release_sid(Sid, Queue, release_sid(OSid, OQueue, State))};
 		_ -> {noreply, State}
 	end;
 
 handle_cast({{release, dont_stop_queues}, Uuid, Sid}, State) ->
+	error_logger:info_msg("Releasing sid/dontstop: ~p~n", [Sid]),
+
 	case osid_for_sid(Uuid, Sid, State) of
-		{Sid, Queue, none, none} -> {noreply, dict:erase(Sid, State)};
-		{Sid, Queue, OSid, OQueue} -> {noreply, dict:erase(Sid, dict:erase(OSid, State))};
+		{Sid, Queue, none, none} -> {noreply, release_sid(Sid, Queue, State)};
+		{Sid, Queue, OSid, OQueue} -> {noreply, release_sid(Sid, Queue, release_sid(OSid, OQueue, State))};
 		_ -> {noreply, State}
 	end;
 
@@ -122,6 +126,11 @@ code_change(_OldVersion, State, _Extra) ->
 
 %% Internal API
 hex_uuid() -> os:cmd("uuidgen").
+
+release_sid(Sid, Queue, State) ->
+%	comet_queue:send_message(Sid, release),
+	comet_sid:release_sid(Sid),
+	dict:erase(Sid, State).
 
 osid_for_sid(Uuid, Sid, State) ->
 	case dict:find(Sid, State) of
@@ -170,6 +179,12 @@ timeout_test() ->
 	timer:sleep(80),
 
 	{status, Pid, _, [_, _, _, _, [_, _, {data, [{_, State}]}]]} = sys:get_status(Pid),
+
+%	receive
+%		release -> ?assertEqual(1, 1)
+%	after 200 ->
+%			?assertMatch("release message not received", "")
+%	end,
 
 	case dict:find(Sid1, State) of
 		{ok, _} -> ?assertMatch("Sid not purged after timeout", "");
