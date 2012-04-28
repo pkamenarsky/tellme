@@ -12,26 +12,10 @@
     (keyword? k) (str "\"" (name k) "\"")
     :else (str "\"" k "\"")))
 
-(defn cmd [& obj]
+(defn cmd [obj]
   (str (apply str "{" (interpose ", " (map (fn [[k v]]
                                              (str (kkey k) ":" (kkey v)))
                                            (partition 2 obj)))) "}"))
-
-
-(defn clj->js
-  "Recursively transforms ClojureScript maps into Javascript objects,
-  other ClojureScript colls into JavaScript arrays, and ClojureScript
-  keywords into JavaScript strings.
-
-  Borrowed and updated from mmcgrana."
-  [x]
-  (cond
-    (string? x) x
-    (keyword? x) (name x)
-    (map? x) (.-strobj (reduce (fn [m [k v]]
-                                 (assoc m (clj->js k) (clj->js v))) {} x))
-    (coll? x) (apply array (map clj->js x))
-    :else x))
 
 (defn- parse-form [form]
   (try
@@ -41,7 +25,7 @@
       {:ack :error :reason :parse})))
 
 (defn xhr-send [url content f ferr]
-  (dm/log-debug (str "XHR: " content))
+  (dm/log-debug (str "XHR: " (cmd content)))
   (goog.net.XhrIo/send (str *remote-root* "/" url "?__rand__=" (.getTime (js/Date.)))
                        (fn [e]
                          (if (.isSuccess (.-target e))
@@ -53,7 +37,7 @@
                                (when ferr (ferr parsed)))) 
                            (when ferr (ferr {:ack :error :reason :connection}))))
                        "POST"
-                       content))
+                       (cmd content)))
 
 (defn channel [content f]
   (xhr-send "channel" content f nil))

@@ -370,26 +370,26 @@
                    (dm/log-debug (str "RPN: " (pr-str response))))))
 
 (defn test-comet2 []
-  (comet/channel (comet/cmd :command :get-uuid)
+  (comet/channel [:command :get-uuid]
                  (fn [response]
                    (let [{uuid "uuid" sid "sid"} response]
-                     (comet/channel (comet/cmd :command :get-uuid)
+                     (comet/channel [:command :get-uuid]
                                     (fn [response]
                                       (let [{uuid2 "uuid" sid2 "sid"} response]
                                         (dm/log-debug (str uuid2 ", " sid2))
                                         
-                                        (comet/channel (comet/cmd :command :auth
-                                                                  :uuid uuid
-                                                                  :sid sid
-                                                                  :osid sid2) (fn [r]
-
-                                                                                (comet/channel (comet/cmd :command :auth
-                                                                                                          :uuid uuid2
-                                                                                                          :sid sid2
-                                                                                                          :osid sid)
-                                                                                               (fn [response]
-                                                                                                 (comet/backchannel (comet/cmd :uuid uuid :sid sid) (fn [msg] (dm/log-debug msg)) nil) 
-                                                                                                 (comet/backchannel (comet/cmd :uuid uuid2 :sid sid2) (fn [msg] (dm/log-debug msg)) nil))))) 
+                                        (comet/channel [:command :auth
+                                                        :uuid uuid
+                                                        :sid sid
+                                                        :osid sid2]
+                                                       (fn [r]
+                                                         (comet/channel [:command :auth
+                                                                         :uuid uuid2
+                                                                         :sid sid2
+                                                                         :osid sid] 
+                                                                        (fn [response]
+                                                                          (comet/backchannel [:uuid uuid :sid sid] (fn [msg] (dm/log-debug msg)) nil) 
+                                                                          (comet/backchannel [:uuid uuid2 :sid sid2] (fn [msg] (dm/log-debug msg)) nil))))) 
                                         )))
                      (dm/log-debug (str uuid ", " sid))))))
  

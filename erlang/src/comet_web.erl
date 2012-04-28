@@ -64,7 +64,7 @@ loop(Req, DocRoot) ->
 								Socket = Req:get(socket),
 								inet:setopts(Socket, [{active, once}]),
 
-								TRef = erlang:send_after(?COMET_TIMEOUT, self(), timeout),
+								TRef = erlang:send_after(?COMET_TIMEOUT, self(), {error, timeout}),
 								proc_lib:hibernate(?MODULE, hib_receive, [Req, Uuid, Sid, TRef]);
 
 							_ -> Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, invalid}]})})
@@ -91,13 +91,13 @@ loop(Req, DocRoot) ->
 
 %% Internal API
 
-% TODO: clean this up
+% as per https://groups.google.com/forum/?fromgroups#!topic/mochiweb/O5K3RsYiyXw
 hib_receive(Req, Uuid, Sid, TRef) ->
 	erlang:cancel_timer(TRef),
 
-	case wait_for_data() of
+	receive
 		% from socket
-		{error, socket_closed} ->
+		{tcp_closed, _Socket} ->
 			comet_auth:release(Uuid, Sid),
 			Req:cleanup();
 		{error, timeout} ->
@@ -107,18 +107,8 @@ hib_receive(Req, Uuid, Sid, TRef) ->
 		% from comet_auth
 		{error, noauth} ->
 			Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, noauth}]})});
-		{ok, Message} ->
+		Message ->
 			Req:ok({"text/plain", jiffy:encode({[{command, message}, {message, Message}]})})
-	end.
-
-% as per https://groups.google.com/forum/?fromgroups#!topic/mochiweb/O5K3RsYiyXw
-wait_for_data() ->
-	receive
-		{tcp_closed, Socket} -> {error, socket_closed};
-		{error, Error} -> {error, Error};
-		timeout -> {error, timeout};
-		Message -> {ok, Message}
-	% after ?COMET_TIMEOUT -> {error, timeout}
 	end.
 
 get_option(Option, Options) ->
@@ -159,7 +149,7 @@ auth_test() ->
 	{[{<<"uuid">>, Uuid1}, {<<"sid">>, Sid1}]} = get_body("channel", [{command, <<"get-uuid">>}]),
 	{[{<<"uuid">>, Uuid2}, {<<"sid">>, Sid2}]} = get_body("channel", [{command, <<"get-uuid">>}]),
 
-	{[{<<"ack">>, <<"error">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid1}, {sid, Sid1}, {osid, Sid2}]),
+	{[{<<"ack">>, <<"noauth">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid1}, {sid, Sid1}, {osid, Sid2}]),
 	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid2}, {sid, Sid2}, {osid, Sid1}]),
 
 	ibrowse:stop().
@@ -177,7 +167,7 @@ backchannel_test() ->
 	{[{<<"uuid">>, Uuid1}, {<<"sid">>, Sid1}]} = get_body("channel", [{command, <<"get-uuid">>}]),
 	{[{<<"uuid">>, Uuid2}, {<<"sid">>, Sid2}]} = get_body("channel", [{command, <<"get-uuid">>}]),
 
-	{[{<<"ack">>, <<"error">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid1}, {sid, Sid1}, {osid, Sid2}]),
+	{[{<<"ack">>, <<"noauth">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid1}, {sid, Sid1}, {osid, Sid2}]),
 	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid2}, {sid, Sid2}, {osid, Sid1}]),
 
 	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"message">>}, {uuid, Uuid2}, {sid, Sid2}, {message, "A message"}]),
