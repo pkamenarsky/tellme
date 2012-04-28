@@ -1,7 +1,7 @@
 -module(comet_auth).
 -behaviour(gen_server).
 
--export([start/0, stop/0, new/0, auth/3, subscribe/3, unsubscribe/2, send_message/3]).
+-export([start/0, stop/0, new/0, release/2, auth/3, subscribe/3, unsubscribe/2, send_message/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% External API
@@ -73,7 +73,7 @@ handle_cast({send_message, Uuid, Sid, Message}, State) ->
 	case dict:find(Sid, State) of
 		% find sid with matching uuid, then corresponding osid
 		{ok, {Uuid, OSid, true, _}} -> case dict:find(OSid, State) of
-				{ok, {OUuid, Sid, true, OQueue}} -> comet_queue:send_message(OQueue, Message), {noreply, State};
+				{ok, {_OUuid, Sid, true, OQueue}} -> comet_queue:send_message(OQueue, Message), {noreply, State};
 				_ -> {noreply, State}
 			end;
 		_ -> {noreply, State}
@@ -126,8 +126,8 @@ code_change(_OldVersion, State, _Extra) ->
 
 %% Internal API
 
-release_sid(Sid, Queue, State) ->
-%	comet_queue:send_message(Sid, release),
+release_sid(Sid, _Queue, State) ->
+%	comet_queue:send_message(Queue, release),
 	comet_sid:release_sid(Sid),
 	dict:erase(Sid, State).
 
@@ -135,7 +135,7 @@ osid_for_sid(Uuid, Sid, State) ->
 	case dict:find(Sid, State) of
 		{ok, {Uuid, none, _, Queue}} -> {Sid, Queue, none, none};
 		{ok, {Uuid, OSid, _, Queue}} -> case dict:find(OSid, State) of
-				{ok, {OUuid, Sid, _, OQueue}} -> {Sid, Queue, OSid, OQueue};
+				{ok, {_OUuid, Sid, _, OQueue}} -> {Sid, Queue, OSid, OQueue};
 				_ -> {Sid, Queue, none, none}
 			end;
 		_ -> {none, none, none, none}

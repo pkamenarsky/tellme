@@ -6,7 +6,7 @@
 
 %% External API
 start() ->
-	{ok, Pid} = gen_server:start({local, ?MODULE}, ?MODULE, [], []).
+	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
 stop() ->
 	gen_server:cast(?MODULE, stop).

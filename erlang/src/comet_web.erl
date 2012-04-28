@@ -87,7 +87,7 @@ loop(Req, DocRoot) ->
 				Req:respond({501, [], []})
 		end
 	catch
-		throw:{fail, Reason} ->
+		throw:{fail, _Reason} ->
 			Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, internal}]})});
 		Type:What ->
 			Report = ["web request failed",
