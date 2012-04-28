@@ -43,7 +43,7 @@ loop(Req, DocRoot) ->
 							{[{<<"command">>, <<"auth">>}, {<<"uuid">>, Uuid}, {<<"sid">>, Sid}, {<<"osid">>, OSid}]} ->
 								case comet_auth:auth(Uuid, Sid, OSid) of
 									ok -> Req:ok({"text/plain", jiffy:encode({[{ack, ok}]})});
-									{error, EReason} -> Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, EReason}]})})
+									{error, EReason} -> Req:ok({"text/plain", jiffy:encode({[{ack, noauth}, {reason, EReason}]})})
 								end;
 
 							{[{<<"command">>, <<"message">>}, {<<"uuid">>, Uuid}, {<<"sid">>, Sid}, {<<"message">>, Message}]} ->
@@ -60,7 +60,10 @@ loop(Req, DocRoot) ->
 							{[{<<"uuid">>, Uuid}, {<<"sid">>, Sid}]} ->
 								comet_auth:subscribe(self(), Uuid, Sid),
 
-								% hibernate process
+								% set active mode & hibernate process
+								Socket = Req:get(socket),
+								inet:setopts(Socket, [{active, once}]),
+
 								TRef = erlang:send_after(?COMET_TIMEOUT, self(), timeout),
 								proc_lib:hibernate(?MODULE, hib_receive, [Req, Uuid, Sid, TRef]);
 
@@ -88,10 +91,11 @@ loop(Req, DocRoot) ->
 
 %% Internal API
 
+% TODO: clean this up
 hib_receive(Req, Uuid, Sid, TRef) ->
 	erlang:cancel_timer(TRef),
 
-	case wait_for_data(Req) of
+	case wait_for_data() of
 		% from socket
 		{error, socket_closed} ->
 			comet_auth:release(Uuid, Sid),
@@ -108,10 +112,7 @@ hib_receive(Req, Uuid, Sid, TRef) ->
 	end.
 
 % as per https://groups.google.com/forum/?fromgroups#!topic/mochiweb/O5K3RsYiyXw
-wait_for_data(Req) ->
-	Socket = Req:get(socket),
-	inet:setopts(Socket, [{active, once}]),
-
+wait_for_data() ->
 	receive
 		{tcp_closed, Socket} -> {error, socket_closed};
 		{error, Error} -> {error, Error};

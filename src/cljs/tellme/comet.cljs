@@ -6,6 +6,18 @@
 
 (def ^:dynamic *remote-root* "http://localhost:8080")
 
+(defn kkey [k]
+  (cond
+    (number? k) (str k) 
+    (keyword? k) (str "\"" (name k) "\"")
+    :else (str "\"" k "\"")))
+
+(defn cmd [& obj]
+  (str (apply str "{" (interpose ", " (map (fn [[k v]]
+                                             (str (kkey k) ":" (kkey v)))
+                                           (partition 2 obj)))) "}"))
+
+
 (defn clj->js
   "Recursively transforms ClojureScript maps into Javascript objects,
   other ClojureScript colls into JavaScript arrays, and ClojureScript
@@ -29,19 +41,19 @@
       {:ack :error :reason :parse})))
 
 (defn xhr-send [url content f ferr]
-  (dm/log-debug (str "XHR: " (JSON/stringify (clj->js content))))
+  (dm/log-debug (str "XHR: " content))
   (goog.net.XhrIo/send (str *remote-root* "/" url "?__rand__=" (.getTime (js/Date.)))
                        (fn [e]
                          (if (.isSuccess (.-target e))
                            (dm/log-debug (str "RECEIVED: " (.getResponseText (.-target e)))))
                          (if (.isSuccess (.-target e))
                            (let [parsed (parse-form (.getResponseText (.-target e)))]
-                             (if (not= (:ack parsed) :error)
+                             (if (not= (parsed "ack") "error")
                                (f parsed)
                                (when ferr (ferr parsed)))) 
                            (when ferr (ferr {:ack :error :reason :connection}))))
                        "POST"
-                       (JSON/stringify (clj->js content))))
+                       content))
 
 (defn channel [content f]
   (xhr-send "channel" content f nil))
