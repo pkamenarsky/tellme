@@ -6,7 +6,7 @@
 -module(comet_web).
 -author("Mochi Media <dev@mochimedia.com>").
 
--export([start/1, stop/0, loop/2]).
+-export([start/1, stop/0, loop/2, hib_receive/4]).
 
 -ifdef(TEST).
 -define(COMET_TIMEOUT, 200).
@@ -60,21 +60,9 @@ loop(Req, DocRoot) ->
 							{[{<<"uuid">>, Uuid}, {<<"sid">>, Sid}]} ->
 								comet_auth:subscribe(self(), Uuid, Sid),
 
-								case wait_for_data(Req) of
-									% from socket
-									{error, socket_closed} ->
-										comet_auth:release(Uuid, Sid),
-										Req:cleanup();
-									{error, timeout} ->
-										comet_auth:unsubscribe(Uuid, Sid),
-										Req:ok({"text/plain", jiffy:encode({[{command, reconnect}]})});
-
-									% from comet_auth
-									{error, noauth} ->
-										Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, noauth}]})});
-									{ok, Message} ->
-										Req:ok({"text/plain", jiffy:encode({[{command, message}, {message, Message}]})})
-								end;
+								% hibernate process
+								TRef = erlang:send_after(?COMET_TIMEOUT, self(), timeout),
+								proc_lib:hibernate(?MODULE, hib_receive, [Req, Uuid, Sid, TRef]);
 
 							_ -> Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, invalid}]})})
 						end;
@@ -101,6 +89,8 @@ loop(Req, DocRoot) ->
 %% Internal API
 
 hib_receive(Req, Uuid, Sid, TRef) ->
+	erlang:cancel_timer(TRef),
+
 	case wait_for_data(Req) of
 		% from socket
 		{error, socket_closed} ->
@@ -127,7 +117,7 @@ wait_for_data(Req) ->
 		{error, Error} -> {error, Error};
 		timeout -> {error, timeout};
 		Message -> {ok, Message}
-	after ?COMET_TIMEOUT -> {error, timeout}
+	% after ?COMET_TIMEOUT -> {error, timeout}
 	end.
 
 get_option(Option, Options) ->
