@@ -34,7 +34,7 @@ init([]) ->
 	{ok, dict:new()}.
 
 handle_call(new, _From, State) ->
-	Uuid = hex_uuid(),
+	Uuid = uuid:to_string(uuid:uuid4()),
 	Sid = comet_sid:get_sid(),
 
 	DisconnectF = fun() ->
@@ -125,7 +125,6 @@ code_change(_OldVersion, State, _Extra) ->
 	{ok, State}.
 
 %% Internal API
-hex_uuid() -> os:cmd("uuidgen").
 
 release_sid(Sid, Queue, State) ->
 %	comet_queue:send_message(Sid, release),
@@ -195,6 +194,8 @@ timeout_test() ->
 		{ok, _} -> ?assertMatch("Sid not purged after timeout", "");
 		_ -> ?assertEqual(1, 1)
 	end,
+
+	timer:sleep(100),
 
 	comet_sid:stop(),
 	comet_auth:stop().

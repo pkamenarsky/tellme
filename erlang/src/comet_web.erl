@@ -40,13 +40,13 @@ loop(Req, DocRoot) ->
 								{ok, Uuid, Sid} = comet_auth:new(),
 								Req:ok({"text/plain", jiffy:encode({[{uuid, Uuid}, {sid, Sid}]})});
 
-							{[{<<"command">>, <<"auth">>}, {<<"sid">>, Sid}, {<<"uuid">>, Uuid}, {<<"osid">>, OSid}]} ->
+							{[{<<"command">>, <<"auth">>}, {<<"uuid">>, Uuid}, {<<"sid">>, Sid}, {<<"osid">>, OSid}]} ->
 								case comet_auth:auth(Uuid, Sid, OSid) of
 									ok -> Req:ok({"text/plain", jiffy:encode({[{ack, ok}]})});
 									{error, EReason} -> Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, EReason}]})})
 								end;
 
-							{[{<<"command">>, <<"message">>}, {<<"sid">>, Sid}, {<<"uuid">>, Uuid}, {<<"message">>, Message}]} ->
+							{[{<<"command">>, <<"message">>}, {<<"uuid">>, Uuid}, {<<"sid">>, Sid}, {<<"message">>, Message}]} ->
 								comet_auth:send_message(Uuid, Sid, Message),
 								Req:ok({"text/plain", jiffy:encode({[{ack, ok}]})});
 
@@ -88,14 +88,14 @@ loop(Req, DocRoot) ->
 		end
 	catch
 		throw:{fail, Reason} ->
-			Req:ok({"text/plain", jsonp_wrap("fail", "{ack: \"error\", reason: \"" ++ to_string(Reason) ++ "\"}")});
+			Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, internal}]})});
 		Type:What ->
 			Report = ["web request failed",
 					{path, Path},
 					{type, Type}, {what, What},
 					{trace, erlang:get_stacktrace()}],
 			error_logger:error_report(Report),
-			Req:ok({"text/plain", "{ack: \"error\", reason: \"" ++ to_string(Report) ++ "\"}"})
+			Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, request}]})})
 	end.
 
 %% Internal API
@@ -112,44 +112,9 @@ wait_for_data(Req) ->
 		?COMET_TIMEOUT -> {error, timeout}
 	end.
 
-hex_uuid() -> os:cmd("uuidgen").
-
 get_option(Option, Options) ->
     {proplists:get_value(Option, Options), proplists:delete(Option, Options)}.
 
-jsonp_wrap(Callback, Json) ->
-	case Callback of
-		undefined -> Json;
-		_ -> Callback ++ "('" ++ Json ++ "');"
-	end.
-
-string_format(Pattern, Values) ->
-    lists:flatten(io_lib:format(Pattern, Values)).
-    
-to_string(Value) ->
-	string_format("~p", [Value]).
-
-to_integer(undefined) ->
-	undefined;
-	
-to_integer(String) ->
-	case string:to_integer(String) of
-		{error, _} -> throw({fail, not_an_integer});
-		{X, _} -> X
-	end.
-
-value_to_binary(Value) when is_list(Value) ->
-	list_to_binary(Value);
-
-value_to_binary(Value) ->
-	Value.
-
-value_or(Value, Alternative) when Value == undefined ->
-	Alternative;
-
-value_or(Value, _Alternative) ->
-	Value.
-	
 %%
 %% Tests
 %%
@@ -185,8 +150,8 @@ auth_test() ->
 	{[{<<"uuid">>, Uuid1}, {<<"sid">>, Sid1}]} = get_body("channel", [{command, <<"get-uuid">>}]),
 	{[{<<"uuid">>, Uuid2}, {<<"sid">>, Sid2}]} = get_body("channel", [{command, <<"get-uuid">>}]),
 
-	{[{<<"ack">>, <<"error">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {sid, Sid1}, {uuid, Uuid1}, {osid, Sid2}]),
-	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {sid, Sid2}, {uuid, Uuid2}, {osid, Sid1}]),
+	{[{<<"ack">>, <<"error">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid1}, {sid, Sid1}, {osid, Sid2}]),
+	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid2}, {sid, Sid2}, {osid, Sid1}]),
 
 	ibrowse:stop().
 
@@ -195,10 +160,10 @@ backchannel_test() ->
 	{[{<<"uuid">>, Uuid1}, {<<"sid">>, Sid1}]} = get_body("channel", [{command, <<"get-uuid">>}]),
 	{[{<<"uuid">>, Uuid2}, {<<"sid">>, Sid2}]} = get_body("channel", [{command, <<"get-uuid">>}]),
 
-	{[{<<"ack">>, <<"error">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {sid, Sid1}, {uuid, Uuid1}, {osid, Sid2}]),
-	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {sid, Sid2}, {uuid, Uuid2}, {osid, Sid1}]),
+	{[{<<"ack">>, <<"error">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid1}, {sid, Sid1}, {osid, Sid2}]),
+	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid2}, {sid, Sid2}, {osid, Sid1}]),
 
-	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"message">>}, {sid, Sid2}, {uuid, Uuid2}, {message, "A message"}]),
+	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"message">>}, {uuid, Uuid2}, {sid, Sid2}, {message, "A message"}]),
 	{[{<<"command">>, <<"message">>}, {<<"message">>, "A message"}]} = get_body("backchannel", [{uuid, Uuid1}, {sid, Sid1}]),
 
 	ibrowse:stop().
@@ -208,8 +173,8 @@ backchannel_test() ->
 %	{[{<<"uuid">>, Uuid1}, {<<"sid">>, Sid1}]} = get_body("channel", [{command, <<"get-uuid">>}]),
 %	{[{<<"uuid">>, Uuid2}, {<<"sid">>, Sid2}]} = get_body("channel", [{command, <<"get-uuid">>}]),
 %
-%	{[{<<"ack">>, <<"error">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {sid, Sid1}, {uuid, Uuid1}, {osid, Sid2}]),
-%	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {sid, Sid2}, {uuid, Uuid2}, {osid, Sid1}]),
+%	{[{<<"ack">>, <<"error">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid1}, {sid, Sid1}, {osid, Sid2}]),
+%	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid2}, {sid, Sid2}, {osid, Sid1}]),
 %
 %	timer:sleep(200),
 %	{[{<<"command">>, <<"reconnect">>}]} = get_body("backchannel", [{uuid, Uuid1}, {sid, Sid1}]),
