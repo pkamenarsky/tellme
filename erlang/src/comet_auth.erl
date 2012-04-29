@@ -1,7 +1,7 @@
 -module(comet_auth).
 -behaviour(gen_server).
 
--export([start/0, stop/0, new/0, release/2, auth/3, subscribe/3, unsubscribe/2, send_message/3]).
+-export([start/0, stop/0, new/0, release/2, auth/3, subscribe/3, unsubscribe/2, send_message/3, send_message_to_sid/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% External API
@@ -28,6 +28,9 @@ unsubscribe(Uuid, Sid) ->
 
 send_message(Uuid, Sid, Message) ->
 	gen_server:cast(?MODULE, {send_message, Uuid, Sid, Message}).
+
+send_message_to_sid(Sid, Message) ->
+	gen_server:cast(?MODULE, {send_message_to_sid, Sid, Message}).
 
 %% Implementation
 init([]) ->
@@ -75,16 +78,22 @@ handle_cast({send_message, Uuid, Sid, Message}, State) ->
 		{_Sid, _Queue, _Osid, OQueue} -> comet_queue:send_message(OQueue, Message), {noreply, State}
 	end;
 
+handle_cast({send_message_to_sid, Sid, Message}, State) ->
+	case dict:find(Sid, State) of
+		{ok, {_, _, _, Queue}} -> comet_queue:send_message(Queue, Message), {noreply, State};
+		_ -> {noreply, State}
+	end;
+
 handle_cast({subscribe, Pid, Uuid, Sid}, State) ->
-	case osid_for_sid(Uuid, Sid, State) of
-		{_, _, none, none} -> Pid ! {error, noauth}, {noreply, State};
-		{Sid, Queue, _Osid, _OQueue} -> comet_queue:subscribe(Queue, Pid), {noreply, State}
+	case dict:find(Sid, State) of
+		{ok, {Uuid, _, _, Queue}} -> comet_queue:subscribe(Queue, Pid), {noreply, State};
+		_ -> Pid ! {error, noauth}, {noreply, State}
 	end;
 
 handle_cast({unsubscribe, Uuid, Sid}, State) ->
-	case osid_for_sid(Uuid, Sid, State) of
-		{_, _, none, none} -> {noreply, State};
-		{Sid, Queue, _Osid, _OQueue} -> comet_queue:unsubscribe(Queue), {noreply, State}
+	case dict:find(Sid, State) of
+		{ok, {Uuid, _, _, Queue}} -> comet_queue:unsubscribe(Queue), {noreply, State};
+		_ -> {noreply, State}
 	end;
 
 handle_cast({{release, stop_queues}, Uuid, Sid}, State) ->

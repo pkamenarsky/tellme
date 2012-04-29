@@ -42,7 +42,11 @@ loop(Req, DocRoot) ->
 
 							{[{<<"command">>, <<"auth">>}, {<<"uuid">>, Uuid}, {<<"sid">>, Sid}, {<<"osid">>, OSid}]} ->
 								case comet_auth:auth(Uuid, Sid, OSid) of
-									ok -> Req:ok({"text/plain", jiffy:encode({[{ack, ok}]})});
+									ok -> 
+										comet_auth:send_message_to_sid(Sid, {ack, auth}),
+										comet_auth:send_message_to_sid(OSid, {ack, auth}),
+
+										Req:ok({"text/plain", jiffy:encode({[{ack, ok}]})});
 									{error, EReason} -> Req:ok({"text/plain", jiffy:encode({[{ack, noauth}, {reason, EReason}]})})
 								end;
 
@@ -108,6 +112,10 @@ hib_receive(Req, Uuid, Sid, TRef) ->
 		{error, unsubscribe} ->
 			Req:ok({"text/plain", jiffy:encode({[{ack, nop}]})});
 
+		% from here
+		{ack, auth} ->
+			Req:ok({"text/plain", jiffy:encode({[{ack, auth}]})});
+
 		% from comet_auth
 		{error, noauth} ->
 			Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, noauth}]})});
@@ -156,13 +164,15 @@ auth_test() ->
 	{[{<<"ack">>, <<"noauth">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid1}, {sid, Sid1}, {osid, Sid2}]),
 	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid2}, {sid, Sid2}, {osid, Sid1}]),
 
+	{[{<<"ack">>, <<"auth">>}]} = get_body("backchannel", [{uuid, Uuid1}, {sid, Sid1}]),
+	{[{<<"ack">>, <<"auth">>}]} = get_body("backchannel", [{uuid, Uuid2}, {sid, Sid2}]),
+
 	ibrowse:stop().
 
 backchannel_noauth_test() ->
 	ibrowse:start(),
 
-	{[{<<"uuid">>, Uuid1}, {<<"sid">>, Sid1}]} = get_body("channel", [{command, <<"get-uuid">>}]),
-	{[{<<"ack">>, <<"error">>}, {<<"reason">>, <<"noauth">>}]} = get_body("backchannel", [{uuid, Uuid1}, {sid, Sid1}]),
+	{[{<<"ack">>, <<"error">>}, {<<"reason">>, <<"noauth">>}]} = get_body("backchannel", [{uuid, 0}, {sid, 1}]),
 
 	ibrowse:stop().
 
@@ -173,6 +183,9 @@ backchannel_test() ->
 
 	{[{<<"ack">>, <<"noauth">>}, {<<"reason">>, _}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid1}, {sid, Sid1}, {osid, Sid2}]),
 	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid2}, {sid, Sid2}, {osid, Sid1}]),
+
+	{[{<<"ack">>, <<"auth">>}]} = get_body("backchannel", [{uuid, Uuid1}, {sid, Sid1}]),
+	{[{<<"ack">>, <<"auth">>}]} = get_body("backchannel", [{uuid, Uuid2}, {sid, Sid2}]),
 
 	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"message">>}, {uuid, Uuid2}, {sid, Sid2}, {message, "A message"}]),
 	{[{<<"ack">>, <<"message">>}, {<<"message">>, "A message"}]} = get_body("backchannel", [{uuid, Uuid1}, {sid, Sid1}]),
