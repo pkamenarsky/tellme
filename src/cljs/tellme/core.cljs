@@ -76,8 +76,8 @@
           (ui/animate [table row [height :px] :duration 0])
           (dm/set-style! msg-container :height height "px"))))))
 
-(defn- quote-message [{:keys [input main-container quote-overlay table] :as sm}
-                      {:keys [text row height self]} event]
+(defn- quote-message [{:keys [input main-container quote-overlay table self] :as sm}
+                      {:keys [text row height]} event]
 
   (let [event-key (atom nil)
         static-table (dm/clone table)
@@ -155,25 +155,10 @@
     (dme/listen! container :mouseout hide-quote-button)
     (dme/listen! quote-button :click (partial quote-message data message))))
 
-; FSM ----------------------------------------------------------------------
+; UI -----------------------------------------------------------------------
 
-(def base-sm
-  (defsm
-    ; fsm data
-    {:self nil
-     :queue []
-     :osid-input nil
-     :table nil
-     :input nil
-     :left-column nil
-     :right-column nil
-     :main-container nil
-     :quote-overlay nil
-     :shadow nil}
-
-    ; we start here
-    ([:start :in {:keys [self] :as data}]
-     (let [number1 (view :div.number1)
+(defn- start [{:keys [self] :as data}]
+  (let [number1 (view :div.number1)
            number2 (view :input.number2)
 
            button-background (view :div.button-background)
@@ -250,13 +235,117 @@
                                 (defer (remote [:command :auth :uuid uuid :sid sid :osid
                                                 (js/parseInt (dm/value number2))] _)))))
 
-       ; go to :auth but update our internal state
-       (fsm/next-state :auth (-> data
-                               (assoc :left-column left-column)
-                               (assoc :right-column right-column)
-                               (assoc :osid-input number2)
-                               (assoc :main-container main-container)
-                               (assoc :quote-overlay quote-overlay)))))
+    ; update our internal state
+    (-> data
+      (assoc :left-column left-column)
+      (assoc :right-column right-column)
+      (assoc :osid-input number2)
+      (assoc :main-container main-container)
+      (assoc :quote-overlay quote-overlay))))
+
+(defn- show-chat [{:keys [main-container quote-overlay self] :as data}]
+  (let [table (dm/add-class! (table/create-table) "chat-table") 
+        shadow (view :div.shadow)
+        input (view :textarea.chat-input)
+
+        main-container (view main-container table shadow input)
+
+        body (view (dmc/sel "body") main-container quote-overlay)
+
+        message (atom nil)
+        shadow-height (defdep [message]
+                              (dm/set-text! shadow (if (> (.-length message) 0) message "."))
+                              (ui/property shadow :offsetHeight)) 
+        input-height (atom -1)]
+
+    ; dependencies
+    (defreaction shadow-height (ui/animate [input-height shadow-height]))
+    (defreaction input-height
+                 (dm/set-style! input :height input-height "px")
+                 (dm/set-style! table :bottom (+ bottom-padding input-height) "px")
+                 (ui/resized table))
+
+    ; dom
+    (ui/resized table)
+
+    ; events
+    (dme/listen! input :input (fn [event] (reset! message (dm/value input))))
+    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (ui/resized table)))
+    (events/listen (events/KeyHandler. (dm/single-node input)) "key"
+                   (fn [event]
+                     (when (= (.-keyCode event) keycodes/ENTER)
+                       (when (> (.-length (dm/value input)) 0)
+                         (swap! self fsm/send-message {:site :local
+                                                       :slide true
+                                                       :text (dm/value input)})
+                         (dm/set-value! input "")
+                         (reset! message "")) 
+                       (.preventDefault event))))  
+
+    (ui/select input)
+    (reset! message "")
+
+    (-> data
+      (assoc :shadow shadow)
+      (assoc :input input)
+      (assoc :table table)
+      (assoc :main-container main-container))))
+
+(defn- add-message [{:keys [slide text] :as message}
+                    {:keys [shadow table queue main-container self] :as data}]
+  (if slide
+    ; received a new local message
+    (do
+      (if (table/at? table :bottom)
+        (let [height (text-height shadow text)
+              row (table/add-row table)
+              overlay (view :div.message-overlay)]
+
+          (dm/set-text! overlay text) 
+          (dm/append! main-container overlay) 
+          (dm/set-style! overlay :bottom bottom-padding "px")
+
+          (ui/animate [table row [height :px]]
+                      [overlay :style.bottom [(+ 31 bottom-padding) :px] 
+                       :onend (fn []
+                                (set-message-at-row data row (into message {:row row
+                                                                            :height height}))
+                                (dm/detach! overlay)
+                                (swap! self fsm/send-message :go-to-dispatch))])) 
+
+        ; else (if table/at? table bottom)
+        (do 
+          ;(dm/log-debug (str "starting scroll: " text))
+          (ui/animate [table :scroll-bottom [0 :px]
+                       ; after sliding, return to :ready and add the message
+                       ; we wanted to add in the first place (but had to scroll
+                       ; down before doing so)
+                       :duration 0
+                       :onend (fn []
+                                (reset! self (-> @self
+                                               (fsm/send-message :go-to-dispatch)
+                                               (fsm/send-message message))))]))) 
+      ; lock sliding
+      :locked) 
+
+    ; else (if slide)
+    (let [height (text-height shadow text)
+          row (table/add-row table)]
+      (ui/animate [table row [height :px]])
+      (set-message-at-row data row (into message {:row row
+                                                  :height height}))
+      :dispatch)))
+
+; FSM ----------------------------------------------------------------------
+
+(def base-sm
+  (defsm
+    ; fsm data
+    {:queue []}
+
+    ; we start here
+    ([:start :in data]
+     (fsm/next-state :auth (start data)))
 
     ([:auth message data]
      (if (= message {:ack :auth :site :remote})
@@ -264,61 +353,15 @@
        (fsm/ignore-msg)))
 
     ; show chat & go directly to dispatch state
-    ([:show-chat :in {:keys [left-column right-column main-container quote-overlay self] :as data}]
-     (let [table (dm/add-class! (table/create-table) "chat-table") 
-           shadow (view :div.shadow)
-           input (view :textarea.chat-input)
+    ([:show-chat :in {:keys [left-column right-column main-container] :as data}]
+     (ui/animate [left-column :style.top [-100 :pct]]
+                 [right-column :style.top [-100 :pct]]
+                 [main-container :style.top [0 :pct]])
 
-           main-container (view main-container table shadow input)
+     (fsm/next-state :dispatch (show-chat data)))
 
-           body (view (dmc/sel "body") main-container quote-overlay)
-
-
-           message (atom nil)
-           shadow-height (defdep [message]
-                                 (dm/set-text! shadow (if (> (.-length message) 0) message "."))
-                                 (ui/property shadow :offsetHeight)) 
-           input-height (atom -1)]
-
-       ; dependencies
-       (defreaction shadow-height (ui/animate [input-height shadow-height]))
-       (defreaction input-height
-                    (dm/set-style! input :height input-height "px")
-                    (dm/set-style! table :bottom (+ bottom-padding input-height) "px")
-                    (ui/resized table))
-
-       ; dom
-       (ui/resized table)
-
-       ; events
-       (dme/listen! input :input (fn [event] (reset! message (dm/value input))))
-       (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (ui/resized table)))
-       (events/listen (events/KeyHandler. (dm/single-node input)) "key"
-                      (fn [event]
-                        (when (= (.-keyCode event) keycodes/ENTER)
-                          (when (> (.-length (dm/value input)) 0)
-                            (swap! self fsm/send-message {:site :local
-                                                          :slide true
-                                                          :text (dm/value input)})
-                            (dm/set-value! input "")
-                            (reset! message "")) 
-                          (.preventDefault event))))  
-
-       (ui/animate [left-column :style.top [-100 :pct]]
-                   [right-column :style.top [-100 :pct]]
-                   [main-container :style.top [0 :pct]])
-
-       (ui/select input)
-       (reset! message "")
-
-       (fsm/next-state :dispatch (-> data
-                                   (assoc :shadow shadow)
-                                   (assoc :input input)
-                                   (assoc :table table)
-                                   (assoc :main-container main-container)
-                                   (assoc :quote-overlay quote-overlay)))))
-
-   ([:dispatch {:keys [site ack] :as message} {:keys [sid uuid] :as data}]
+    ; dispatch local and remote messages
+    ([:dispatch {:keys [site ack] :as message} {:keys [sid uuid] :as data}]
      (cond
        (and (= site :remote)
             (= ack :message)) (fsm/next-state :ready data {:site :remote
@@ -332,11 +375,9 @@
 
     ; slide locked state, just queue up messages
     ([:locked message data]
-     ;(dm/log-debug (str ":locked message: " (:text message)))
      (fsm/next-state :locked (update-in data [:queue] conj (assoc message :slide false))))
 
     ([:locked :go-to-dispatch {:keys [queue] :as data}]
-     ;(dm/log-debug (str ":locked go-to-ready"))
      ; when going out of :locked state, send all queued messages to self
      (comp (fn [sm] (reduce (fn [a msg] (fsm/send-message a msg)) sm queue))
            (fsm/next-state :dispatch (assoc data :queue []))))
@@ -345,57 +386,10 @@
      (fsm/ignore-msg))
 
     ; ready for displaying new messages
-    ([:ready {:keys [slide text] :as message}
-      {:keys [shadow table queue main-container self] :as data}]
+    ([:ready message data]
+     (fsm/next-state (add-message message data))))) 
 
-     ;(dm/log-debug (str ":ready message: " text))
-
-     (if slide
-       ; received a new local message
-       (do
-         (if (table/at? table :bottom)
-           (let [height (text-height shadow text)
-                 row (table/add-row table)
-                 overlay (view :div.message-overlay)]
-
-             (dm/set-text! overlay text) 
-             (dm/append! main-container overlay) 
-             (dm/set-style! overlay :bottom bottom-padding "px")
-
-             (ui/animate [table row [height :px]]
-                         [overlay :style.bottom [(+ 31 bottom-padding) :px] 
-                          :onend (fn []
-                                   ;(dm/log-debug (str "slide done: " text))
-                                   (set-message-at-row data row (into message {:row row
-                                                                               :height height}))
-                                   (dm/detach! overlay)
-                                   (swap! self fsm/send-message :go-to-dispatch))])) 
-
-           ; else (if table/at? table bottom)
-           (do 
-             ;(dm/log-debug (str "starting scroll: " text))
-             (ui/animate [table :scroll-bottom [0 :px]
-                       ; after sliding, return to :ready and add the message
-                       ; we wanted to add in the first place (but had to scroll
-                       ; down before doing so)
-                       :duration 0
-                       :onend (fn []
-                                ;(dm/log-debug (str "scroll done: " text))
-                                (reset! self (-> @self
-                                               (fsm/send-message :go-to-dispatch)
-                                               (fsm/send-message message))))]))) 
-         ; lock sliding
-         (fsm/next-state :locked)) 
-
-       ; else (if slide)
-       (let [height (text-height shadow text)
-             row (table/add-row table)]
-         (ui/animate [table row [height :px]])
-         (set-message-at-row data row (into message {:row row
-                                                     :height height}))
-         (fsm/next-state :dispatch)))))) 
-
-; main ---------------------------------------------------------------------
+; Initialization -----------------------------------------------------------
 
 (def sm (atom base-sm)) 
 
