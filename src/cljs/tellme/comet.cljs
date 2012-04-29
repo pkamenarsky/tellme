@@ -5,42 +5,48 @@
             [domina :as dm]))
 
 (def ^:dynamic *remote-root* "http://localhost:8080")
+(def ^:dynamic *comet-error-callback* (fn [error] (dm/log-debug (str "Comet error: " (pr-str error)))))
 
 (defn kkey [k]
   (cond
-    (number? k) (str k) 
+    (number? k) k 
     (keyword? k) (str "\"" (name k) "\"")
     :else (str "\"" k "\"")))
 
-(defn cmd [obj]
+(defn to-cmd [obj]
   (str (apply str "{" (interpose ", " (map (fn [[k v]]
                                              (str (kkey k) ":" (kkey v)))
                                            (partition 2 obj)))) "}"))
 
 (defn- parse-form [form]
   (try
-    (js->clj (JSON/parse form))
-    ; FIXME: this is not catching?
-    (catch e _
+    (into {} (map (fn [[k v]]
+                    [(keyword k)
+                     (if (or (= k "reason") (= k "ack")) (keyword v) v)])
+                  (js->clj (JSON/parse form))))
+    (catch js/Error e
       {:ack :error :reason :parse})))
 
-(defn xhr-send [url content f ferr]
-  (dm/log-debug (str "XHR: " (cmd content)))
+(defn- xhr-send [url content f]
+  (dm/log-debug (str "sent: " (to-cmd content)))
+
   (goog.net.XhrIo/send (str *remote-root* "/" url "?__rand__=" (.getTime (js/Date.)))
                        (fn [e]
                          (if (.isSuccess (.-target e))
-                           (dm/log-debug (str "RECEIVED: " (.getResponseText (.-target e)))))
-                         (if (.isSuccess (.-target e))
                            (let [parsed (parse-form (.getResponseText (.-target e)))]
-                             (if (not= (parsed "ack") "error")
+                             (dm/log-debug (str "received: " (.getResponseText (.-target e))))
+                             (if (not= (:ack parsed) :error)
                                (f parsed)
-                               (when ferr (ferr parsed)))) 
-                           (when ferr (ferr {:ack :error :reason :connection}))))
+                               (*comet-error-callback* parsed))) 
+                           (*comet-error-callback* {:ack :error :reason :connection})))
                        "POST"
-                       (cmd content)))
+                       (to-cmd content)))
 
-(defn channel [content f]
-  (xhr-send "channel" content f nil))
+(defn channel [params f]
+  (xhr-send "channel" params f nil))
 
-(defn backchannel [content f ferr]
-  (xhr-send "backchannel" content (fn [text] (f text) (backchannel content f)) ferr))
+(defn backchannel [params f]
+  (xhr-send "backchannel" params (fn [response]
+                                   (if (= (:ack response) :reconnect)
+                                     (backchannel params f)
+                                     (f response)))))

@@ -57,7 +57,7 @@ handle_cast({send_message, Message}, State) ->
 handle_cast({subscribe, Pid}, State) ->
 	NewState = case State of
 		{none, _, _} -> State;
-		{OldPid, OldMessages, OldDisconnectF} -> OldPid ! {error, close}, {none, OldMessages, OldDisconnectF}
+		{OldPid, OldMessages, OldDisconnectF} -> OldPid ! {error, unsubscribe}, {none, OldMessages, OldDisconnectF}
 	end,
 
 	case NewState of
@@ -97,7 +97,7 @@ subscribe_test() ->
 	comet_queue:subscribe(self(), self()),
 
 	receive
-		{error, close} -> ?assertEqual(1, 1)
+		{error, unsubscribe} -> ?assertEqual(1, 1)
 	after 10 -> ?assertEqual("No close messages received", "")
 	end,
 

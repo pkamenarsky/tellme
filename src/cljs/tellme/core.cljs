@@ -17,7 +17,7 @@
             [tellme.table :as table]
             [tellme.quote :as qt])
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
-  (:use-macros [tellme.base.fsm-macros :only [view defdep defreaction defsm set-style set-styles css]]))
+  (:use-macros [tellme.base.fsm-macros :only [remote view defdep defreaction defsm set-style set-styles css]]))
 
 ; Utils --------------------------------------------------------------------
 
@@ -282,10 +282,7 @@
 
     (dm/set-text! label1 "tell’em")
     (dm/set-text! label2 "tell me")
-
     (dm/set-html! help help-text)
-
-    (dm/set-text! number1 "4729")
     (dm/set-attr! number2 :maxlength 4)
     
     (ui/select number2)
@@ -296,6 +293,10 @@
                                    [right-column :style.top [-100 :pct]]
                                    [main-container :style.top [0 :pct]])
                        (main3 main-container quote-overlay))))
+
+    (remote [:command :get-uuid]
+            {:keys [uuid sid]}
+            (dm/set-text! number1 sid))
     ))
 
 (defn main3 [main-container quote-overlay]
@@ -364,20 +365,13 @@
     ;(js/setInterval #(swap! sm fsm/send-message {:text "asdasd" :slide false :self sm}) 1000)
     ))
 
-(defn test-comet []
-  (comet/channel {:command :get-uuid}
-                 (fn [response]
-                   (dm/log-debug (str "RPN: " (pr-str response))))))
-
 (defn test-comet2 []
   (comet/channel [:command :get-uuid]
                  (fn [response]
-                   (let [{uuid "uuid" sid "sid"} response]
+                   (let [{uuid :uuid sid :sid} response]
                      (comet/channel [:command :get-uuid]
                                     (fn [response]
-                                      (let [{uuid2 "uuid" sid2 "sid"} response]
-                                        (dm/log-debug (str uuid2 ", " sid2))
-                                        
+                                      (let [{uuid2 :uuid sid2 :sid} response]
                                         (comet/channel [:command :auth
                                                         :uuid uuid
                                                         :sid sid
@@ -388,12 +382,12 @@
                                                                          :sid sid2
                                                                          :osid sid] 
                                                                         (fn [response]
-                                                                          (comet/backchannel [:uuid uuid :sid sid] (fn [msg] (dm/log-debug msg)) nil) 
-                                                                          (comet/backchannel [:uuid uuid2 :sid sid2] (fn [msg] (dm/log-debug msg)) nil))))) 
+                                                                          (comet/backchannel [:uuid uuid :sid sid] (fn [msg] (dm/log-debug msg))) 
+                                                                          (comet/backchannel [:uuid uuid2 :sid sid2] (fn [msg] (dm/log-debug msg))))))) 
                                         )))
                      (dm/log-debug (str uuid ", " sid))))))
  
-;(events/listen js/window evttype/LOAD begin)
+(events/listen js/window evttype/LOAD begin)
 ;(events/listen js/window evttype/LOAD main3)
-(events/listen js/window evttype/LOAD test-comet2)
+;(events/listen js/window evttype/LOAD (js/setTimeout test-comet2 0))
 

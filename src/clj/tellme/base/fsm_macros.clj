@@ -48,6 +48,15 @@
                   (let [~dep n#]
                     ~@body)))))
 
+; Comm ---------------------------------------------------------------------
+
+(defmacro remote [params lvalue & body]
+  `(tellme.comet/channel
+     ~params
+     (fn [response#]
+       (let [~lvalue response#]
+         ~@body))))
+
 ; Purely functional FSM ----------------------------------------------------
 
 (comment

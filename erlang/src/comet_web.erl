@@ -102,13 +102,17 @@ hib_receive(Req, Uuid, Sid, TRef) ->
 			Req:cleanup();
 		{error, timeout} ->
 			comet_auth:unsubscribe(Uuid, Sid),
-			Req:ok({"text/plain", jiffy:encode({[{command, reconnect}]})});
+			Req:ok({"text/plain", jiffy:encode({[{ack, reconnect}]})});
+
+		% from comet_queue
+		{error, unsubscribe} ->
+			Req:ok({"text/plain", jiffy:encode({[{ack, nop}]})});
 
 		% from comet_auth
 		{error, noauth} ->
 			Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, noauth}]})});
 		Message ->
-			Req:ok({"text/plain", jiffy:encode({[{command, message}, {message, Message}]})})
+			Req:ok({"text/plain", jiffy:encode({[{ack, message}, {message, Message}]})})
 	end.
 
 get_option(Option, Options) ->
@@ -171,7 +175,7 @@ backchannel_test() ->
 	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"auth">>}, {uuid, Uuid2}, {sid, Sid2}, {osid, Sid1}]),
 
 	{[{<<"ack">>, <<"ok">>}]} = get_body("channel", [{command, <<"message">>}, {uuid, Uuid2}, {sid, Sid2}, {message, "A message"}]),
-	{[{<<"command">>, <<"message">>}, {<<"message">>, "A message"}]} = get_body("backchannel", [{uuid, Uuid1}, {sid, Sid1}]),
+	{[{<<"ack">>, <<"message">>}, {<<"message">>, "A message"}]} = get_body("backchannel", [{uuid, Uuid1}, {sid, Sid1}]),
 
 	ibrowse:stop().
 
