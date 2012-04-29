@@ -17,19 +17,13 @@
             [tellme.table :as table]
             [tellme.quote :as qt])
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
-  (:use-macros [tellme.base.fsm-macros :only [remote view defdep defreaction defsm set-style set-styles css]]))
+  (:use-macros [tellme.base.fsm-macros :only [defer remote view defdep defreaction defsm set-style set-styles css]]))
 
 ; Utils --------------------------------------------------------------------
 
 (defn- text-height [shadow text]
   (dm/set-text! shadow text)
   (ui/property shadow :offsetHeight))
-
-(defn- show-quote-button [event]
-  (dm/set-style! (.-quoteButton (.-currentTarget event)) :visibility "visible"))
-
-(defn- hide-quote-button [event]
-  (dm/set-style! (.-quoteButton (.-currentTarget event)) :visibility "hidden"))
 
 ; Constants ----------------------------------------------------------------
 
@@ -46,6 +40,12 @@
 (def bottom-padding 50)
 
 ; Quotes -------------------------------------------------------------------
+
+(defn- show-quote-button [event]
+  (dm/set-style! (.-quoteButton (.-currentTarget event)) :visibility "visible"))
+
+(defn- hide-quote-button [event]
+  (dm/set-style! (.-quoteButton (.-currentTarget event)) :visibility "hidden"))
 
 (defn- add-quote [{:keys [table shadow]} quotable]
   (let [quotes (qt/get-quotes quotable)
@@ -161,16 +161,156 @@
   (defsm
     ; fsm data
     {:queue []
+     :osid-input nil
      :table nil
      :input nil
+     :left-column nil
+     :right-column nil
      :main-container nil
      :quote-overlay nil
      :shadow nil}
 
+    ; we start here
+    ([:start self data]
+     (let [number1 (view :div.number1)
+           number2 (view :input.number2)
+
+           button-background (view :div.button-background)
+           button-text (view :div.button-text)
+           button-container (view :div.button-container button-background button-text)
+
+           help (view :div.help)
+
+           label1 (view :div.label1)
+           label2 (view :div.label2)
+
+           left-column (view :div.left-column button-container help)
+           right-column (view :div.right-column label1 label2
+                              (view :div.divider) number1 number2)
+
+           main-container (view :div.main)
+           quote-overlay (view :div.quote-overlay)
+
+           _ (view (dmc/sel "body") left-column right-column main-container quote-overlay)]
+
+       (dm/set-style! button-text :right 18 "px")
+       (dm/set-style! button-container :right 22 "px")
+       (dm/set-style! button-container :opacity 1)
+       (dm/set-style! left-column :width 100 "px")
+       (dm/set-style! main-container :top 100 "%")
+
+       (dme/listen! button-container :click
+                    ; we want to distribute the margins between page border,
+                    ; help column and content evenly here
+                    (fn [e] 
+                      (let [left (ui/property right-column :offsetLeft)
+                            new-left (Math/max left min-help-width)
+                            margin (/ (- new-left help-width) 2)]
+
+                        (dm/set-style! right-column :left left "px") 
+                        (dm/set-style! help :right 100 "px") 
+                        (ui/animate 
+                          [right-column :style.left [new-left :px]]
+                          [left-column :style.width [new-left :px]]
+                          [help :style.right [margin :px]]
+                          [button-container :style.right [(- (/ margin 2) 11) :px]]
+                          [button-background :transform.rotate [180 :deg] :duration 300]
+                          [button-container :style.opacity 0 :duration 500
+                           :onend (fn []
+                                    (ui/select number2)
+                                    (dm/set-style! button-container :visibility "hidden"))]
+                          [button-text :style.right [6 :px]]))))
+
+       (dm/set-text! label1 "tell’em")
+       (dm/set-text! label2 "tell me")
+       (dm/set-html! help help-text)
+       (dm/set-attr! number2 :maxlength 4)
+
+       (ui/select number2)
+       
+       ; request sid / uuid
+       (remote [:command :get-uuid]
+               {:keys [uuid sid] :as message}
+               (dm/set-text! number1 sid)
+
+               ; handle auth
+               (events/listen (events/KeyHandler. (dm/single-node number2)) "key"
+                              (fn [event]
+                                ; TODO: throttle
+                                (defer
+                                  (remote [:command :auth :uuid uuid :sid sid :osid (js/parseInt (dm/value number2))]
+                                          {:keys [ack]}
+                                          (when (= ack :ok)
+                                            (swap! self fsm/goto :show-chat)))))))
+
+       ; stay in :start but update our internal state
+       (fsm/next-state :start (-> data
+                                (assoc :left-column left-column)
+                                (assoc :right-column right-column)
+                                (assoc :osid-input number2)
+                                (assoc :main-container main-container)
+                                (assoc :quote-overlay quote-overlay)))))
+
+    ; show chat & go directly to ready state
+    ([:show-chat :in {:keys [left-column right-column main-container quote-overlay] :as data}]
+     (let [table (dm/add-class! (table/create-table) "chat-table") 
+           shadow (view :div.shadow)
+           input (view :textarea.chat-input)
+
+           main-container (view main-container table shadow input)
+
+           body (view (dmc/sel "body") main-container quote-overlay)
+
+
+           message (atom nil)
+           shadow-height (defdep [message]
+                                 (dm/set-text! shadow (if (> (.-length message) 0) message "."))
+                                 (ui/property shadow :offsetHeight)) 
+           input-height (atom -1)]
+
+       ; dependencies
+       (defreaction shadow-height (ui/animate [input-height shadow-height]))
+       (defreaction input-height
+                    (dm/set-style! input :height input-height "px")
+                    (dm/set-style! table :bottom (+ bottom-padding input-height) "px")
+                    (ui/resized table))
+
+       ; dom
+       (ui/resized table)
+
+       ; events
+       (dme/listen! input :input (fn [event] (reset! message (dm/value input))))
+       (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event] (ui/resized table)))
+       (events/listen (events/KeyHandler. (dm/single-node input)) "key"
+                      (fn [event]
+                        (when (= (.-keyCode event) keycodes/ENTER)
+                          (when (> (.-length (dm/value input)) 0)
+                            (swap! sm fsm/send-message {:self sm
+                                                        :slide true
+                                                        :text (dm/value input)})
+
+                            (dm/set-value! input "")
+                            (reset! message "")) 
+                          (.preventDefault event))))  
+
+       (ui/animate [left-column :style.top [-100 :pct]]
+                   [right-column :style.top [-100 :pct]]
+                   [main-container :style.top [0 :pct]])
+
+       (ui/select input)
+       (reset! message "")
+
+       (fsm/next-state :ready (-> data
+                                (assoc :shadow shadow)
+                                (assoc :input input)
+                                (assoc :table table)
+                                (assoc :main-container main-container)
+                                (assoc :quote-overlay quote-overlay)))))
+
     ; slide locked state, just queue up messages
     ([:locked message data]
      ;(dm/log-debug (str ":locked message: " (:text message)))
-     (next-state :locked (update-in data [:queue] conj (assoc message :slide false))))
+     (fsm/next-state :locked (update-in data [:queue] conj (assoc message :slide false))))
 
     ([:locked :go-to-ready {:keys [queue] :as data}]
      ;(dm/log-debug (str ":locked go-to-ready"))
@@ -234,136 +374,7 @@
 
 ; main ---------------------------------------------------------------------
 
-(defn begin []
-  (let [number1 (view :div.number1)
-        number2 (view :input.number2)
-
-        button-background (view :div.button-background)
-        button-text (view :div.button-text)
-        button-container (view :div.button-container button-background button-text)
-
-        help (view :div.help)
-
-        label1 (view :div.label1)
-        label2 (view :div.label2)
-
-        left-column (view :div.left-column button-container help)
-        right-column (view :div.right-column label1 label2
-                           (view :div.divider) number1 number2)
-
-        main-container (view :div.main)
-        quote-overlay (view :div.quote-overlay)
-
-        _ (view (dmc/sel "body") left-column right-column main-container quote-overlay)]
-
-    (dm/set-style! button-text :right 18 "px")
-    (dm/set-style! button-container :right 22 "px")
-    (dm/set-style! button-container :opacity 1)
-    (dm/set-style! left-column :width 100 "px")
-    (dm/set-style! main-container :top 100 "%")
-
-    (dme/listen! button-container :click (fn [e] 
-                                           (let [left (ui/property right-column :offsetLeft)
-                                                 new-left (Math/max left min-help-width)
-                                                 margin (/ (- new-left help-width) 2)]
-                                             (dm/set-style! right-column :left left "px") 
-                                             (dm/set-style! help :right 100 "px") 
-                                             (ui/animate 
-                                               [right-column :style.left [new-left :px]]
-                                               [left-column :style.width [new-left :px]]
-                                               [help :style.right [margin :px]]
-                                               [button-container :style.right [(- (/ margin 2) 11) :px]]
-                                               [button-background :transform.rotate [180 :deg] :duration 300]
-                                               [button-container :style.opacity 0 :duration 500
-                                                :onend (fn []
-                                                         (ui/select number2)
-                                                         (dm/set-style! button-container :visibility "hidden"))]
-                                               [button-text :style.right [6 :px]]))))
-
-    (dm/set-text! label1 "tell’em")
-    (dm/set-text! label2 "tell me")
-    (dm/set-html! help help-text)
-    (dm/set-attr! number2 :maxlength 4)
-    
-    (ui/select number2)
-    (events/listen (events/KeyHandler. (dm/single-node number2)) "key"
-                   (fn [event]
-                     (when (= (.-keyCode event) keycodes/ENTER)
-                       (ui/animate [left-column :style.top [-100 :pct]]
-                                   [right-column :style.top [-100 :pct]]
-                                   [main-container :style.top [0 :pct]])
-                       (main3 main-container quote-overlay))))
-
-    (remote [:command :get-uuid]
-            {:keys [uuid sid]}
-            (dm/set-text! number1 sid))
-    ))
-
-(defn main3 [main-container quote-overlay]
-  (let [table (dm/add-class! (table/create-table) "chat-table") 
-        shadow (view :div.shadow)
-        input (view :textarea.chat-input)
-
-        main-container (view main-container table shadow input)
-
-        body (view (dmc/sel "body") main-container quote-overlay)
-
-        sm (atom (fsm/with-data base-sm {:queue []
-                                         :shadow shadow
-                                         :input input
-                                         :table table
-                                         :main-container main-container
-                                         :quote-overlay quote-overlay})) 
-        
-        message (atom nil)
-        shadow-height (defdep [message]
-                              (dm/set-text! shadow (if (> (.-length message) 0) message "."))
-                              (ui/property shadow :offsetHeight)) 
-        input-height (atom -1)]
-    
-    ; dependencies
-    (defreaction shadow-height (ui/animate [input-height shadow-height]))
-
-    ;(ui/bind input-height input :style.height "px")
-    ;(ui/bind input-height table :style.bottom "px")
-    ;(defreaction input-height (ui/resized table))
-
-    (defreaction input-height
-                 (dm/set-style! input :height input-height "px")
-                 (dm/set-style! table :bottom (+ bottom-padding input-height) "px")
-                 (ui/resized table))
-
-    ; dom
-    (ui/resized table)
-
-    ; events
-    (dme/listen! input :input (fn [event]
-                                (reset! message (dm/value input))))
-
-    (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event]
-                                                               (ui/resized table)))
-
-    (events/listen (events/KeyHandler. (dm/single-node input))
-                   "key"
-                   (fn [event]
-                     (when (= (.-keyCode event) keycodes/ENTER)
-                       (when (> (.-length (dm/value input)) 0)
-                         (swap! sm fsm/send-message {:self sm
-                                                     :slide true
-                                                     :text (dm/value input)})
-
-                         (dm/set-value! input "")
-                         (reset! message "")) 
-                       (.preventDefault event))))  
-
-    ; init
-    (swap! sm fsm/goto :ready)
-    (reset! message "")
-    (ui/select input)
-    
-    ; test
-    ;(js/setInterval #(swap! sm fsm/send-message {:text "asdasd" :slide false :self sm}) 1000)
-    ))
+(def sm (atom base-sm)) 
 
 (defn test-comet2 []
   (comet/channel [:command :get-uuid]
@@ -386,8 +397,10 @@
                                                                           (comet/backchannel [:uuid uuid2 :sid sid2] (fn [msg] (dm/log-debug msg))))))) 
                                         )))
                      (dm/log-debug (str uuid ", " sid))))))
- 
-(events/listen js/window evttype/LOAD begin)
-;(events/listen js/window evttype/LOAD main3)
-;(events/listen js/window evttype/LOAD (js/setTimeout test-comet2 0))
+
+(events/listen js/window evttype/LOAD #(defer
+                                         (reset! sm (-> @sm
+                                                      (fsm/goto :start)
+                                                      (fsm/send-message sm)))
+                                         0))
 

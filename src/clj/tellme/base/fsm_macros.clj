@@ -50,6 +50,9 @@
 
 ; Comm ---------------------------------------------------------------------
 
+(defmacro defer [& body]
+  `(js/setTimeout (fn [] ~@body) 0))
+
 (defmacro remote [params lvalue & body]
   `(tellme.comet/channel
      ~params
