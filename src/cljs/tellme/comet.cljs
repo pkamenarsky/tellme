@@ -47,6 +47,7 @@
 
 (defn backchannel [params f]
   (xhr-send "backchannel" params (fn [response]
-                                   (if (= (:ack response) :reconnect)
+                                   (when (not= (:ack response) :close)
                                      (backchannel params f)
-                                     (f response)))))
+                                     (when (not= (:ack response) :reconnect)
+                                       (f response))))))

@@ -110,7 +110,7 @@ hib_receive(Req, Uuid, Sid, TRef) ->
 
 		% from comet_queue
 		{error, unsubscribe} ->
-			Req:ok({"text/plain", jiffy:encode({[{ack, nop}]})});
+			Req:ok({"text/plain", jiffy:encode({[{ack, close}]})});
 
 		% from here
 		{ack, auth} ->

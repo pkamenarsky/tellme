@@ -62,6 +62,9 @@
 (defn with-data [sm data]
   (assoc sm :data data))
 
+(defn merge-data [sm data]
+  (update-in sm [:data] merge data))
+
 (defn with-state [sm state]
   (assoc-in sm [:states (:name state)] state))
 

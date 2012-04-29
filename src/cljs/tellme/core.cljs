@@ -85,7 +85,7 @@
         qt (dm/add-class! (qt/create-quote text (fn [qt]
                                                   (events/unlistenByKey @event-key) 
 
-                                                  (swap! self fsm/send-message :go-to-ready)
+                                                  (swap! self fsm/send-message :go-to-dispatch)
                                                   (add-quote sm qt)
 
                                                   (dm/set-style! main-container :visibility "visible")
@@ -160,7 +160,8 @@
 (def base-sm
   (defsm
     ; fsm data
-    {:queue []
+    {:self nil
+     :queue []
      :osid-input nil
      :table nil
      :input nil
@@ -171,7 +172,7 @@
      :shadow nil}
 
     ; we start here
-    ([:start self data]
+    ([:start :in {:keys [self] :as data}]
      (let [number1 (view :div.number1)
            number2 (view :input.number2)
 
@@ -231,28 +232,39 @@
        ; request sid / uuid
        (remote [:command :get-uuid]
                {:keys [uuid sid] :as message}
+
                (dm/set-text! number1 sid)
+               (swap! self fsm/merge-data {:sid sid :uuid uuid})
+
+               ; setup backchannel; all server messages are going to be
+               ; forwarded to this fsm
+               (comet/backchannel [:uuid uuid :sid sid]
+                                  (fn [{:keys [ack] :as message}]
+                                    (when ack
+                                      (swap! self fsm/send-message (assoc message :site :remote)))))
 
                ; handle auth
                (events/listen (events/KeyHandler. (dm/single-node number2)) "key"
                               (fn [event]
                                 ; TODO: throttle
-                                (defer
-                                  (remote [:command :auth :uuid uuid :sid sid :osid (js/parseInt (dm/value number2))]
-                                          {:keys [ack]}
-                                          (when (= ack :ok)
-                                            (swap! self fsm/goto :show-chat)))))))
+                                (defer (remote [:command :auth :uuid uuid :sid sid :osid
+                                                (js/parseInt (dm/value number2))] _)))))
 
-       ; stay in :start but update our internal state
-       (fsm/next-state :start (-> data
-                                (assoc :left-column left-column)
-                                (assoc :right-column right-column)
-                                (assoc :osid-input number2)
-                                (assoc :main-container main-container)
-                                (assoc :quote-overlay quote-overlay)))))
+       ; go to :auth but update our internal state
+       (fsm/next-state :auth (-> data
+                               (assoc :left-column left-column)
+                               (assoc :right-column right-column)
+                               (assoc :osid-input number2)
+                               (assoc :main-container main-container)
+                               (assoc :quote-overlay quote-overlay)))))
 
-    ; show chat & go directly to ready state
-    ([:show-chat :in {:keys [left-column right-column main-container quote-overlay] :as data}]
+    ([:auth message data]
+     (if (= message {:ack :auth :site :remote})
+       (fsm/next-state :show-chat)
+       (fsm/ignore-msg)))
+
+    ; show chat & go directly to dispatch state
+    ([:show-chat :in {:keys [left-column right-column main-container quote-overlay self] :as data}]
      (let [table (dm/add-class! (table/create-table) "chat-table") 
            shadow (view :div.shadow)
            input (view :textarea.chat-input)
@@ -285,10 +297,9 @@
                       (fn [event]
                         (when (= (.-keyCode event) keycodes/ENTER)
                           (when (> (.-length (dm/value input)) 0)
-                            (swap! sm fsm/send-message {:self sm
-                                                        :slide true
-                                                        :text (dm/value input)})
-
+                            (swap! self fsm/send-message {:site :local
+                                                          :slide true
+                                                          :text (dm/value input)})
                             (dm/set-value! input "")
                             (reset! message "")) 
                           (.preventDefault event))))  
@@ -300,30 +311,42 @@
        (ui/select input)
        (reset! message "")
 
-       (fsm/next-state :ready (-> data
-                                (assoc :shadow shadow)
-                                (assoc :input input)
-                                (assoc :table table)
-                                (assoc :main-container main-container)
-                                (assoc :quote-overlay quote-overlay)))))
+       (fsm/next-state :dispatch (-> data
+                                   (assoc :shadow shadow)
+                                   (assoc :input input)
+                                   (assoc :table table)
+                                   (assoc :main-container main-container)
+                                   (assoc :quote-overlay quote-overlay)))))
+
+   ([:dispatch {:keys [site ack] :as message} {:keys [sid uuid] :as data}]
+     (cond
+       (and (= site :remote)
+            (= ack :message)) (fsm/next-state :ready data {:site :remote
+                                                           :slide false
+                                                           :text (:message message)})
+       (= site :local) (do
+                         ; send message to remote site
+                         (remote [:command :message :uuid uuid :sid sid :message (:text message)] _)
+                         (fsm/next-state :ready data message))
+       :else (fsm/ignore-msg)))
 
     ; slide locked state, just queue up messages
     ([:locked message data]
      ;(dm/log-debug (str ":locked message: " (:text message)))
      (fsm/next-state :locked (update-in data [:queue] conj (assoc message :slide false))))
 
-    ([:locked :go-to-ready {:keys [queue] :as data}]
+    ([:locked :go-to-dispatch {:keys [queue] :as data}]
      ;(dm/log-debug (str ":locked go-to-ready"))
      ; when going out of :locked state, send all queued messages to self
      (comp (fn [sm] (reduce (fn [a msg] (fsm/send-message a msg)) sm queue))
-           (fsm/next-state :ready (assoc data :queue []))))
+           (fsm/next-state :dispatch (assoc data :queue []))))
 
-    ([:ready :go-to-ready _]
+    ([:ready :go-to-dispatch _]
      (fsm/ignore-msg))
 
     ; ready for displaying new messages
-    ([:ready {:keys [slide text self] :as message}
-      {:keys [shadow table queue main-container] :as data}]
+    ([:ready {:keys [slide text] :as message}
+      {:keys [shadow table queue main-container self] :as data}]
 
      ;(dm/log-debug (str ":ready message: " text))
 
@@ -346,7 +369,7 @@
                                    (set-message-at-row data row (into message {:row row
                                                                                :height height}))
                                    (dm/detach! overlay)
-                                   (swap! self fsm/send-message :go-to-ready))])) 
+                                   (swap! self fsm/send-message :go-to-dispatch))])) 
 
            ; else (if table/at? table bottom)
            (do 
@@ -359,7 +382,7 @@
                        :onend (fn []
                                 ;(dm/log-debug (str "scroll done: " text))
                                 (reset! self (-> @self
-                                               (fsm/send-message :go-to-ready)
+                                               (fsm/send-message :go-to-dispatch)
                                                (fsm/send-message message))))]))) 
          ; lock sliding
          (fsm/next-state :locked)) 
@@ -370,37 +393,15 @@
          (ui/animate [table row [height :px]])
          (set-message-at-row data row (into message {:row row
                                                      :height height}))
-         (fsm/ignore-msg)))))) 
+         (fsm/next-state :dispatch)))))) 
 
 ; main ---------------------------------------------------------------------
 
 (def sm (atom base-sm)) 
 
-(defn test-comet2 []
-  (comet/channel [:command :get-uuid]
-                 (fn [response]
-                   (let [{uuid :uuid sid :sid} response]
-                     (comet/channel [:command :get-uuid]
-                                    (fn [response]
-                                      (let [{uuid2 :uuid sid2 :sid} response]
-                                        (comet/channel [:command :auth
-                                                        :uuid uuid
-                                                        :sid sid
-                                                        :osid sid2]
-                                                       (fn [r]
-                                                         (comet/channel [:command :auth
-                                                                         :uuid uuid2
-                                                                         :sid sid2
-                                                                         :osid sid] 
-                                                                        (fn [response]
-                                                                          (comet/backchannel [:uuid uuid :sid sid] (fn [msg] (dm/log-debug msg))) 
-                                                                          (comet/backchannel [:uuid uuid2 :sid sid2] (fn [msg] (dm/log-debug msg))))))) 
-                                        )))
-                     (dm/log-debug (str uuid ", " sid))))))
-
 (events/listen js/window evttype/LOAD #(defer
                                          (reset! sm (-> @sm
-                                                      (fsm/goto :start)
-                                                      (fsm/send-message sm)))
+                                                      (fsm/merge-data {:self sm})
+                                                      (fsm/goto :start)))
                                          0))
 
