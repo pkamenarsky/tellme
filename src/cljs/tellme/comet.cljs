@@ -5,7 +5,11 @@
             [domina :as dm]))
 
 (def ^:dynamic *remote-root* "http://localhost:8080")
-(def ^:dynamic *comet-error-callback* (fn [error] (dm/log-debug (str "Comet error: " (pr-str error)))))
+; (def ^:dynamic *comet-error-callback* (fn [error] (dm/log-debug (str "Comet error: " (pr-str error)))))
+(def *comet-error-callback* (atom (fn [error] (dm/log-debug (str "Comet error: " (pr-str error))))))
+
+(defn set-comet-error-callback! [f]
+  (reset! *comet-error-callback* f))
 
 (defn kkey [k]
   (cond
@@ -37,8 +41,8 @@
                              (dm/log-debug (str "received: " (.getResponseText (.-target e))))
                              (if (not= (:ack parsed) :error)
                                (f parsed)
-                               (*comet-error-callback* parsed))) 
-                           (*comet-error-callback* {:ack :error :reason :connection})))
+                               (@*comet-error-callback* parsed))) 
+                           (@*comet-error-callback* {:ack :error :reason :connection})))
                        "POST"
                        (to-cmd content)))
 

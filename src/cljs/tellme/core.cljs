@@ -232,8 +232,13 @@
                (events/listen (events/KeyHandler. (dm/single-node number2)) "key"
                               (fn [event]
                                 ; TODO: throttle
-                                (defer (remote [:command :auth :uuid uuid :sid sid :osid
-                                                (js/parseInt (dm/value number2))] _)))))
+                                (let [code (.-keyCode event)]
+                                  (if (or (and (>= code 48) (<= code 57)) (= code keycodes/BACKSPACE))
+                                    (defer
+                                      (when-not (js/isNaN (js/parseInt (dm/value number2)))
+                                        (remote [:command :auth :uuid uuid :sid sid :osid
+                                                 (js/parseInt (dm/value number2))] _)))
+                                    (.preventDefault event))))))
 
     ; update our internal state
     (-> data
@@ -382,20 +387,28 @@
      (comp (fn [sm] (reduce (fn [a msg] (fsm/send-message a msg)) sm queue))
            (fsm/next-state :dispatch (assoc data :queue []))))
 
+    ; ready for displaying new messages
     ([:ready :go-to-dispatch _]
      (fsm/ignore-msg))
 
-    ; ready for displaying new messages
     ([:ready message data]
-     (fsm/next-state (add-message message data))))) 
+     (fsm/next-state (add-message message data)))
+    
+    ([:end :in {:keys [input] :as data}]
+     (add-message {:slide false
+                   :local true
+                   :text "Disconnected from chat."} data)
+     (dm/set-attr! input :disabled "disabled")))) 
 
 ; Initialization -----------------------------------------------------------
 
 (def sm (atom base-sm)) 
 
+(comet/set-comet-error-callback! (fn [] (swap! sm fsm/goto :end)))
+
 (events/listen js/window evttype/LOAD #(defer
                                          (reset! sm (-> @sm
                                                       (fsm/merge-data {:self sm})
-                                                      (fsm/goto :start)))
+                                                      (fsm/goto :start))) 
                                          0))
 
