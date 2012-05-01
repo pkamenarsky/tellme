@@ -35,6 +35,8 @@ loop(Req, DocRoot) ->
 				case Path of
 					"channel" ->
 						Command = jiffy:decode(Req:recv_body()),
+						% error_logger:info_msg("Received command: ~p~n", [Command]),
+
 						case Command of
 							{[{<<"command">>, <<"get-uuid">>}]} ->
 								{ok, Uuid, Sid} = comet_auth:new(),
@@ -52,6 +54,10 @@ loop(Req, DocRoot) ->
 
 							{[{<<"command">>, <<"message">>}, {<<"uuid">>, Uuid}, {<<"sid">>, Sid}, {<<"message">>, Message}]} ->
 								comet_auth:send_message(Uuid, Sid, Message),
+								Req:ok({"text/plain", jiffy:encode({[{ack, ok}]})});
+
+							{[{<<"command">>, <<"quote">>}, {<<"uuid">>, Uuid}, {<<"sid">>, Sid}, {<<"quotes">>, Quotes}]} ->
+								comet_auth:send_message(Uuid, Sid, {quotes, Quotes}),
 								Req:ok({"text/plain", jiffy:encode({[{ack, ok}]})});
 
 							_ -> Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, invalid}]})})
@@ -119,6 +125,8 @@ hib_receive(Req, Uuid, Sid, TRef) ->
 		% from comet_auth
 		{error, noauth} ->
 			Req:ok({"text/plain", jiffy:encode({[{ack, error}, {reason, noauth}]})});
+		{quotes, Quotes} ->
+			Req:ok({"text/plain", jiffy:encode({[{ack, quote}, {quotes, Quotes}]})});
 		Message ->
 			Req:ok({"text/plain", jiffy:encode({[{ack, message}, {message, Message}]})})
 	end.

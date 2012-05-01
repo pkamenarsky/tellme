@@ -47,9 +47,8 @@
 (defn- hide-quote-button [event]
   (dm/set-style! (.-quoteButton (.-currentTarget event)) :visibility "hidden"))
 
-(defn- add-quote [{:keys [table shadow]} quotable]
-  (let [quotes (qt/get-quotes quotable)
-        msg-container (view :div.message)
+(defn- add-quote [remote? {:keys [table shadow self] :as data} quotes]
+  (let [msg-container (view :div.message)
         row (table/add-row table)]
     (loop [pair quotes
            height 0]
@@ -73,10 +72,13 @@
         (do
           (table/set-row-contents table row msg-container)
 
-          (ui/animate [table row [height :px] :duration 0])
+          (if (= remote? :remote)
+            (ui/animate [table row [height :px] :duration 200
+                         :onend #(swap! self fsm/send-message :go-to-dispatch)])
+            (ui/animate [table row [height :px] :duration 0])) 
           (dm/set-style! msg-container :height height "px"))))))
 
-(defn- quote-message [{:keys [input main-container quote-overlay table self] :as sm}
+(defn- quote-message [{:keys [input main-container quote-overlay table self uuid sid] :as sm}
                       {:keys [text row height]} event]
 
   (let [event-key (atom nil)
@@ -86,7 +88,9 @@
                                                   (events/unlistenByKey @event-key) 
 
                                                   (swap! self fsm/send-message :go-to-dispatch)
-                                                  (add-quote sm qt)
+
+                                                  (add-quote :local sm (qt/get-quotes qt))
+                                                  (remote [:command :quote :uuid uuid :sid sid :quotes (qt/get-quotes qt)] _)
 
                                                   (dm/set-style! main-container :visibility "visible")
                                                   (dm/set-style! table :bottom (* client-height 0.3) "px")
@@ -372,10 +376,15 @@
             (= ack :message)) (fsm/next-state :ready data {:site :remote
                                                            :slide false
                                                            :text (:message message)})
+       (and (= site :remote)
+            (= ack :quote)) (do (add-quote :remote data (:quotes message))
+                              (fsm/next-state :locked))
+
        (= site :local) (do
                          ; send message to remote site
                          (remote [:command :message :uuid uuid :sid sid :message (:text message)] _)
                          (fsm/next-state :ready data message))
+
        :else (fsm/ignore-msg)))
 
     ; slide locked state, just queue up messages
@@ -398,7 +407,8 @@
      (add-message {:slide false
                    :local true
                    :text "Disconnected from chat."} data)
-     (dm/set-attr! input :disabled "disabled")))) 
+     (dm/set-attr! input :disabled "disabled")
+     (.blur (dm/single-node input))))) 
 
 ; Initialization -----------------------------------------------------------
 

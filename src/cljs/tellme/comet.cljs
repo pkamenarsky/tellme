@@ -11,16 +11,17 @@
 (defn set-comet-error-callback! [f]
   (reset! *comet-error-callback* f))
 
-(defn kkey [k]
+(defn kvalue [k]
   (cond
     (number? k) k 
     (keyword? k) (str "\"" (name k) "\"")
+    (coll? k) (str "[" (apply str (interpose "," (map kvalue k))) "]")
     :else (str "\"" k "\"")))
 
 (defn to-cmd [obj]
-  (str (apply str "{" (interpose ", " (map (fn [[k v]]
-                                             (str (kkey k) ":" (kkey v)))
-                                           (partition 2 obj)))) "}"))
+  (str "{" (apply str (interpose "," (map (fn [[k v]]
+                                            (str "\"" (name k) "\":" (kvalue v)))
+                                          (partition 2 obj)))) "}"))
 
 (defn- parse-form [form]
   (try
