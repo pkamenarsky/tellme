@@ -14,7 +14,7 @@ $quote-color: #657b83;
 $retort-color: #657b83;
 $border: 1px solid + " " + $color;
 
-$quote-button-size: 15px;
+$quote-button-size: 17px;
 
 $bottom-padding: 50px;
 
@@ -188,13 +188,13 @@ body {
 
 .quote-button {
 	position: absolute;
+	cursor: pointer;
 	width: $quote-button-size;
 	height: $quote-button-size;
 	top: 50%;
 	margin-top: $quote-button-size / -2 - 4; 	// line-height / 4
 	left: ($message-margin - $quote-button-size) / 2;
-	background-color: $light-color;
-	@include border-radius($quote-button-size / 2);
+	background-image: url(quote.png);
 	visibility: hidden;
 }
 

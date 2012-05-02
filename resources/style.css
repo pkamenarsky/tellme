@@ -1,0 +1,512 @@
+/* --- */
+.table-root {
+  overflow: hidden;
+  margin: 0px;
+  padding: 0px; }
+
+.table-scrollbar {
+  position: absolute;
+  top: 0px;
+  right: 0px;
+  bottom: 0px;
+  width: 8; }
+
+.table-scrollbar-point-top, .table-scrollbar-point-bottom {
+  position: absolute;
+  background-color: #dddddd;
+  width: 6px;
+  height: 6px;
+  left: 0px;
+  -moz-transition-property: width, height, margin-left, margin-top;
+  -moz-transition-duration: 200ms;
+  -moz-transition-timing-function: ease-in-out;
+  -webkit-transition-property: width, height, margin-left, margin-top;
+  -webkit-transition-duration: 200ms;
+  -webkit-transition-timing-function: ease-in-out;
+  -moz-border-radius: 3px;
+  -webkit-border-radius: 3px;
+  border-radius: 3px; }
+
+.table-scrollbar-point-bottom {
+  margin-top: -6px; }
+
+.table-scrollbar-point-visible {
+  width: 6px;
+  height: 6px; }
+
+.table-scrollbar-point-hidden {
+  width: 0px;
+  height: 0px; }
+
+.table-scroll {
+  position: absolute;
+  overflow: scroll;
+  top: 0px;
+  left: 0px;
+  right: -16px;
+  bottom: -16px;
+  border: 0px;
+  padding: 0px; }
+
+.table-padding {
+  width: 100%; }
+
+.table-content {
+  /* we need scale(1) so webkit redraws properly; never
+  wanna hear IE bashing from webkit fanbois ever again */
+  -webkit-transform: scale(1);
+  width: 100%;
+  overflow: hidden; }
+
+.table-row {
+  width: 100%;
+  height: 0px; }
+
+/* --- */
+/* --- */
+body {
+  position: absolute; }
+
+.fill {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  height: 100%;
+  right: 0px; }
+
+.fill-width {
+  position: absolute;
+  width: 100%; }
+
+.main {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  height: 100%;
+  right: 0px;
+  opacity: 1; }
+
+.quote-overlay {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  height: 100%;
+  right: 0px;
+  visibility: hidden;
+  opacity: 0; }
+
+.message {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  position: absolute;
+  left: 0px;
+  left: 40px;
+  height: 100%; }
+
+.message-overlay {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  position: absolute;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  left: 50%;
+  margin-left: -250px;
+  margin-left: -210px;
+  bottom: 50px; }
+
+.quote-button {
+  position: absolute;
+  cursor: pointer;
+  width: 17px;
+  height: 17px;
+  top: 50%;
+  margin-top: -12.5px;
+  left: 11.5px;
+  background-image: url(quote.png);
+  visibility: hidden; }
+
+.shadow {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  position: absolute;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  top: 1000%; }
+
+.chat-table {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  position: absolute;
+  left: 50%;
+  margin-left: -250px;
+  top: 0px;
+  width: 540px; }
+
+.quote-table {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  position: absolute;
+  left: 50%;
+  margin-left: -250px;
+  top: 0px;
+  width: 540px;
+  margin-left: -210px; }
+
+.chat-input {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  position: absolute;
+  left: 50%;
+  margin-left: -250px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  margin-left: -210px;
+  bottom: 50px;
+  border-top: 1px solid #657b83;
+  background-color: transparent;
+  resize: none; }
+
+/* --- */
+.quote-text {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  position: absolute;
+  -moz-transition: color 200ms ease-in-out;
+  -o-transition: color 200ms ease-in-out;
+  -ms-transition: color 200ms ease-in-out;
+  -webkit-transition: color 200ms ease-in-out;
+  transition: color 200ms ease-in-out; }
+
+.quote-text-inactive {
+  color: #999999; }
+
+.quote-text-unselectable {
+  -moz-user-select: -moz-none;
+  -khtml-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none; }
+
+.quote-marker {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  position: absolute; }
+
+.retort-input {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  position: absolute;
+  background-color: transparent;
+  resize: none;
+  height: 38px;
+  padding-top: 10px;
+  padding-bottom: 10px; }
+
+.quote-shadow {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  position: absolute;
+  top: 1000%; }
+
+.quote-row {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  width: 100%;
+  height: 0px; }
+
+.retort-row {
+  color: #657b83;
+  width: 500px;
+  line-height: 18px;
+  font-family: Helvetica;
+  font-size: 14px;
+  padding: 0px;
+  border: 0px;
+  outline: 0px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  width: 100%;
+  height: 0px;
+  padding-top: 10px;
+  padding-bottom: 10px; }
+
+/* --- */
+body {
+  width: 100%;
+  height: 100%;
+  padding: 0px;
+  margin: 0px;
+  overflow: hidden; }
+
+.left-column {
+  position: absolute;
+  top: 0px;
+  height: 100%;
+  left: 0px;
+  width: 100px; }
+
+.right-column {
+  position: absolute;
+  left: 33%;
+  top: 0px;
+  height: 100%;
+  right: 0px; }
+
+.divider {
+  position: absolute;
+  background-color: #cccccc;
+  top: 50%;
+  height: 1px;
+  left: 0px;
+  right: 0px; }
+
+.label1 {
+  font-size: 48px;
+  line-height: 56px;
+  position: absolute;
+  top: 50%;
+  font-family: "HelveticaNeue", "Helvetica Neue", "HelveticaNeueRoman", "HelveticaNeue-Roman", "Helvetica Neue Roman", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif;
+  font-weight: 400;
+  font-stretch: normal;
+  color: #b3b3b3;
+  height: 56px;
+  margin-top: -64px; }
+
+.label2 {
+  font-size: 48px;
+  line-height: 56px;
+  position: absolute;
+  top: 50%;
+  font-family: "HelveticaNeue", "Helvetica Neue", "HelveticaNeueRoman", "HelveticaNeue-Roman", "Helvetica Neue Roman", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif;
+  font-weight: 400;
+  font-stretch: normal;
+  color: #b3b3b3;
+  height: 56px;
+  margin-top: 6px; }
+
+.number1 {
+  font-size: 48px;
+  line-height: 56px;
+  position: absolute;
+  top: 50%;
+  font-family: "HelveticaNeueMedium", "HelveticaNeue-Medium", "Helvetica Neue Medium", "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif;
+  font-weight: 500;
+  font-stretch: normal;
+  color: #666666;
+  left: 162px;
+  height: 56px;
+  margin-top: -64px; }
+
+.number2 {
+  font-size: 48px;
+  line-height: 56px;
+  position: absolute;
+  top: 50%;
+  font-family: "HelveticaNeueMedium", "HelveticaNeue-Medium", "Helvetica Neue Medium", "HelveticaNeue", "Helvetica Neue", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif;
+  font-weight: 500;
+  font-stretch: normal;
+  color: #666666;
+  left: 162px;
+  height: 56px;
+  margin: 0px;
+  padding: 0px;
+  margin-top: 6px;
+  border: 0px;
+  outline: none; }
+
+.button-container {
+  cursor: pointer;
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  top: 50%;
+  margin-top: -25px;
+  right: 22px; }
+
+.button-container-up {
+  cursor: pointer;
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  left: 50%;
+  margin-left: -235px;
+  top: 0px; }
+
+.button-background {
+  background-image: url(help.png);
+  position: absolute;
+  width: 36px;
+  height: 24px;
+  top: 50%;
+  margin-top: -11px;
+  right: 0px; }
+
+.button-background-up {
+  background-image: url(help-up.png);
+  position: absolute;
+  width: 24px;
+  height: 36px;
+  bottom: 0px;
+  margin-left: -12px;
+  left: 50%; }
+
+.button-text {
+  background-image: url(help-text.png);
+  position: absolute;
+  width: 12px;
+  height: 20px;
+  top: 50%;
+  margin-top: -9px;
+  right: 18px; }
+
+.button-text-up {
+  background-image: url(help-text.png);
+  position: absolute;
+  width: 12px;
+  height: 20px;
+  top: 50%;
+  left: 50%;
+  margin-bottom: -12px;
+  margin-left: -6px; }
+
+.help {
+  font-size: 48px;
+  line-height: 56px;
+  position: absolute;
+  top: 50%;
+  font-family: "HelveticaNeue", "Helvetica Neue", "HelveticaNeueRoman", "HelveticaNeue-Roman", "Helvetica Neue Roman", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif;
+  font-weight: 400;
+  font-stretch: normal;
+  color: #b3b3b3;
+  height: 56px;
+  font-size: 12px;
+  line-height: 15px;
+  top: 50%;
+  right: 100px;
+  width: 280px;
+  text-align: justify;
+  margin-top: -72px; }
+
+.quote-help {
+  font-size: 48px;
+  line-height: 56px;
+  position: absolute;
+  top: 50%;
+  font-family: "HelveticaNeue", "Helvetica Neue", "HelveticaNeueRoman", "HelveticaNeue-Roman", "Helvetica Neue Roman", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif;
+  font-weight: 400;
+  font-stretch: normal;
+  color: #b3b3b3;
+  height: 56px;
+  font-size: 12px;
+  line-height: 15px;
+  top: 72px;
+  left: 50%;
+  width: 280px;
+  margin-left: -210px;
+  text-align: justify; }
+
+.quote-help-container {
+  position: absolute;
+  width: 100%;
+  height: 500px;
+  bottom: -428px; }

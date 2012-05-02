@@ -1,5 +1,7 @@
 .DS_Store
 .lein*
+/resources/.sass-cache
+/resources/.sass-cache/*
 /pom.xml
 *jar
 /lib
