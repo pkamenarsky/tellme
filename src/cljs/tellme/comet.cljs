@@ -12,7 +12,9 @@
   (reset! *comet-error-callback* f))
 
 (defn escape [msg]
-  (.replace msg (js/RegExp. "\\\\" "g") "\\\\"))
+  (-> msg
+    (.replace (js/RegExp. "\\\\" "g") "\\\\")
+    (.replace (js/RegExp. "\"" "g") "\\\"")))
 
 (defn kvalue [k]
   (cond

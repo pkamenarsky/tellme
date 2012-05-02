@@ -33,6 +33,9 @@
 
                Find out more on the github page.")
 
+(def quote-help-text "Select text to split quote.<br>
+                     Press Enter to confirm quote.<br>")
+
 (def help-width 280)
 (def help-margin 80)
 (def min-help-width (+ help-width (* help-margin 2)))
@@ -86,6 +89,14 @@
   (let [event-key (atom nil)
         static-table (dm/clone table)
         client-height (.-clientHeight (.-body (dom/getDocument)))
+
+        button-background (view :div.button-background-up)
+        button-text (view :div.button-text-up)
+        button-container (view :div.button-container-up button-background button-text)
+
+        help (view :div.quote-help)
+        help-container (view :div.quote-help-container help button-container)
+
         qt (dm/add-class! (qt/create-quote text (fn [qt]
                                                   (events/unlistenByKey @event-key) 
 
@@ -102,15 +113,19 @@
                                                               [main-container :style.opacity 1
                                                                :onend #(do
                                                                          (dm/detach! qt)
+                                                                         (dm/detach! help-container)
                                                                          (ui/select input)
                                                                          (ui/animate [table :style.bottom [(+ 31 bottom-padding) :px]]))]
                                                               [quote-overlay :style.opacity 0
                                                                :onend #(dm/set-style! quote-overlay :visibility "hidden")])))
                           "quote-table")
+
         bottom (+ height (- (table/row-top table row) (table/scroll-top table)))
         scroll-top (table/scroll-top table)]
 
     (swap! self fsm/goto :locked)
+
+    (dm/set-html! help quote-help-text)
 
     ; first hide button
     (dm/set-style! (.-target event) :visibility "hidden")
@@ -119,8 +134,12 @@
     ; any currently running animations
     (dm/detach! table)
     (dm/append! main-container static-table)
+    (dm/append! quote-overlay help-container)
 
     (ui/set-property! (first (dm/children static-table)) :scrollTop scroll-top)
+
+    (dm/set-style! help-container :bottom -428 "px")
+    (dm/set-style! button-container :opacity 1)
 
     (dm/set-style! qt :bottom (- client-height (+ bottom 28)) "px")
     (dm/set-style! main-container :opacity 1)
@@ -135,6 +154,13 @@
                            (dm/set-style! main-container :visibility "hidden"))]
                 [quote-overlay :style.opacity 1
                  :onend #(ui/animate [qt :style.bottom [(* client-height 0.3) :px]])])
+
+    ; help button
+    (dme/listen! button-container :click
+                 (fn [event]
+                   (ui/animate [button-container :style.opacity 0 :duration 300]
+                               [button-background :transform.rotate [-180 :deg] :duration 300]
+                               [help-container :style.bottom [-350 :px]])))
 
     (dm/append! quote-overlay qt)
     (ui/resized qt)
