@@ -47,7 +47,7 @@
 (defn- hide-quote-button [event]
   (dm/set-style! (.-quoteButton (.-currentTarget event)) :visibility "hidden"))
 
-(defn- add-quote [remote? {:keys [table shadow self] :as data} quotes]
+(defn- add-quote [{:keys [table shadow self] :as data} {:keys [quotes slide]}]
   (let [msg-container (view :div.message)
         row (table/add-row table)]
     (loop [pair quotes
@@ -71,12 +71,14 @@
           (recur (next pair) (+ (if (zero? rh) 10 20) height qh rh)))
         (do
           (table/set-row-contents table row msg-container)
+          (dm/set-style! msg-container :height height "px")
 
-          (if (= remote? :remote)
-            (ui/animate [table row [height :px] :duration 200
-                         :onend #(swap! self fsm/send-message :go-to-dispatch)])
-            (ui/animate [table row [height :px] :duration 0])) 
-          (dm/set-style! msg-container :height height "px"))))))
+          (if slide
+            (do (ui/animate [table row [height :px] :duration 200
+                             :onend #(swap! self fsm/send-message :go-to-dispatch)])
+              :locked)
+            (do (ui/animate [table row [height :px] :duration 0])
+              :dispatch)))))))
 
 (defn- quote-message [{:keys [input main-container quote-overlay table self uuid sid] :as sm}
                       {:keys [text row height]} event]
@@ -88,9 +90,9 @@
                                                   (events/unlistenByKey @event-key) 
 
                                                   (swap! self fsm/send-message :go-to-dispatch)
-
-                                                  (add-quote :local sm (qt/get-quotes qt))
-                                                  (remote [:command :quote :uuid uuid :sid sid :quotes (qt/get-quotes qt)] _)
+                                                  (swap! self fsm/send-message {:site :local
+                                                                                :slide false
+                                                                                :quotes (qt/get-quotes qt)})
 
                                                   (dm/set-style! main-container :visibility "visible")
                                                   (dm/set-style! table :bottom (* client-height 0.3) "px")
@@ -377,8 +379,12 @@
                                                            :slide false
                                                            :text (:message message)})
        (and (= site :remote)
-            (= ack :quote)) (do (add-quote :remote data (:quotes message))
-                              (fsm/next-state :locked))
+            (= ack :quote)) (fsm/next-state (add-quote data message))
+
+       (and (= site :local)
+            (:quotes message)) (do
+                                 (remote [:command :quote :uuid uuid :sid sid :quotes (:quotes message)] _)
+                                 (fsm/next-state (add-quote data message)))
 
        (= site :local) (do
                          ; send message to remote site

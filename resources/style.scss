@@ -4,7 +4,7 @@ $scrollbar-margin: 8;
 $scrollbar-size: 6;
 
 $width: 500px;
-$right-margin: 40px;
+$message-margin: 40px;
 
 $bg-color: #fdf6e3;
 $color: #657b83;
@@ -169,7 +169,7 @@ body {
 	@include base;
 
 	left: 0px;
-	right: $right-margin;
+	left: $message-margin;
 	height: 100%;
 }
 
@@ -177,6 +177,8 @@ body {
 	@include base;
 	@include padding;
 	@include center;
+
+	margin-left: -$width / 2 + $message-margin;
 
 	bottom: $bottom-padding;
 }
@@ -186,8 +188,8 @@ body {
 	width: $quote-button-size;
 	height: $quote-button-size;
 	top: 50%;
-	margin-top: $quote-button-size / -2;
-	right: ($right-margin - $quote-button-size) / 2;
+	margin-top: $quote-button-size / -2 - 4; 	// line-height / 4
+	left: ($message-margin - $quote-button-size) / 2;
 	background-color: $light-color;
 	@include border-radius($quote-button-size / 2);
 	visibility: hidden;
@@ -205,13 +207,15 @@ body {
 	@include center;
 
 	top: 0px;
-	width: $width + $right-margin;
+	width: $width + $message-margin;
 }
 
 .chat-input {
 	@include base;
 	@include center;
 	@include padding;
+
+	margin-left: -$width / 2 + $message-margin;
 
 	bottom: $bottom-padding;
 	border-top: $border;

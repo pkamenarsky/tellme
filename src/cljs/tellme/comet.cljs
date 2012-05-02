@@ -11,12 +11,15 @@
 (defn set-comet-error-callback! [f]
   (reset! *comet-error-callback* f))
 
+(defn escape [msg]
+  (.replace msg (js/RegExp. "\\\\" "g") "\\\\"))
+
 (defn kvalue [k]
   (cond
     (number? k) k 
     (keyword? k) (str "\"" (name k) "\"")
     (coll? k) (str "[" (apply str (interpose "," (map kvalue k))) "]")
-    :else (str "\"" k "\"")))
+    :else (str "\"" (escape (str k)) "\"")))
 
 (defn to-cmd [obj]
   (str "{" (apply str (interpose "," (map (fn [[k v]]
