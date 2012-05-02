@@ -11,27 +11,59 @@
   (when-let [[_ cname _ css-class] (re-matches re-cname cname)]
     [cname (if css-class css-class "")]))
 
+(def unit-map {:px "px" :pct "%" :deg "deg"})
+
+(defn- unit-to-str [v]
+  (if (coll? v)
+    (if (number? (first v))
+      (str (first v) (unit-map (second v)))
+      `(str ~(first v) ~(unit-map (second v)))) 
+    v))
+
+(comment
+  (view :div.message
+        {:style.height [50 :px]
+         :text "tell me"}
+        [content title]))
+
 (defmacro view 
   "name :: keyword (element-name.class)
+  attributes :: {attr1 value1 attr2 value2}
+  attrX :: :style.property | :attr.attribute | :node.raw-property | :text | :html
+  valueX :: string | [number :unit]
+  unit :: keyword (:px, :pct, :deg)
 
-  Creates a DOM element, sets an optional CSS class, and appends the
-  supplied children to the newly created node.
+  Creates a DOM element, sets an optional CSS class, applies the provided
+  attributes and appends the supplied children to the newly created node.
   
   Note: needs (:require [domina :as dm]) until cljs enables
   usages of single-segment namespaces without :require."
-  [cname & children]
-  (let [content (gensym)]
-    `(let [~content ~(if (keyword? cname)
-                       (if-let [[n c] (parse-cname (name cname))]
-                         `(dm/add-class! (tellme.ui/create-element ~n) ~c)
-                         (throw (Exception. (str "Invalid element spec format: " (name cname))))) 
-                       `~cname)]
-       ~@(map (fn [c] `(dm/append! ~content ~c)) children)
-       ~content)))
+  ([cname children attrs]
+   (let [content (gensym)]
+     `(let [~content ~(if (keyword? cname)
+                        (if-let [[n c] (parse-cname (name cname))]
+                          `(dm/add-class! (tellme.ui/create-element ~n) ~c)
+                          (throw (Exception. (str "Invalid element spec format: " (name cname))))) 
+                        `~cname)]
+        ~@(map (fn [c] `(dm/append! ~content ~c)) children)
+        ~@(map (fn [[k v]]
+                 (let [[domain prop] (parse-cname (name k))] 
+                   (cond
+                     (= domain "style") `(dm/set-style! ~content ~prop ~(unit-to-str v))
+                     (= domain "attr") `(dm/set-attr! ~content ~prop ~(unit-to-str v))
+                     (= domain "node") `(ui/set-property! ~content ~prop ~(unit-to-str v))
+                     (= domain "text") `(dm/set-text! ~content ~v)
+                     (= domain "html") `(dm/set-html! ~content ~v)
+                     :else (throw (Exception. (str "Invalid attribute spec format: " k)))))) attrs)
+        ~content)))
+  ([cname children]
+   `(view ~cname ~children nil))
+  ([cname]
+   `(view ~cname nil nil)))
 
 ; Dataflow -----------------------------------------------------------------
 
-(defmacro
+(defmacro defdep
   "Returns an atom that updates its value whenever one of the supplied dependencies
   is changed; the new value is computed by evaluating body in an implicit do block.
   The dependencies can be accessed in the body by the same names as given in the
@@ -46,7 +78,7 @@
   (reset! time 2)
   @speed
   => 10"
-  defdep [deps & body]
+  [deps & body]
   (let [f (gensym)
         k (keyword (gensym))]
     `(let [res# (atom nil)
@@ -60,7 +92,7 @@
 
        res#)))
 
-(defmacro
+(defmacro defreaction
   "A convenience macro for add-watch; body is evaluated in an implicit do block, dep
   is accessible by its literal name.
   
@@ -70,7 +102,7 @@
   (defreaction [speed] (println speed))
   (reset! speed 7)
   => 7"
-  defreaction [dep & body]
+  [dep & body]
   `(add-watch ~dep
               ~(keyword (gensym))
               (fn [i# i# o# n#]
@@ -83,7 +115,7 @@
 (defmacro defer [& body]
   `(js/setTimeout (fn [] ~@body) 0))
 
-(defmacro
+(defmacro remote 
   "params :: array
   lvalue :: destructuring form
   
@@ -92,7 +124,7 @@
 
   params are converted to a JSON string and sent over the wire; if a response
   comes back it is destructured according to lvalue and then body is evaluated."
-  remote [params lvalue & body]
+  [params lvalue & body]
   `(tellme.comet/channel
      ~params
      (fn [response#]

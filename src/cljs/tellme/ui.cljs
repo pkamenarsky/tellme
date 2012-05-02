@@ -57,7 +57,7 @@
     (throw (Error. "Invalid css unit"))))
 
 (defn extract-scalar [v]
-  (if (vector? v)
+  (if (coll? v)
     [(first v) (from-unit (second v))]
     [v nil]))
 
