@@ -3,6 +3,12 @@
 (ns tellme.base.fsm-macros
   (:use tellme.base.fsm))
 
+(defmacro dowith [f & arglists]
+  `(do ~@(map (fn [args] `(~f ~@args)) arglists)))
+
+(defn dowithf [f & arglists]
+  (doseq [args arglists] (apply f args)))
+
 ; DOM ----------------------------------------------------------------------
 
 (def re-cname #"(\w*)(\.([\w-]*))?")
