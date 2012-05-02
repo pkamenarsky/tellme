@@ -125,16 +125,16 @@
 
 (defn create-table []
   (let [padding (view :div.table-padding)
-        content (view :div.table-content padding)
+        content (view :div.table-content [padding])
 
         p1 (view :div.table-scrollbar-point-top)
         p2 (view :div.table-scrollbar-point-bottom)
-        scrollbar (view :div.table-scrollbar p1 p2)
+        scrollbar (view :div.table-scrollbar [p1 p2])
 
-        scroll (view :div.table-scroll content)
+        scroll (view :div.table-scroll [content])
         container (view :div.table-container)
 
-        root (view :div.table-root scroll scrollbar)
+        root (view :div.table-root [scroll scrollbar])
 
         table-height (atom -1)
         message-height (atom -1)

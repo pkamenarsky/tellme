@@ -223,7 +223,7 @@
                      (dm/append! (dmc/sel "body")
                                  (dm/set-attr! div :id "quote-shadow"))
                      div)) 
-        retort-input (view :textarea.retort-input)
+        retort-input (view :textarea.retort-input nil {:style.height [38 :px]})
 
         this (Quote. callback table shadow retort-input (atom nil))]
 
@@ -234,7 +234,6 @@
     ; FIXME: 38px
     (ui/animate [table (table/set-row-contents
                          table (table/add-row table) retort-input) [38 :px] :duration 0])
-    (dm/set-style! retort-input :height 38 "px")
 
     (ui/select retort-input)
     (add-finished-listener retort-input callback this)

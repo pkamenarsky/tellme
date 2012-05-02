@@ -51,37 +51,28 @@
   (dm/set-style! (.-quoteButton (.-currentTarget event)) :visibility "hidden"))
 
 (defn- add-quote [{:keys [table shadow self] :as data} {:keys [quotes slide]}]
-  (let [msg-container (view :div.message)
+  (let [[height rows]
+        (reduce (fn [[height rows] [q r]]
+                  (let [qh (- (text-height shadow q) 10)
+                        rh (if (zero? (.-length r)) 0 (- (text-height shadow r) 10))]
+
+                    ; FIXME: 20
+                    [(+ (if (zero? rh) 10 20) height qh rh)
+                     (-> rows
+                       (conj (view :div.quote-row nil {:text q :style.height [qh :px]}))
+                       (conj (view :div.retort-row nil {:text r :style.height [rh :px]})))]))
+                [0 []] quotes)
+        msg-container (view :div.message rows {:style.height [height :px]})
         row (table/add-row table)]
-    (loop [pair quotes
-           height 0]
-      (if pair
-        (let [[q r] (first pair)
-              qv (view :div.quote-row)
-              rv (view :div.retort-row)
 
-              qh (- (text-height shadow q) 10)
-              rh (if (zero? (.-length rv)) 0 (- (text-height shadow r) 10))]
+    (table/set-row-contents table row msg-container)
 
-          (-> msg-container (dm/append! qv) (dm/append! rv))
-
-          (dm/set-text! qv q)
-          (dm/set-text! rv r)
-          (dm/set-style! qv :height qh "px")
-          (dm/set-style! rv :height rh "px")
-
-          ; FIXME: 20
-          (recur (next pair) (+ (if (zero? rh) 10 20) height qh rh)))
-        (do
-          (table/set-row-contents table row msg-container)
-          (dm/set-style! msg-container :height height "px")
-
-          (if slide
-            (do (ui/animate [table row [height :px] :duration 200
-                             :onend #(swap! self fsm/send-message :go-to-dispatch)])
-              :locked)
-            (do (ui/animate [table row [height :px] :duration 0])
-              :dispatch)))))))
+    (if slide
+      (do (ui/animate [table row [height :px] :duration 200
+                       :onend #(swap! self fsm/send-message :go-to-dispatch)])
+        :locked)
+      (do (ui/animate [table row [height :px] :duration 0])
+        :dispatch))))
 
 (defn- quote-message [{:keys [input main-container quote-overlay table self uuid sid] :as sm}
                       {:keys [text row height]} event]
@@ -92,10 +83,10 @@
 
         button-background (view :div.button-background-up)
         button-text (view :div.button-text-up)
-        button-container (view :div.button-container-up button-background button-text)
+        button-container (view :div.button-container-up [button-background button-text])
 
-        help (view :div.quote-help)
-        help-container (view :div.quote-help-container help button-container)
+        help (view :div.quote-help nil {:html quote-help-text})
+        help-container (view :div.quote-help-container [help button-container])
 
         qt (dm/add-class! (qt/create-quote text (fn [qt]
                                                   (events/unlistenByKey @event-key) 
@@ -125,8 +116,6 @@
 
     (swap! self fsm/goto :locked)
 
-    (dm/set-html! help quote-help-text)
-
     ; first hide button
     (dm/set-style! (.-target event) :visibility "hidden")
 
@@ -138,13 +127,8 @@
 
     (ui/set-property! (first (dm/children static-table)) :scrollTop scroll-top)
 
-    (dm/set-style! help-container :bottom -428 "px")
-    (dm/set-style! button-container :opacity 1)
-
     (dm/set-style! qt :bottom (- client-height (+ bottom 28)) "px")
-    (dm/set-style! main-container :opacity 1)
-    (dm/set-styles! quote-overlay {:visibility "visible"
-                                   :opacity "0"}) 
+    (dm/set-style! quote-overlay :visibility "visible") 
 
     ; fade out main and show quote overlay
     (ui/animate [main-container :style.opacity 0
@@ -174,7 +158,7 @@
   (let [msg-container (view :div.message)
         quote-button (view :div.quote-button)
         
-        container (view :div.fill-width msg-container quote-button)]
+        container (view :div.fill-width [msg-container quote-button])]
 
     (dm/set-style! container :height height "px")
     (set! (.-quoteButton (dm/single-node container)) quote-button)
@@ -191,89 +175,77 @@
 
 (defn- start [{:keys [self] :as data}]
   (let [number1 (view :div.number1)
-           number2 (view :input.number2)
+        number2 (view :input.number2 nil {:attr.maxlength 4})
 
-           button-background (view :div.button-background)
-           button-text (view :div.button-text)
-           button-container (view :div.button-container button-background button-text)
+        button-background (view :div.button-background)
+        button-text (view :div.button-text)
+        button-container (view :div.button-container [button-background button-text])
 
-           help (view :div.help)
+        help (view :div.help nil {:html help-text})
 
-           label1 (view :div.label1)
-           label2 (view :div.label2)
+        label1 (view :div.label1 nil {:text "tell’em"})
+        label2 (view :div.label2 nil {:text "tell me"})
 
-           left-column (view :div.left-column button-container help)
-           right-column (view :div.right-column label1 label2
-                              (view :div.divider) number1 number2)
+        left-column (view :div.left-column [button-container help])
+        right-column (view :div.right-column [label1 label2 (view :div.divider) number1 number2])
 
-           main-container (view :div.main)
-           quote-overlay (view :div.quote-overlay)
+        main-container (view :div.main)
+        quote-overlay (view :div.quote-overlay)
 
-           _ (view (dmc/sel "body") left-column right-column main-container quote-overlay)]
+        _ (view (dmc/sel "body") [left-column right-column main-container quote-overlay])]
 
-       (dm/set-style! button-text :right 18 "px")
-       (dm/set-style! button-container :right 22 "px")
-       (dm/set-style! button-container :opacity 1)
-       (dm/set-style! left-column :width 100 "px")
-       (dm/set-style! main-container :top 100 "%")
+    (dme/listen! button-container :click
+                 ; we want to distribute the margins between page border,
+                 ; help column and content evenly here
+                 (fn [e] 
+                   (let [left (ui/property right-column :offsetLeft)
+                         new-left (Math/max left min-help-width)
+                         margin (/ (- new-left help-width) 2)]
 
-       (dme/listen! button-container :click
-                    ; we want to distribute the margins between page border,
-                    ; help column and content evenly here
-                    (fn [e] 
-                      (let [left (ui/property right-column :offsetLeft)
-                            new-left (Math/max left min-help-width)
-                            margin (/ (- new-left help-width) 2)]
+                     (dm/set-style! right-column :left left "px") 
 
-                        (dm/set-style! right-column :left left "px") 
-                        (dm/set-style! help :right 100 "px") 
-                        (ui/animate 
-                          [right-column :style.left [new-left :px]]
-                          [left-column :style.width [new-left :px]]
-                          [help :style.right [margin :px]]
-                          [button-container :style.right [(- (/ margin 2) 11) :px]]
-                          [button-background :transform.rotate [180 :deg] :duration 300]
-                          [button-container :style.opacity 0 :duration 500
-                           :onend (fn []
-                                    (ui/select number2)
-                                    (dm/set-style! button-container :visibility "hidden"))]
-                          [button-text :style.right [6 :px]]))))
+                     (ui/animate 
+                       [right-column :style.left [new-left :px]]
+                       [left-column :style.width [new-left :px]]
+                       [help :style.right [margin :px]]
+                       [button-container :style.right [(- (/ margin 2) 11) :px]]
+                       [button-background :transform.rotate [180 :deg] :duration 300]
+                       [button-container :style.opacity 0 :duration 500
+                        :onend (fn []
+                                 (ui/select number2)
+                                 (dm/set-style! button-container :visibility "hidden"))]
+                       [button-text :style.right [6 :px]]))))
 
-       (dm/set-text! label1 "tell’em")
-       (dm/set-text! label2 "tell me")
-       (dm/set-html! help help-text)
-       (dm/set-attr! number2 :maxlength 4)
+    (ui/select number2)
 
-       (ui/select number2)
-       
-       ; request sid / uuid
-       (remote [:command :get-uuid]
-               {:keys [uuid sid] :as message}
+    ; request sid / uuid
+    (remote [:command :get-uuid]
+            {:keys [uuid sid] :as message}
 
-               (dm/set-text! number1 sid)
+            (dm/set-text! number1 sid)
 
-               ; store credentials and setup backchannel; all server messages are going to be
-               ; forwarded to this fsm
-               (swap! self fsm/merge-data
-                      {:sid sid
-                       :uuid uuid
-                       :backchannel (comet/backchannel
-                                      [:uuid uuid :sid sid]
-                                      (fn [{:keys [ack] :as message}]
-                                        (when ack
-                                          (swap! self fsm/send-message (assoc message :site :remote)))))}) 
+            ; store credentials and setup backchannel; all server messages are going to be
+            ; forwarded to this fsm
+            (swap! self fsm/merge-data
+                   {:sid sid
+                    :uuid uuid
+                    :backchannel (comet/backchannel
+                                   [:uuid uuid :sid sid]
+                                   (fn [{:keys [ack] :as message}]
+                                     (when ack
+                                       (swap! self fsm/send-message (assoc message :site :remote)))))}) 
 
-               ; handle auth
-               (events/listen (events/KeyHandler. (dm/single-node number2)) "key"
-                              (fn [event]
-                                ; TODO: throttle
-                                (let [code (.-keyCode event)]
-                                  (if (or (and (>= code 48) (<= code 57)) (= code keycodes/BACKSPACE))
-                                    (defer
-                                      (when-not (js/isNaN (js/parseInt (dm/value number2)))
-                                        (remote [:command :auth :uuid uuid :sid sid :osid
-                                                 (js/parseInt (dm/value number2))] _)))
-                                    (.preventDefault event))))))
+            ; handle auth
+            (events/listen (events/KeyHandler. (dm/single-node number2)) "key"
+                           (fn [event]
+                             ; TODO: throttle
+                             (let [code (.-keyCode event)]
+                               (if (or (and (>= code 48) (<= code 57)) (= code keycodes/BACKSPACE))
+                                 (defer
+                                   (when-not (js/isNaN (js/parseInt (dm/value number2)))
+                                     (remote [:command :auth :uuid uuid :sid sid :osid
+                                              (js/parseInt (dm/value number2))] _)))
+                                 (.preventDefault event))))))
 
     ; update our internal state
     (-> data
@@ -288,9 +260,9 @@
         shadow (view :div.shadow)
         input (view :textarea.chat-input)
 
-        main-container (view main-container table shadow input)
+        main-container (view main-container [table shadow input])
 
-        body (view (dmc/sel "body") main-container quote-overlay)
+        body (view (dmc/sel "body") [main-container quote-overlay])
 
         message (atom nil)
         shadow-height (defdep [message]
@@ -339,12 +311,9 @@
       (if (table/at? table :bottom)
         (let [height (text-height shadow text)
               row (table/add-row table)
-              overlay (view :div.message-overlay)]
+              overlay (view :div.message-overlay nil {:text text})]
 
-          (dm/set-text! overlay text) 
           (dm/append! main-container overlay) 
-          (dm/set-style! overlay :bottom bottom-padding "px")
-
           (ui/animate [table row [height :px]]
                       [overlay :style.bottom [(+ 31 bottom-padding) :px] 
                        :onend (fn []
@@ -355,7 +324,6 @@
 
         ; else (if table/at? table bottom)
         (do 
-          ;(dm/log-debug (str "starting scroll: " text))
           (ui/animate [table :scroll-bottom [0 :px]
                        ; after sliding, return to :ready and add the message
                        ; we wanted to add in the first place (but had to scroll

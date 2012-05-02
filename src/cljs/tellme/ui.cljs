@@ -82,9 +82,10 @@
               (fn [v] (aset (.-style (dm/single-node content)) property v)
                 (resized content))
               (fn [v] (aset (.-style (dm/single-node content)) property v)))]
-      (aobj (str (goog.getUid this) ":" property) duration
-            (lerp f (js/parseFloat (or (dm/style content property) 0)) to)
-            onend)) 
+      (let [cs (aget (window/getComputedStyle (dm/single-node content)) property)]
+        (aobj (str (goog.getUid this) ":" property) duration
+              (lerp f (js/parseFloat (if (> (.-length cs) 0) cs "0")) to)
+              onend)))
     this))
 
 (deftype Attribute

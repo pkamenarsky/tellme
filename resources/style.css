@@ -84,7 +84,8 @@ body {
   left: 0px;
   height: 100%;
   right: 0px;
-  opacity: 1; }
+  opacity: 1;
+  top: 100%; }
 
 .quote-overlay {
   position: absolute;

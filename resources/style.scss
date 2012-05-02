@@ -159,6 +159,7 @@ body {
 .main {
 	@include fill;
 	opacity: 1;
+	top: 100%;
 }
 
 .quote-overlay {

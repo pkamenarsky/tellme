@@ -26,12 +26,6 @@
       `(str ~(first v) ~(unit-map (second v)))) 
     v))
 
-(comment
-  (view :div.message
-        {:style.height [50 :px]
-         :text "tell me"}
-        [content title]))
-
 (defmacro view 
   "name :: keyword (element-name.class)
   attributes :: {attr1 value1 attr2 value2}
@@ -51,7 +45,7 @@
                           `(dm/add-class! (tellme.ui/create-element ~n) ~c)
                           (throw (Exception. (str "Invalid element spec format: " (name cname))))) 
                         `~cname)]
-        ~@(map (fn [c] `(dm/append! ~content ~c)) children)
+        (doseq [c# ~children] (dm/append! ~content c#))
         ~@(map (fn [[k v]]
                  (let [[domain prop] (parse-cname (name k))] 
                    (cond
