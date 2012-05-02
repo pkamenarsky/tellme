@@ -17,7 +17,7 @@
             [tellme.table :as table]
             [tellme.quote :as qt])
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
-  (:use-macros [tellme.base.fsm-macros :only [defer remote view defdep defreaction defsm set-style set-styles css]]))
+  (:use-macros [tellme.base.fsm-macros :only [dowith defer remote view defdep defreaction defsm set-style set-styles css]]))
 
 ; Utils --------------------------------------------------------------------
 
@@ -155,21 +155,19 @@
 (defn set-message-at-row [{:keys [table] :as data} row
                           {:keys [text site height] :as message}]
 
-  (let [msg-container (view :div.message)
+  (let [msg-container (view :div.message nil {:text text})
         quote-button (view :div.quote-button)
         
-        container (view :div.fill-width [msg-container quote-button])]
+        container (view :div.fill-width [msg-container quote-button] {:style.height [height :px]})]
 
-    (dm/set-style! container :height height "px")
     (set! (.-quoteButton (dm/single-node container)) quote-button)
-
-    (dm/set-text! msg-container text)
     (table/set-row-contents table row container)
     
     ; events
-    (dme/listen! container :mouseover show-quote-button)
-    (dme/listen! container :mouseout hide-quote-button)
-    (dme/listen! quote-button :click (partial quote-message data message))))
+    (dowith dme/listen!
+            (container :mouseover show-quote-button) 
+            (container :mouseout hide-quote-button) 
+            (quote-button :click (partial quote-message data message)))))
 
 ; UI -----------------------------------------------------------------------
 
