@@ -106,7 +106,7 @@
                                                                          (ui/animate [table :style.bottom [(+ 31 bottom-padding) :px]]))]
                                                               [quote-overlay :style.opacity 0
                                                                :onend #(dm/set-style! quote-overlay :visibility "hidden")])))
-                          "chat-table")
+                          "quote-table")
         bottom (+ height (- (table/row-top table row) (table/scroll-top table)))
         scroll-top (table/scroll-top table)]
 

@@ -210,6 +210,16 @@ body {
 	width: $width + $message-margin;
 }
 
+.quote-table {
+	@include base;
+	@include center;
+
+	top: 0px;
+	width: $width + $message-margin;
+
+	margin-left: -$width / 2 + $message-margin;
+}
+
 .chat-input {
 	@include base;
 	@include center;
