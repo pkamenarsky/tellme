@@ -12,7 +12,12 @@
     [cname (if css-class css-class "")]))
 
 (defmacro view 
-  "Needs (:require [domina :as dm]) until cljs enables
+  "name :: keyword (element-name.class)
+
+  Creates a DOM element, sets an optional CSS class, and appends the
+  supplied children to the newly created node.
+  
+  Note: needs (:require [domina :as dm]) until cljs enables
   usages of single-segment namespaces without :require."
   [cname & children]
   (let [content (gensym)]
@@ -26,7 +31,22 @@
 
 ; Dataflow -----------------------------------------------------------------
 
-(defmacro defdep [deps & body]
+(defmacro
+  "Returns an atom that updates its value whenever one of the supplied dependencies
+  is changed; the new value is computed by evaluating body in an implicit do block.
+  The dependencies can be accessed in the body by the same names as given in the
+  argument list. Note: body is not evaluated immediately after defdep, only on change.
+  
+  Example:
+
+  (def distance (atom 20))
+  (def time (atom 1))
+  (def speed (defdep [distance time] (/ distance time)))
+
+  (reset! time 2)
+  @speed
+  => 10"
+  defdep [deps & body]
   (let [f (gensym)
         k (keyword (gensym))]
     `(let [res# (atom nil)
@@ -40,7 +60,17 @@
 
        res#)))
 
-(defmacro defreaction [dep & body]
+(defmacro
+  "A convenience macro for add-watch; body is evaluated in an implicit do block, dep
+  is accessible by its literal name.
+  
+  Example:
+  
+  (def speed (atom 5))
+  (defreaction [speed] (println speed))
+  (reset! speed 7)
+  => 7"
+  defreaction [dep & body]
   `(add-watch ~dep
               ~(keyword (gensym))
               (fn [i# i# o# n#]
@@ -53,7 +83,16 @@
 (defmacro defer [& body]
   `(js/setTimeout (fn [] ~@body) 0))
 
-(defmacro remote [params lvalue & body]
+(defmacro
+  "params :: array
+  lvalue :: destructuring form
+  
+  A convenience macro for remote HTTP calls, similar to cgranger's fetch (but simpler).
+  Custom tailored to the Erlang backend.
+
+  params are converted to a JSON string and sent over the wire; if a response
+  comes back it is destructured according to lvalue and then body is evaluated."
+  remote [params lvalue & body]
   `(tellme.comet/channel
      ~params
      (fn [response#]
@@ -61,6 +100,25 @@
          ~@body))))
 
 ; Purely functional FSM ----------------------------------------------------
+
+;; This is a purely functional implementation of a finite state machine. FSMs are
+;; generally useful for many things, but network communication code and application
+;; state lend themselves particularly well to state machines.
+;;
+;; At any given time the state machine can only be in a single active state (contrary to
+;; statecharts, which are more useful but also more complex than primitive FSMs). Messages
+;; can be sent to the currently active state (note that this is a referentially transparent
+;; operation, i.e. "sending a message" just produces a new FSM with the effect from the
+;; message applied) and  it can then decide how to act upon that message (i.e. transition
+;; to a new state, send a new message, update the FSM's internal data or just ignore it).
+;;
+;; Each state may react on the implicit :in or :out messages, which are automatically sent
+;; whenever that particular state is entered or exited, respectively. This may be useful for
+;; performing initialization or doing cleanup work for a particular state (i.e. show or hide
+;; GUI elements, shut down AJAX backchannels, etc). Also, this allows for a saner
+;; application state management, since whenever a new state is entered, the old one will
+;; automatically be cleaned up! A carefully designed FSM can go a long way towards a stable
+;; and robust application.
 
 (comment
   (defsm
@@ -89,12 +147,17 @@
   ([[a b c] data] (println a b c)))
 
 (defmacro defstate
-  ":: name -> messagespec1 -> messagespecs2 ... -> state
-  name :: keyword
+  "name :: keyword
   messagespec :: ([message data] body)
   message :: keyword | form
+
+  Defines a FSM state. Messagespecs are just blocks of code that are executed whenever
+  a matching message is sent to the current state. A message can either be a keyword, like
+  :in or :our, or just a regular destucturing form. Note that only one non-keyword message
+  spec per state is allowed (to prevent ambiguity).
   
-  Note: only one non-keyword message form allowed."
+  Each messagespec must return a funtion :: FSM -> FSM; for convenience, there are
+  helper functions like fsm/next-state and fsm/ignore-message."
   [name & mspecs]
   (let [pspecs (map (fn [[[mspec arg] & body]] {:mspec mspec
                                                 :arg arg
@@ -131,11 +194,14 @@
                                                              :message ~message})))))))})))
 
 (defmacro defsm
-  ":: data -> statespec1 -> statespec2 -> ... -> sm
-  data :: object
+  "data :: object
   statespec :: ([state message data] body)
   state :: keyword
   message :: keyword | form
+
+  Defines a state machine; a convenience macro for defstate. A statespec is nothing more
+  than a messagespec (see defstate), but also contains the name of the state. This allows for
+  more succinct definitions of state / message combinations.
 
   Note: only one non-keyword message form allowed."
   [data & statespecs]
