@@ -55,9 +55,18 @@
 (defn channel [params f]
   (xhr-send "channel" params f nil))
 
-(defn backchannel [params f]
-  (xhr-send "backchannel" params (fn [response]
-                                   (when (not= (:ack response) :close)
-                                     (backchannel params f)
-                                     (when (not= (:ack response) :reconnect)
-                                       (f response))))))
+(defn backchannel
+  ([params f running]
+   (xhr-send "backchannel" params (fn [{:keys [ack] :as response}]
+                                    (when (and @running (not= ack :close))
+                                      (backchannel params f running)) 
+                                    (when (and @running (not= ack :reconnect))
+                                      (f response)))))
+  ([params f]
+   (let [running (atom true)]
+     (backchannel params f running)
+     running)))
+
+(defn stop [bcref]
+  (reset! bcref false))
+

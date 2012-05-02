@@ -251,14 +251,17 @@
                {:keys [uuid sid] :as message}
 
                (dm/set-text! number1 sid)
-               (swap! self fsm/merge-data {:sid sid :uuid uuid})
 
-               ; setup backchannel; all server messages are going to be
+               ; store credentials and setup backchannel; all server messages are going to be
                ; forwarded to this fsm
-               (comet/backchannel [:uuid uuid :sid sid]
-                                  (fn [{:keys [ack] :as message}]
-                                    (when ack
-                                      (swap! self fsm/send-message (assoc message :site :remote)))))
+               (swap! self fsm/merge-data
+                      {:sid sid
+                       :uuid uuid
+                       :backchannel (comet/backchannel
+                                      [:uuid uuid :sid sid]
+                                      (fn [{:keys [ack] :as message}]
+                                        (when ack
+                                          (swap! self fsm/send-message (assoc message :site :remote)))))}) 
 
                ; handle auth
                (events/listen (events/KeyHandler. (dm/single-node number2)) "key"
@@ -400,6 +403,8 @@
     ; dispatch local and remote messages
     ([:dispatch {:keys [site ack] :as message} {:keys [sid uuid] :as data}]
      (cond
+       (= ack :close) (fsm/next-state :end)
+
        (and (= site :remote)
             (= ack :message)) (fsm/next-state :ready data {:site :remote
                                                            :slide false
@@ -435,12 +440,16 @@
     ([:ready message data]
      (fsm/next-state (add-message message data)))
     
-    ([:end :in {:keys [input] :as data}]
+    ([:end :in {:keys [input backchannel] :as data}]
+     (comet/stop backchannel)
      (add-message {:slide false
                    :local true
                    :text "Disconnected from chat."} data)
      (dm/set-attr! input :disabled "disabled")
-     (.blur (dm/single-node input))))) 
+     (.blur (dm/single-node input)))
+    
+    ([:end _ _]
+     (ignore-msg)))) 
 
 ; Initialization -----------------------------------------------------------
 

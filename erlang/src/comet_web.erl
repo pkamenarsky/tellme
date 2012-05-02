@@ -110,6 +110,7 @@ hib_receive(Req, Uuid, Sid, TRef) ->
 	receive
 		% from socket
 		{tcp_closed, _Socket} ->
+			comet_auth:send_message(Uuid, Sid, {error, unsubscribe}),
 			comet_auth:release(Uuid, Sid),
 			Req:cleanup();
 		{error, timeout} ->
