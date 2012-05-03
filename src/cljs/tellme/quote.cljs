@@ -66,13 +66,19 @@
       (ui/animate [input :style.height [(+ 20 sheight) :px]] 
                   [table row (+ 20 sheight)]))))
 
-(defn- add-finished-listener [input callback quotable]
+(declare gen-quotes)
+
+(defn- add-finished-listener [input callback {:keys [table] :as quotable}]
   (events/listen (events/KeyHandler. (dm/single-node input))
                  "key"
                  (fn [event]
                    (when (= (.-keyCode event) keycodes/ENTER)
-                     (callback quotable)
-                     (.preventDefault event)))))
+                     (.preventDefault event)
+                     (callback (assoc quotable :quotes (gen-quotes table))))
+                   (when (= (.-keyCode event) keycodes/ESC)
+                     (.preventDefault event)
+                     (when (js/confirm "Your comment will be lost, is this OK?")
+                       (callback quotable))))))
 
 (defn- add-selection-listener [selection-timer dcontent f]
   (dme/listen! dcontent
@@ -92,13 +98,19 @@
 (def quote-ms 150)
 (def quote-selection-timeout 800)
 
+(defn- gen-quotes [table]
+    ; partition quotes and retorts into an array of [quote retort] pairs
+    (map (fn [[q a]] [(dm/text q) (dm/value a)])
+                      (partition 2 (map (partial table/row-contents table)
+                                        (range (table/row-count table))))))
+
 (defprotocol IQuote
   (add-quotable [this row content])
   (slice-quotable [this row dcontent content])
   (get-quotes [this]))
 
 (defrecord Quote
-  [callback table shadow retort-input selection-timer]
+  [callback table shadow retort-input selection-timer quotes]
 
   dm/DomContent
   (single-node [this] (dm/single-node table))
@@ -134,7 +146,8 @@
                 rest-row (table/add-row table (inc input-row))
 
                 drest (view :div.quote-text)
-                input (view :textarea.retort-input)]
+                input (view :textarea.retort-input nil {:style.height [0 :px]
+                                                        :style.padding [0 :px]})]
 
             (dm/remove-class! dcontent "quote-text-inactive")
             (dm/add-class! dcontent "quote-text-unselectable")
@@ -146,9 +159,6 @@
 
             ; FIXME: 31
             (table/set-row-contents table input-row input) 
-            (dm/set-styles! input {:height (px 0)
-                                   :padding (px 0)}) 
-
             (ui/animate [input :style.height [38 :px] :duration quote-ms]
                         [input :style.paddingTop [10 :px] :duration quote-ms] 
                         [input :style.paddingBottom [10 :px] :duration quote-ms] 
@@ -207,12 +217,8 @@
       (add-selection-listener selection-timer dcontent
                               (partial slice-quotable this row dcontent content))
       dcontent))
-  
-  (get-quotes [this]
-    ; partition quotes and retorts into an array of [quote retort] pairs
-    (map (fn [[q a]] [(dm/text q) (dm/value a)])
-                      (partition 2 (map (partial table/row-contents table)
-                                        (range (table/row-count table)))))))
+
+  (get-quotes [this] quotes))
 
 ; Constructor --------------------------------------------------------------
 
@@ -225,7 +231,7 @@
                      div)) 
         retort-input (view :textarea.retort-input nil {:style.height [38 :px]})
 
-        this (Quote. callback table shadow retort-input (atom nil))]
+        this (Quote. callback table shadow retort-input (atom nil) nil)]
 
     ; add initial quotable
     (add-quotable this (table/add-row table) content)
@@ -249,7 +255,10 @@
 
 ; Tests --------------------------------------------------------------------
 (defn test-quote []
-  (let [qt (dm/add-class! (create-quote "There's one major problem. This doesn't fit into the monadic interface. Monads are (a -> m b), they're based around functions only. There's no way to attach static information. You have only one choice, throw in some input, and see if it passes or fails.") "chat-table")]
+  (let [qt (dm/add-class! (create-quote "There's one major problem. This doesn't fit into the monadic interface. Monads are (a -> m b), they're based around functions only. There's no way to attach static information. You have only one choice, throw in some input, and see if it passes or fails."
+                                        #(dm/log-debug (pr-str (if %
+                                                                 (get-quotes %)
+                                                                 "No quotes.")))) "chat-table")]
 
     (dm/set-style! qt :bottom 200 "px")
     (dm/append! (dmc/sel "body") qt)

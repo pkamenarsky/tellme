@@ -88,27 +88,32 @@
         help (view :div.quote-help nil {:html quote-help-text})
         help-container (view :div.quote-help-container [help button-container])
 
-        qt (dm/add-class! (qt/create-quote text (fn [qt]
-                                                  (events/unlistenByKey @event-key) 
+        qt (dm/add-class!
+             (qt/create-quote text (fn [qt]
+                                     (events/unlistenByKey @event-key) 
+                                     (swap! self fsm/send-message :go-to-dispatch)
 
-                                                  (swap! self fsm/send-message :go-to-dispatch)
-                                                  (swap! self fsm/send-message {:site :local
-                                                                                :slide false
-                                                                                :quotes (qt/get-quotes qt)})
+                                     (when (qt/get-quotes qt)
+                                       ; if we actually got some quotes, send message to fsm &
+                                       ; set up chat table to match up with quotes (for cool slide-down
+                                       ; animation)
+                                       (swap! self fsm/send-message {:site :local
+                                                                     :slide false
+                                                                     :quotes (qt/get-quotes qt)}) 
 
-                                                  (dm/set-style! main-container :visibility "visible")
-                                                  (dm/set-style! table :bottom (* client-height 0.3) "px")
-                                                  (ui/resized table)
+                                       (dm/set-style! table :bottom (* client-height 0.3) "px") 
+                                       (ui/resized table))
 
-                                                  (ui/animate [table :scroll-bottom 0 :duration 0] 
-                                                              [main-container :style.opacity 1
-                                                               :onend #(do
-                                                                         (dm/detach! qt)
-                                                                         (dm/detach! help-container)
-                                                                         (ui/select input)
-                                                                         (ui/animate [table :style.bottom [(+ 31 bottom-padding) :px]]))]
-                                                              [quote-overlay :style.opacity 0
-                                                               :onend #(dm/set-style! quote-overlay :visibility "hidden")])))
+                                     (dm/set-style! main-container :visibility "visible") 
+                                     (ui/animate [table :scroll-bottom 0 :duration 0] 
+                                                 [main-container :style.opacity 1
+                                                  :onend #(do
+                                                            (dm/detach! qt)
+                                                            (dm/detach! help-container)
+                                                            (ui/select input)
+                                                            (ui/animate [table :style.bottom [(+ 28 bottom-padding) :px]]))]
+                                                 [quote-overlay :style.opacity 0
+                                                  :onend #(dm/set-style! quote-overlay :visibility "hidden")])))
                           "quote-table")
 
         bottom (+ height (- (table/row-top table row) (table/scroll-top table)))
@@ -241,6 +246,9 @@
                              (let [code (.-keyCode event)]
                                (stop-defer @input-defer)
                                (if (or (and (>= code 48) (<= code 57)) (= code keycodes/BACKSPACE))
+                                 ; throttling should be done with defdep/defreaction in a FRP style,
+                                 ; but since those macros are pretty limited anyway (glitches), we do
+                                 ; it the old fashioned way here
                                  (reset! input-defer
                                          (defer-later 500
                                            (when-not (js/isNaN (js/parseInt (dm/value number2)))
