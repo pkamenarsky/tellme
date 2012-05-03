@@ -68,6 +68,7 @@
 
     (if-not (empty? rows)
       (let [row (table/add-row table)]
+
         (table/set-row-contents
           table row
           (view :div.message rows {:style.height [height :px]}))
