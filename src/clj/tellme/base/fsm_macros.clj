@@ -112,8 +112,14 @@
 
 ; Comm ---------------------------------------------------------------------
 
+(defmacro defer-later [interval & body]
+  `(js/setTimeout (fn [] ~@body) ~interval))
+
 (defmacro defer [& body]
-  `(js/setTimeout (fn [] ~@body) 0))
+  `(defer-later 0 ~@body))
+
+(defmacro stop-defer [d]
+  `(js/clearInterval ~d))
 
 (defmacro remote 
   "params :: array

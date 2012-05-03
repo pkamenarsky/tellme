@@ -17,7 +17,7 @@
             [tellme.table :as table]
             [tellme.quote :as qt])
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
-  (:use-macros [tellme.base.fsm-macros :only [dowith defer remote view defdep defreaction defsm set-style set-styles css]]))
+  (:use-macros [tellme.base.fsm-macros :only [dowith defer defer-later stop-defer remote view defdep defreaction defsm set-style set-styles css]]))
 
 ; Utils --------------------------------------------------------------------
 
@@ -190,7 +190,9 @@
         main-container (view :div.main)
         quote-overlay (view :div.quote-overlay)
 
-        _ (view (dmc/sel "body") [left-column right-column main-container quote-overlay])]
+        _ (view (dmc/sel "body") [left-column right-column main-container quote-overlay])
+        
+        input-defer (atom nil)]
 
     (dme/listen! button-container :click
                  ; we want to distribute the margins between page border,
@@ -236,13 +238,14 @@
             ; handle auth
             (events/listen (events/KeyHandler. (dm/single-node number2)) "key"
                            (fn [event]
-                             ; TODO: throttle
                              (let [code (.-keyCode event)]
+                               (stop-defer @input-defer)
                                (if (or (and (>= code 48) (<= code 57)) (= code keycodes/BACKSPACE))
-                                 (defer
-                                   (when-not (js/isNaN (js/parseInt (dm/value number2)))
-                                     (remote [:command :auth :uuid uuid :sid sid :osid
-                                              (js/parseInt (dm/value number2))] _)))
+                                 (reset! input-defer
+                                         (defer-later 500
+                                           (when-not (js/isNaN (js/parseInt (dm/value number2)))
+                                             (remote [:command :auth :uuid uuid :sid sid :osid
+                                                      (js/parseInt (dm/value number2))] _))))
                                  (.preventDefault event))))))
 
     ; update our internal state
