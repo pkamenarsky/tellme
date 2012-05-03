@@ -51,28 +51,34 @@
   (dm/set-style! (.-quoteButton (.-currentTarget event)) :visibility "hidden"))
 
 (defn- add-quote [{:keys [table shadow self] :as data} {:keys [quotes slide]}]
-  (let [[height rows]
+  (let [[lq lr] (last quotes)
+        adj-quotes (if (zero? (.-length lr)) (butlast quotes) quotes)
+
+        [height rows]
         (reduce (fn [[height rows] [q r]]
                   (let [qh (- (text-height shadow q) 10)
                         rh (if (zero? (.-length r)) 0 (- (text-height shadow r) 10))]
 
                     ; FIXME: 20
-                    [(+ (if (zero? rh) 10 20) height qh rh)
+                    [(+ height qh rh (if (zero? rh) 10 20))
                      (-> rows
                        (conj (view :div.quote-row nil {:text q :style.height [qh :px]}))
                        (conj (view :div.retort-row nil {:text r :style.height [rh :px]})))]))
-                [0 []] quotes)
-        msg-container (view :div.message rows {:style.height [height :px]})
-        row (table/add-row table)]
+                [0 []] adj-quotes)]
 
-    (table/set-row-contents table row msg-container)
+    (if-not (empty? rows)
+      (let [row (table/add-row table)]
+        (table/set-row-contents
+          table row
+          (view :div.message rows {:style.height [height :px]}))
 
-    (if slide
-      (do (ui/animate [table row [height :px] :duration 200
-                       :onend #(swap! self fsm/send-message :go-to-dispatch)])
-        :locked)
-      (do (ui/animate [table row [height :px] :duration 0])
-        :dispatch))))
+        (if slide
+          (do (ui/animate [table row [height :px] :duration 200
+                           :onend #(swap! self fsm/send-message :go-to-dispatch)])
+            :locked)
+          (do (ui/animate [table row [height :px] :duration 0])
+            :dispatch)))
+      :dispatch)))
 
 (defn- quote-message [{:keys [input main-container quote-overlay table self uuid sid] :as sm}
                       {:keys [text row height]} event]
@@ -93,15 +99,19 @@
                                      (events/unlistenByKey @event-key) 
                                      (swap! self fsm/send-message :go-to-dispatch)
 
-                                     (when (qt/get-quotes qt)
+                                     (when-let [quotes (qt/get-quotes qt)]
                                        ; if we actually got some quotes, send message to fsm &
                                        ; set up chat table to match up with quotes (for cool slide-down
                                        ; animation)
                                        (swap! self fsm/send-message {:site :local
                                                                      :slide false
-                                                                     :quotes (qt/get-quotes qt)}) 
+                                                                     :quotes quotes}) 
 
-                                       (dm/set-style! table :bottom (* client-height 0.3) "px") 
+                                       (if (zero? (.-length (second (last quotes))))
+                                         ; if last and only retor is empty, do nothing
+                                         (when (> (count quotes) 1)
+                                           (dm/set-style! table :bottom (+ 56 (* client-height 0.3)) "px"))
+                                         (dm/set-style! table :bottom (* client-height 0.3) "px")) 
                                        (ui/resized table))
 
                                      (dm/set-style! main-container :visibility "visible") 
