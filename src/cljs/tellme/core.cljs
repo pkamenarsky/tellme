@@ -398,7 +398,11 @@
                                                            :slide false
                                                            :text (:message message)})
        (and (= site :remote)
-            (= ack :quote)) (fsm/next-state (add-quote data message))
+            (= ack :quote)) (fsm/next-state (add-quote data (if (= false (:slide message))
+                                                              ; if false has been set in :locked,
+                                                              ; don't set to true... this is a hack
+                                                              message
+                                                              (assoc message :slide true))))
 
        (and (= site :local)
             (:quotes message)) (do
