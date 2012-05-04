@@ -5,7 +5,7 @@
             [domina :as dm]))
 
 ;(def ^:dynamic *remote-root* "http://localhost:8080")
-(def ^:dynamic *remote-root* "http://176.28.10.155:8080")
+(def ^:dynamic *remote-root* "http://api.telll.me:8080")
 ; (def ^:dynamic *comet-error-callback* (fn [error] (dm/log-debug (str "Comet error: " (pr-str error)))))
 (def *comet-error-callback* (atom (fn [error] (dm/log-debug (str "Comet error: " (pr-str error))))))
 
@@ -40,13 +40,13 @@
       {:ack :error :reason :parse})))
 
 (defn- xhr-send [url content f]
-  (dm/log-debug (str "sent: " (to-cmd content)))
+  ;(dm/log-debug (str "sent: " (to-cmd content)))
 
   (goog.net.XhrIo/send (str *remote-root* "/" url "?__rand__=" (.getTime (js/Date.)))
                        (fn [e]
                          (if (.isSuccess (.-target e))
                            (let [parsed (parse-form (.getResponseText (.-target e)))]
-                             (dm/log-debug (str "received: " (.getResponseText (.-target e))))
+                             ;(dm/log-debug (str "received: " (.getResponseText (.-target e))))
                              (if (not= (:ack parsed) :error)
                                (f parsed)
                                (@*comet-error-callback* parsed))) 

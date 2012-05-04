@@ -22,7 +22,7 @@
                                         :source-path "src/cljs"
                                         :compiler {
                                                    :output-to "resources/public/cljs/bootstrap.js"
-                                                   :optimizations :simple
-                                                   :pretty-print true}}}}
+                                                   :optimizations :advanced
+                                                   :pretty-print false}}}}
             :main tellme.core)
 

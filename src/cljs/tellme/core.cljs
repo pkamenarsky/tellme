@@ -120,7 +120,6 @@
                                          ; if we actually got some quotes, send message to fsm &
                                          ; set up chat table to match up with quotes (for cool slide-down
                                          ; animation)
-                                         (dm/log-debug (str "QUOTES: " (pr-str quotes)))
                                          (swap! self fsm/send-message {:site :local
                                                                        :slide false
                                                                        :quotes quotes}) 
