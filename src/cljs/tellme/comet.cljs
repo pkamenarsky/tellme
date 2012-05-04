@@ -4,7 +4,8 @@
             
             [domina :as dm]))
 
-(def ^:dynamic *remote-root* "http://localhost:8080")
+;(def ^:dynamic *remote-root* "http://localhost:8080")
+(def ^:dynamic *remote-root* "http://176.28.10.155:8080")
 ; (def ^:dynamic *comet-error-callback* (fn [error] (dm/log-debug (str "Comet error: " (pr-str error)))))
 (def *comet-error-callback* (atom (fn [error] (dm/log-debug (str "Comet error: " (pr-str error))))))
 
@@ -14,6 +15,7 @@
 (defn escape [msg]
   (-> msg
     (.replace (js/RegExp. "\\\\" "g") "\\\\")
+    (.replace (js/RegExp. "\\\n" "g") "")
     (.replace (js/RegExp. "\"" "g") "\\\"")))
 
 (defn kvalue [k]

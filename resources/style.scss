@@ -9,9 +9,11 @@ $message-margin: 40px;
 $bg-color: #fdf6e3;
 $color: #657b83;
 $light-color: #dddddd;	// fixme
-$self-color: #657b83;
-$quote-color: #657b83;
-$retort-color: #657b83;
+$local-color: #333333;
+$remote-color: #666666;
+$quote-color: #aa4535;
+$retort-color: #772253;
+$quote-inactive-color: #aaaaaa;
 $border: 1px solid + " " + $color;
 
 $quote-button-size: 17px;
@@ -231,6 +233,8 @@ body {
 
 	margin-left: -$width / 2 + $message-margin;
 
+	color: $local-color;
+
 	bottom: $bottom-padding;
 	border-top: $border;
 	background-color: transparent;
@@ -239,13 +243,21 @@ body {
 
 /* --- */
 
+.local-message {
+	color: $local-color;
+}
+
+.remote-message {
+	color: $remote-color;
+}
+
 .quote-text {
 	@include base;
 	@include transition(color 200ms ease-in-out);
 }
 
 .quote-text-inactive {
-	color: #999999;
+	color: $quote-inactive-color;
 }
 
 .quote-text-unselectable {
@@ -274,12 +286,16 @@ body {
 
 .quote-row {
 	@include base-text;
+
+	color: $quote-color;
 	width: 100%;
 	height: 0px;
 }
 
 .retort-row {
 	@include base-text;
+
+	color: $retort-color;
 	width: 100%;
 	height: 0px;
 	padding-top: 10px;

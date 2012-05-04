@@ -14,7 +14,7 @@
             [domina.css :as dmc]
             [domina :as dm]) 
   (:use [tellme.base.fsm :only [fsm stateresult data state next-state ignore-msg send-message goto]])
-  (:use-macros [tellme.base.fsm-macros :only [view defdep defreaction defsm set-styles set-style css]]))
+  (:use-macros [tellme.base.fsm-macros :only [defer defer-later view defdep defreaction defsm set-styles set-style css]]))
 
 ; Range utils --------------------------------------------------------------
 
@@ -164,7 +164,7 @@
                         [input :style.paddingBottom [10 :px] :duration quote-ms] 
                         [table input-row [38 :px] :duration quote-ms]) 
 
-            (ui/select input)
+            (defer-later 100 (ui/select input))
 
             ; add rest element row & animate
             (table/set-row-contents table rest-row drest) 

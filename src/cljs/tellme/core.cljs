@@ -22,7 +22,7 @@
 ; Utils --------------------------------------------------------------------
 
 (defn- text-height [shadow text]
-  (dm/set-text! shadow text)
+  (dm/set-text! shadow (if (zero? (.-length text)) "." text))
   (ui/property shadow :offsetHeight))
 
 ; Constants ----------------------------------------------------------------
@@ -57,10 +57,10 @@
         [height rows]
         (reduce (fn [[height rows] [q r]]
                   (let [qh (- (text-height shadow q) 10)
-                        rh (if (zero? (.-length r)) 0 (- (text-height shadow r) 10))]
+                        rh (- (text-height shadow r) 10)]
 
                     ; FIXME: 20
-                    [(+ height qh rh (if (zero? rh) 10 20))
+                    [(+ height qh rh (if (zero? rh) 20 20))
                      (-> rows
                        (conj (view :div.quote-row nil {:text q :style.height [qh :px]}))
                        (conj (view :div.retort-row nil {:text r :style.height [rh :px]})))]))
@@ -104,6 +104,7 @@
                                        ; if we actually got some quotes, send message to fsm &
                                        ; set up chat table to match up with quotes (for cool slide-down
                                        ; animation)
+                                       (dm/log-debug (str "QUOTES: " (pr-str quotes)))
                                        (swap! self fsm/send-message {:site :local
                                                                      :slide false
                                                                      :quotes quotes}) 
@@ -175,6 +176,10 @@
         quote-button (view :div.quote-button)
         
         container (view :div.fill-width [msg-container quote-button] {:style.height [height :px]})]
+
+    (if (= site :local)
+      (dm/add-class! msg-container "local-message")
+      (dm/add-class! msg-container "remote-message"))
 
     (set! (.-quoteButton (dm/single-node container)) quote-button)
     (table/set-row-contents table row container)
@@ -323,38 +328,38 @@
       (assoc :table table)
       (assoc :main-container main-container))))
 
-(defn- add-message [{:keys [slide text] :as message}
+(defn- add-message [{:keys [slide text site] :as message}
                     {:keys [shadow table queue main-container self] :as data}]
   (if slide
     ; received a new local message
-    (do
-      (if (table/at? table :bottom)
-        (let [height (text-height shadow text)
-              row (table/add-row table)
-              overlay (view :div.message-overlay nil {:text text})]
+    (if (table/at? table :bottom)
+      (let [height (text-height shadow text)
+            row (table/add-row table)
+            overlay (view :div.message-overlay nil {:text text})]
 
-          (dm/append! main-container overlay) 
-          (ui/animate [table row [height :px]]
-                      [overlay :style.bottom [(+ 31 bottom-padding) :px] 
-                       :onend (fn []
-                                (set-message-at-row data row (into message {:row row
-                                                                            :height height}))
-                                (dm/detach! overlay)
-                                (swap! self fsm/send-message :go-to-dispatch))])) 
+        (if (= site :local)
+          (dm/add-class! overlay "local-message")
+          (dm/add-class! overlay "remote-message"))
 
-        ; else (if table/at? table bottom)
-        (do 
-          (ui/animate [table :scroll-bottom [0 :px]
-                       ; after sliding, return to :ready and add the message
-                       ; we wanted to add in the first place (but had to scroll
-                       ; down before doing so)
-                       :duration 0
-                       :onend (fn []
-                                (reset! self (-> @self
-                                               (fsm/send-message :go-to-dispatch)
-                                               (fsm/send-message message))))]))) 
-      ; lock sliding
-      :locked) 
+        (dm/append! main-container overlay) 
+        (ui/animate [table row [height :px]]
+                    [overlay :style.bottom [(+ 31 bottom-padding) :px] 
+                     :onend (fn []
+                              (set-message-at-row data row (into message {:row row
+                                                                          :height height}))
+                              (dm/detach! overlay)
+                              (swap! self fsm/send-message :go-to-dispatch))])
+        ; lock sliding
+        :locked) 
+
+      ; else (if table/at? table bottom)
+      (let [height (text-height shadow text)
+            row (table/add-row table)]
+        (ui/animate [table :scroll-bottom [0 :px]]
+                    [table row [height :px]])
+        (set-message-at-row data row (into message {:row row
+                                                    :height height}))
+        :dispatch)) 
 
     ; else (if slide)
     (let [height (text-height shadow text)

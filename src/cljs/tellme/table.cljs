@@ -144,7 +144,7 @@
         message-padding (defdep [table-height message-height] (Math/max 0 (- table-height message-height)))
         content-height (defdep [message-padding message-height] (+ message-padding message-height))
 
-        sticky-bottom (defdep [scroll-topB] (< (- (- @content-height @table-height) scroll-topB) 10))
+        sticky-bottom (defdep [scroll-topB] (< (- (- @content-height @table-height) scroll-topB) 30))
         scroll-top (defdep [table-height content-height]
                            ;(dm/log-debug (str "scroll-top: ch: " content-height ", th: " table-height))
                            (if @sticky-bottom (+ 1 (- content-height table-height)) @scroll-topB))
@@ -165,6 +165,7 @@
         
         align (fn []
                 ;(dm/log-debug (str "align: mp: " @message-padding ", ch: " @content-height ", sb: " @sticky-bottom))
+                (ui/resized this)
                 (dm/set-style! padding :height @message-padding "px")
                 (dm/set-style! content :height @content-height "px")
                 (when @sticky-bottom
@@ -217,7 +218,7 @@
     (dm/append! (dmc/sel "body") table)
     (ui/resized table)
     
-    (js/setInterval
+    (comment js/setInterval
       (fn []
         (loop [i 0]
           (let [index (add-row table)] 

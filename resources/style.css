@@ -216,12 +216,19 @@ body {
   padding-top: 5px;
   padding-bottom: 5px;
   margin-left: -210px;
+  color: #333333;
   bottom: 50px;
   border-top: 1px solid #657b83;
   background-color: transparent;
   resize: none; }
 
 /* --- */
+.local-message {
+  color: #333333; }
+
+.remote-message {
+  color: #666666; }
+
 .quote-text {
   color: #657b83;
   width: 500px;
@@ -242,7 +249,7 @@ body {
   transition: color 200ms ease-in-out; }
 
 .quote-text-inactive {
-  color: #999999; }
+  color: #aaaaaa; }
 
 .quote-text-unselectable {
   -moz-user-select: -moz-none;
@@ -311,6 +318,7 @@ body {
   word-wrap: break-word;
   white-space: pre-wrap;
   overflow: hidden;
+  color: #aa4535;
   width: 100%;
   height: 0px; }
 
@@ -326,6 +334,7 @@ body {
   word-wrap: break-word;
   white-space: pre-wrap;
   overflow: hidden;
+  color: #772253;
   width: 100%;
   height: 0px;
   padding-top: 10px;
