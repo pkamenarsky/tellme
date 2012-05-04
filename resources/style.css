@@ -67,6 +67,10 @@
 body {
   position: absolute; }
 
+a {
+  text-decoration: none;
+  color: #773333; }
+
 .fill {
   position: absolute;
   top: 0px;
@@ -489,6 +493,7 @@ body {
   font-stretch: normal;
   color: #b3b3b3;
   height: 56px;
+  color: #666666;
   font-size: 12px;
   line-height: 15px;
   top: 50%;
@@ -507,6 +512,7 @@ body {
   font-stretch: normal;
   color: #b3b3b3;
   height: 56px;
+  color: #666666;
   font-size: 12px;
   line-height: 15px;
   top: 72px;

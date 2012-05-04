@@ -25,6 +25,20 @@
   (dm/set-text! shadow (if (zero? (.-length text)) "." text))
   (ui/property shadow :offsetHeight))
 
+(defn- linkify [text]
+    (cond
+      (.match text js/url-pattern)
+      (.replace text js/url-pattern "<a href='$1' target='_blank'>$1</a>")
+
+      (.match text js/pseudo-url-pattern)
+      (.replace text js/pseudo-url-pattern "<a href='http://$2' target='_blank'>$1$2</a>") 
+
+      (.match text js/email-pattern)
+      (.replace text js/email-pattern "<a href='mailto:$1' target='_blank'>$1</a>")
+      
+      :else
+      text))
+
 ; Constants ----------------------------------------------------------------
 
 (def help-text "What is this?!<br><br>
@@ -34,7 +48,8 @@
                Find out more on the github page.")
 
 (def quote-help-text "Select text to split quote.<br>
-                     Press Enter to confirm quote.<br>")
+                     Press Enter to confirm quote.<br>
+                     Press Escape to discard quote.")
 
 (def help-width 280)
 (def help-margin 80)
@@ -62,8 +77,8 @@
                     ; FIXME: 20
                     [(+ height qh rh (if (zero? rh) 20 20))
                      (-> rows
-                       (conj (view :div.quote-row nil {:text q :style.height [qh :px]}))
-                       (conj (view :div.retort-row nil {:text r :style.height [rh :px]})))]))
+                       (conj (view :div.quote-row nil {:html (linkify q) :style.height [qh :px]}))
+                       (conj (view :div.retort-row nil {:html (linkify r) :style.height [rh :px]})))]))
                 [0 []] adj-quotes)]
 
     (if-not (empty? rows)
@@ -84,95 +99,96 @@
 (defn- quote-message [{:keys [input main-container quote-overlay table self uuid sid] :as sm}
                       {:keys [text row height]} event]
 
-  (let [event-key (atom nil)
-        static-table (dm/clone table)
-        client-height (.-clientHeight (.-body (dom/getDocument)))
+  (when (not= (fsm/state @self) :end)
+    (let [event-key (atom nil)
+          static-table (dm/clone table)
+          client-height (.-clientHeight (.-body (dom/getDocument)))
 
-        button-background (view :div.button-background-up)
-        button-text (view :div.button-text-up)
-        button-container (view :div.button-container-up [button-background button-text])
+          button-background (view :div.button-background-up)
+          button-text (view :div.button-text-up)
+          button-container (view :div.button-container-up [button-background button-text])
 
-        help (view :div.quote-help nil {:html quote-help-text})
-        help-container (view :div.quote-help-container [help button-container])
+          help (view :div.quote-help nil {:html quote-help-text})
+          help-container (view :div.quote-help-container [help button-container])
 
-        qt (dm/add-class!
-             (qt/create-quote text (fn [qt]
-                                     (events/unlistenByKey @event-key) 
-                                     (swap! self fsm/send-message :go-to-dispatch)
+          qt (dm/add-class!
+               (qt/create-quote text (fn [qt]
+                                       (events/unlistenByKey @event-key) 
+                                       (swap! self fsm/send-message :go-to-dispatch)
 
-                                     (when-let [quotes (qt/get-quotes qt)]
-                                       ; if we actually got some quotes, send message to fsm &
-                                       ; set up chat table to match up with quotes (for cool slide-down
-                                       ; animation)
-                                       (dm/log-debug (str "QUOTES: " (pr-str quotes)))
-                                       (swap! self fsm/send-message {:site :local
-                                                                     :slide false
-                                                                     :quotes quotes}) 
+                                       (when-let [quotes (qt/get-quotes qt)]
+                                         ; if we actually got some quotes, send message to fsm &
+                                         ; set up chat table to match up with quotes (for cool slide-down
+                                         ; animation)
+                                         (dm/log-debug (str "QUOTES: " (pr-str quotes)))
+                                         (swap! self fsm/send-message {:site :local
+                                                                       :slide false
+                                                                       :quotes quotes}) 
 
-                                       (if (zero? (.-length (second (last quotes))))
-                                         ; if last and only retor is empty, do nothing
-                                         (when (> (count quotes) 1)
-                                           (dm/set-style! table :bottom (+ 56 (* client-height 0.3)) "px"))
-                                         (dm/set-style! table :bottom (* client-height 0.3) "px")) 
-                                       (ui/resized table))
+                                         (if (zero? (.-length (second (last quotes))))
+                                           ; if last and only retor is empty, do nothing
+                                           (when (> (count quotes) 1)
+                                             (dm/set-style! table :bottom (+ 56 (* client-height 0.3)) "px"))
+                                           (dm/set-style! table :bottom (* client-height 0.3) "px")) 
+                                         (ui/resized table))
 
-                                     (dm/set-style! main-container :visibility "visible") 
-                                     (ui/animate [table :scroll-bottom 0 :duration 0] 
-                                                 [main-container :style.opacity 1
-                                                  :onend #(do
-                                                            (dm/detach! qt)
-                                                            (dm/detach! help-container)
-                                                            (ui/select input)
-                                                            (ui/animate [table :style.bottom [(+ 28 bottom-padding) :px]]))]
-                                                 [quote-overlay :style.opacity 0
-                                                  :onend #(dm/set-style! quote-overlay :visibility "hidden")])))
-                          "quote-table")
+                                       (dm/set-style! main-container :visibility "visible") 
+                                       (ui/animate [table :scroll-bottom 0 :duration 0] 
+                                                   [main-container :style.opacity 1
+                                                    :onend #(do
+                                                              (dm/detach! qt)
+                                                              (dm/detach! help-container)
+                                                              (ui/select input)
+                                                              (ui/animate [table :style.bottom [(+ 28 bottom-padding) :px]]))]
+                                                   [quote-overlay :style.opacity 0
+                                                    :onend #(dm/set-style! quote-overlay :visibility "hidden")])))
+               "quote-table")
 
-        bottom (+ height (- (table/row-top table row) (table/scroll-top table)))
-        scroll-top (table/scroll-top table)]
+          bottom (+ height (- (table/row-top table row) (table/scroll-top table)))
+          scroll-top (table/scroll-top table)]
 
-    (swap! self fsm/goto :locked)
+      (swap! self fsm/goto :locked)
 
-    ; first hide button
-    (dm/set-style! (.-target event) :visibility "hidden")
+      ; first hide button
+      (dm/set-style! (.-target event) :visibility "hidden")
 
-    ; we append a static copy here so that we don't have to worry about
-    ; any currently running animations
-    (dm/detach! table)
-    (dm/append! main-container static-table)
-    (dm/append! quote-overlay help-container)
+      ; we append a static copy here so that we don't have to worry about
+      ; any currently running animations
+      (dm/detach! table)
+      (dm/append! main-container static-table)
+      (dm/append! quote-overlay help-container)
 
-    (ui/set-property! (first (dm/children static-table)) :scrollTop scroll-top)
+      (ui/set-property! (first (dm/children static-table)) :scrollTop scroll-top)
 
-    (dm/set-style! qt :bottom (- client-height (+ bottom 28)) "px")
-    (dm/set-style! quote-overlay :visibility "visible") 
+      (dm/set-style! qt :bottom (- client-height (+ bottom 28)) "px")
+      (dm/set-style! quote-overlay :visibility "visible") 
 
-    ; fade out main and show quote overlay
-    (ui/animate [main-container :style.opacity 0
-                 :onend #(do
-                           (dm/append! main-container table)
-                           (dm/detach! static-table)
-                           (dm/set-style! main-container :visibility "hidden"))]
-                [quote-overlay :style.opacity 1
-                 :onend #(ui/animate [qt :style.bottom [(* client-height 0.3) :px]])])
+      ; fade out main and show quote overlay
+      (ui/animate [main-container :style.opacity 0
+                   :onend #(do
+                             (dm/append! main-container table)
+                             (dm/detach! static-table)
+                             (dm/set-style! main-container :visibility "hidden"))]
+                  [quote-overlay :style.opacity 1
+                   :onend #(ui/animate [qt :style.bottom [(* client-height 0.3) :px]])])
 
-    ; help button
-    (dme/listen! button-container :click
-                 (fn [event]
-                   (ui/animate [button-container :style.opacity 0 :duration 300]
-                               [button-background :transform.rotate [-180 :deg] :duration 300]
-                               [help-container :style.bottom [-350 :px]])))
+      ; help button
+      (dme/listen! button-container :click
+                   (fn [event]
+                     (ui/animate [button-container :style.opacity 0 :duration 300]
+                                 [button-background :transform.rotate [-180 :deg] :duration 300]
+                                 [help-container :style.bottom [-350 :px]])))
 
-    (dm/append! quote-overlay qt)
-    (ui/resized qt)
-    
-    (reset! event-key (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event]
-                                                                                 (ui/resized qt))))))
+      (dm/append! quote-overlay qt)
+      (ui/resized qt)
+
+      (reset! event-key (events/listen (dom/ViewportSizeMonitor.) evttype/RESIZE (fn [event]
+                                                                                   (ui/resized qt)))))))
 
 (defn set-message-at-row [{:keys [table] :as data} row
                           {:keys [text site height] :as message}]
 
-  (let [msg-container (view :div.message nil {:text text})
+  (let [msg-container (view :div.message nil {:html (linkify text)})
         quote-button (view :div.quote-button)
         
         container (view :div.fill-width [msg-container quote-button] {:style.height [height :px]})]
@@ -260,16 +276,17 @@
             (events/listen (events/KeyHandler. (dm/single-node number2)) "key"
                            (fn [event]
                              (let [code (.-keyCode event)]
-                               (stop-defer @input-defer)
                                (if (or (and (>= code 48) (<= code 57)) (= code keycodes/BACKSPACE))
                                  ; throttling should be done with defdep/defreaction in a FRP style,
                                  ; but since those macros are pretty limited anyway (glitches), we do
                                  ; it the old fashioned way here
-                                 (reset! input-defer
-                                         (defer-later 500
-                                           (when-not (js/isNaN (js/parseInt (dm/value number2)))
-                                             (remote [:command :auth :uuid uuid :sid sid :osid
-                                                      (js/parseInt (dm/value number2))] _))))
+                                 (do
+                                   (stop-defer @input-defer)
+                                   (reset! input-defer
+                                           (defer-later 500
+                                                        (when-not (js/isNaN (js/parseInt (dm/value number2)))
+                                                          (remote [:command :auth :uuid uuid :sid sid :osid
+                                                                   (js/parseInt (dm/value number2))] _))))) 
                                  (.preventDefault event))))))
 
     ; update our internal state

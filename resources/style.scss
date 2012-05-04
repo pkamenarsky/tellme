@@ -9,6 +9,7 @@ $message-margin: 40px;
 $bg-color: #fdf6e3;
 $color: #657b83;
 $light-color: #dddddd;	// fixme
+$link-color: #773333;
 $local-color: #333333;
 $remote-color: #666666;
 $quote-color: #aa4535;
@@ -147,6 +148,11 @@ $bottom-padding: 50px;
 
 body {
 	position: absolute;
+}
+
+a {
+	text-decoration: none;
+	color: $link-color;
 }
 
 .fill {
@@ -454,6 +460,8 @@ body {
 .help {
 	@include label;
 
+	color: $remote-color;
+
 	font-size: 12px;
 	line-height: 15px;
 
@@ -467,6 +475,8 @@ body {
 
 .quote-help {
 	@include label;
+
+	color: $remote-color;
 
 	font-size: 12px;
 	line-height: 15px;
