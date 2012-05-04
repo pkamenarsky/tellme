@@ -45,7 +45,7 @@
                In order to start an ad-hoc conversation with some&shy;body, give them the number presented to you; they should do the same. When you both type in your partner’s unique number, your private con&shy;versation will start.<br>
                &nbsp;&nbsp;Quoting something has never been easier; just click on the quote button next to the message you want to cite, select some text and see what hap&shy;pens.<br><br>
 
-               Find out more on the github page.")
+               Find out more on the <a href='https://github.com/pkamenarsky/tellme' target='_blank'>github</a> page.")
 
 (def quote-help-text "Select text to split quote.<br>
                      Press Enter to confirm quote.<br>

@@ -9,11 +9,11 @@ $message-margin: 40px;
 $bg-color: #fdf6e3;
 $color: #657b83;
 $light-color: #dddddd;	// fixme
-$link-color: #773333;
-$local-color: #333333;
-$remote-color: #666666;
-$quote-color: #aa4535;
-$retort-color: #772253;
+$link-color: #d33682;
+$local-color: #494949;
+$remote-color: #629899;
+$quote-color: #cb4b16;
+$retort-color: #b58900;
 $quote-inactive-color: #aaaaaa;
 $border: 1px solid + " " + $color;
 
@@ -147,6 +147,7 @@ $bottom-padding: 50px;
 /* --- */
 
 body {
+	background-color: $bg-color;
 	position: absolute;
 }
 
@@ -389,6 +390,7 @@ body {
 
 .number2 {
 	@include number;
+	background-color: transparent;
 	margin: 0px;
 	padding: 0px;
 	margin-top: 6px;
@@ -460,7 +462,7 @@ body {
 .help {
 	@include label;
 
-	color: $remote-color;
+	color: $local-color;
 
 	font-size: 12px;
 	line-height: 15px;
@@ -476,7 +478,7 @@ body {
 .quote-help {
 	@include label;
 
-	color: $remote-color;
+	color: $local-color;
 
 	font-size: 12px;
 	line-height: 15px;
