@@ -102,7 +102,7 @@ a {
   opacity: 0; }
 
 .message {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
@@ -119,7 +119,7 @@ a {
   height: 100%; }
 
 .message-overlay {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
@@ -150,7 +150,7 @@ a {
   visibility: hidden; }
 
 .shadow {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
@@ -167,7 +167,7 @@ a {
   top: 1000%; }
 
 .chat-table {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
@@ -185,7 +185,7 @@ a {
   width: 540px; }
 
 .quote-table {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
@@ -204,7 +204,7 @@ a {
   margin-left: -210px; }
 
 .chat-input {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
@@ -223,7 +223,7 @@ a {
   margin-left: -210px;
   color: #494949;
   bottom: 50px;
-  border-top: 1px solid #657b83;
+  border-top: 1px solid #494949;
   background-color: transparent;
   resize: none; }
 
@@ -235,7 +235,7 @@ a {
   color: #629899; }
 
 .quote-text {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
@@ -254,7 +254,7 @@ a {
   transition: color 200ms ease-in-out; }
 
 .quote-text-inactive {
-  color: #aaaaaa; }
+  color: #93a1a1; }
 
 .quote-text-unselectable {
   -moz-user-select: -moz-none;
@@ -264,7 +264,7 @@ a {
   user-select: none; }
 
 .quote-marker {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
@@ -278,7 +278,7 @@ a {
   position: absolute; }
 
 .retort-input {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
@@ -297,7 +297,7 @@ a {
   padding-bottom: 10px; }
 
 .quote-shadow {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
@@ -312,7 +312,7 @@ a {
   top: 1000%; }
 
 .quote-row {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
@@ -328,7 +328,7 @@ a {
   height: 0px; }
 
 .retort-row {
-  color: #657b83;
+  color: #494949;
   width: 500px;
   line-height: 18px;
   font-family: Helvetica;
