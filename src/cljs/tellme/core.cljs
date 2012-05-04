@@ -470,7 +470,7 @@
 
 (comet/set-comet-error-callback! (fn [] (swap! sm fsm/goto :end)))
 
-(events/listen js/window evttype/LOAD #(defer
+(events/listen js/window evttype/LOAD #(defer-later 100
                                          (reset! sm (-> @sm
                                                       (fsm/merge-data {:self sm})
                                                       (fsm/goto :start))) 
